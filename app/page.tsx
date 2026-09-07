@@ -1,10 +1,11 @@
 import {
   ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Check, Code2,
-  Database, FileStack, Gauge, Layers3, MapPin, Network, RotateCcw, Terminal,
+  Gauge, Layers3, MapPin, Network,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteNavigation, PageEffects } from "./site-navigation";
 import { WaveCanvas } from "./wave-canvas";
+import { RadishArchitecture } from "./radish-architecture";
 import { contact, experience, expertise, leadership, projectOutcomes, proofPoints, stackGroups } from "./portfolio-content";
 
 function SectionIntro({ number, label, title, description, id }: {
@@ -36,7 +37,7 @@ export default function Home() {
           <div className="shell hero-inner">
             <div className="hero-copy">
               <p className="hero-kicker"><span className="accent-dot" />Okan Can Özbek / Backend & systems engineer</p>
-              <h1 id="hero-title">Complexity.<br /><span>Under control.</span></h1>
+              <h1 id="hero-title"><span className="hero-title-main">Complexity.</span><span className="hero-title-finish">Under control.</span></h1>
               <div className="hero-support"><p className="hero-description">I build the systems you don’t see.<br />And the reliability you do.</p><p className="hero-context">From the first byte to global scale.<br />Architecture, performance, and everything in between.</p></div>
               <div className="hero-actions">
                 <Button asChild className="button button-signal"><a href="#work">Explore my work<ArrowDownRight aria-hidden="true" /></a></Button>
@@ -79,19 +80,7 @@ export default function Home() {
                 <TechList items={["C++23", "Asio", "CMake", "TCP"]} />
                 <Button asChild className="button button-dark"><a href={contact.radish} target="_blank" rel="noreferrer">Explore on GitHub<ArrowUpRight aria-hidden="true" /></a></Button>
               </div>
-              <div className="project-system">
-                <div className="system-header"><span>RADISH</span><span>Persistence architecture</span></div>
-                <div className="system-flow" role="img" aria-label="Radish architecture: redis-cli connects to an Asio TCP server, which accesses a TTL-aware in-memory store with append-only persistence and crash replay.">
-                  <div className="system-node system-client"><Terminal aria-hidden="true" /><span>redis-cli<small>RESP2 / RESP3</small></span></div>
-                  <div className="flow-connector" aria-hidden="true"><ArrowDown /></div>
-                  <div className="system-node system-server"><Network aria-hidden="true" /><span>Asio TCP server<small>Nonblocking connections</small></span></div>
-                  <div className="flow-connector" aria-hidden="true"><ArrowDown /></div>
-                  <div className="system-node system-store"><Database aria-hidden="true" /><span>In-memory store<small>TTL-aware · Concurrent readers</small></span><span className="node-status" aria-hidden="true" /></div>
-                  <div className="flow-connector" aria-hidden="true"><ArrowDown /></div>
-                  <div className="system-persistence"><div><FileStack aria-hidden="true" /><span>Append-only log<small>Durable writes</small></span></div><div><RotateCcw aria-hidden="true" /><span>Crash replay<small>Deterministic recovery</small></span></div></div>
-                </div>
-                <p className="system-caption">Correctness across restarts, not just while running.</p>
-              </div>
+              <RadishArchitecture />
             </article>
             <div className="outcomes-header"><span>Selected production work</span><span>Performance. Reliability. Delivery.</span></div>
             <div className="outcomes-grid">{projectOutcomes.map((project, index) => <article className="outcome-card" key={project.title} data-reveal><p className="outcome-company"><span>0{index + 2}</span>{project.company}</p><div className="outcome-result"><strong>{project.result}</strong><span>{project.resultLabel}</span></div><div className="outcome-copy"><h3>{project.title}</h3><p className="outcome-description">{project.copy}</p><TechList items={project.stack} /></div></article>)}</div>

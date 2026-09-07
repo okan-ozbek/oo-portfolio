@@ -48,14 +48,14 @@ const fragmentSource = `
     float phase = field * 5.2;
     float fold = 0.5 + 0.5 * sin(phase);
 
-    vec3 ink = vec3(0.051, 0.063, 0.055);
-    vec3 signal = vec3(0.776, 0.945, 0.384);
-    vec3 paper = vec3(0.94, 0.97, 0.89);
+    vec3 ink = vec3(0.071, 0.067, 0.078);
+    vec3 signal = vec3(1.0, 0.0, 0.0);
+    vec3 paper = vec3(0.957, 0.949, 0.933);
 
-    // A dark folded field with a precise lime edge and pale reflection.
+    // The signature red folds through ink, with a narrow silver reflection.
     float body = smoothstep(0.10, 0.93, fold);
     float light = 0.76 + 0.24 * sin(p.y * 2.2 - t * 0.3 + 1.0);
-    vec3 color = mix(ink, signal * light * 0.65, pow(body, 2.4));
+    vec3 color = mix(ink, signal * light * 0.88, pow(body, 2.0));
     float reflection = pow(0.5 + 0.5 * sin(phase + 0.53), 42.0);
     color = mix(color, paper, reflection * 0.8);
     float contour = pow(0.5 + 0.5 * sin(phase + 0.63), 160.0);
