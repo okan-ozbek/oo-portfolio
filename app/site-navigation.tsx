@@ -38,19 +38,21 @@ export function SiteNavigation() {
             if (temporaryTabIndex) target.addEventListener("blur", () => target.removeAttribute("tabindex"), { once: true });
           }}>
             <div className="mobile-menu-top">
-              <SheetTitle>{contact.name}</SheetTitle>
+              <SheetTitle className="menu-brand">{contact.name}</SheetTitle>
               <SheetClose asChild><Button variant="ghost" className="menu-close" aria-label="Close navigation"><X aria-hidden="true" /></Button></SheetClose>
             </div>
             <SheetDescription className="mobile-menu-description">Backend & systems engineering</SheetDescription>
             <nav aria-label="Portfolio sections">
               {navigation.map((item, index) => (
                 <a key={item.href} href={item.href} onClick={() => navigate(item.href)}>
-                  <span>0{index + 1}</span>{item.label}<ArrowUpRight aria-hidden="true" />
+                  <span className="menu-link-number">0{index + 1}</span><span className="menu-link-title">{item.label}</span><ArrowUpRight aria-hidden="true" />
                 </a>
               ))}
             </nav>
-            <a className="mobile-menu-contact" href="#contact" onClick={() => navigate("#contact")}>Let’s talk<ArrowUpRight aria-hidden="true" /></a>
-            <a className="mobile-menu-email" href={`mailto:${contact.email}`}>{contact.email}</a>
+            <div className="menu-footer">
+              <a className="mobile-menu-contact" href="#contact" onClick={() => navigate("#contact")}>Let’s talk<ArrowUpRight aria-hidden="true" /></a>
+              <a className="mobile-menu-email" href={`mailto:${contact.email}`}>{contact.email}<ArrowUpRight aria-hidden="true" /></a>
+            </div>
           </SheetContent>
         </Sheet>
       </div>
