@@ -3,8 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { contact, navigation } from "./portfolio-content";
+
+function PixelwareWordmark() {
+  return <span className="pixelware-brand"><span className="pixelware-logo" aria-hidden="true" /><span>Pixelware<span className="pixelware-period">.</span></span></span>;
+}
 
 export function SiteNavigation() {
   const [open, setOpen] = useState(false);
@@ -16,9 +20,8 @@ export function SiteNavigation() {
   return (
     <header className="site-header">
       <div className="nav-shell">
-        <a className="wordmark" href="#top" aria-label={`${contact.name}, back to top`}>
-          <span className="wordmark-symbol" aria-hidden="true">o.</span>
-          <span>{contact.name}</span>
+        <a className="wordmark" href="#top" aria-label="Pixelware, back to top">
+          <PixelwareWordmark />
         </a>
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
@@ -26,7 +29,7 @@ export function SiteNavigation() {
               <span>Menu</span><Menu aria-hidden="true" />
             </Button>
           </SheetTrigger>
-          <SheetContent className="mobile-menu" showCloseButton={false} onCloseAutoFocus={(event) => {
+          <SheetContent className="mobile-menu" aria-describedby={undefined} showCloseButton={false} onCloseAutoFocus={(event) => {
             const target = navigationTarget.current;
             navigationTarget.current = null;
             if (!target) return;
@@ -38,10 +41,9 @@ export function SiteNavigation() {
             if (temporaryTabIndex) target.addEventListener("blur", () => target.removeAttribute("tabindex"), { once: true });
           }}>
             <div className="mobile-menu-top">
-              <SheetTitle className="menu-brand">{contact.name}</SheetTitle>
+              <SheetTitle className="menu-brand"><PixelwareWordmark /></SheetTitle>
               <SheetClose asChild><Button variant="ghost" className="menu-close" aria-label="Close navigation"><X aria-hidden="true" /></Button></SheetClose>
             </div>
-            <SheetDescription className="mobile-menu-description">Backend & systems engineering</SheetDescription>
             <nav aria-label="Portfolio sections">
               {navigation.map((item, index) => (
                 <a key={item.href} href={item.href} onClick={() => navigate(item.href)}>

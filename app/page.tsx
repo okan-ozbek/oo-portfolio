@@ -36,7 +36,6 @@ export default function Home() {
           <div className="shell hero-inner">
             <SiteNavigation />
             <div className="hero-copy">
-              <p className="hero-kicker"><span className="accent-dot" />Okan Can Özbek / Backend & systems engineer</p>
               <div className="hero-title-row">
                 <h1 id="hero-title"><span className="hero-title-main">Complexity.</span><span className="hero-title-finish">Under control.</span></h1>
                 <div className="hero-art-caption" aria-hidden="true"><span className="signal-cross">+</span><span>FIELD NOTES — 001<br />Order, from complexity.</span><span className="signal-cross">+</span></div>
@@ -75,7 +74,7 @@ export default function Home() {
             <article className="featured-project" data-reveal>
               <div className="feature-bokeh" aria-hidden="true"><span className="bokeh-orb bokeh-orb--carmine" /><span className="bokeh-orb bokeh-orb--ash" /><span className="bokeh-orb bokeh-orb--sand" /></div>
               <div className="featured-copy">
-                <p className="overline"><span className="accent-dot" />01 / Independent engineering · C++23</p>
+                <p className="overline">01 / Independent engineering · C++23</p>
                 <h3>Radish</h3>
                 <p className="featured-subtitle">Fast in memory.<br />Persistent by design.</p>
                 <p className="featured-description">A Redis-inspired key-value store built around TTL-aware data, durable persistence, and deterministic crash recovery.</p>
@@ -104,7 +103,7 @@ export default function Home() {
         <section className="section leadership-section" id="entrepreneurship" aria-labelledby="leadership-title">
           <div className="shell">
             <SectionIntro number="04" label="The responsibility" id="leadership-title" title="Build the system. Bring the team." description="Good architecture needs shared understanding. In independent and founding roles, I connect technical decisions to the people who deliver them." />
-            <div className="leadership-grid">{leadership.map((item) => <article className="leadership-card" key={item.company} data-reveal><div className="leadership-card-top"><span className="role-type">{item.type}</span><span>{item.years}</span></div><h3>{item.company}</h3><p className="leadership-role">{item.role}</p><p className="leadership-location">{item.location}</p><p className="leadership-summary">{item.summary}</p><ul className="contribution-list">{item.contributions.map((point) => <li key={point}>{point}</li>)}</ul></article>)}</div>
+            <div className="leadership-grid">{leadership.map((item) => <article className="leadership-card" key={item.company} data-reveal><div className="leadership-card-top"><span>{item.years}</span></div><h3>{item.company}</h3><p className="leadership-role">{item.role}</p><p className="leadership-location">{item.location}</p><p className="leadership-summary">{item.summary}</p><ul className="contribution-list">{item.contributions.map((point) => <li key={point}>{point}</li>)}</ul></article>)}</div>
           </div>
         </section>
 
