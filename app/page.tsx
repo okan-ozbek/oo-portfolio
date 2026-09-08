@@ -37,14 +37,16 @@ export default function Home() {
             <SiteNavigation />
             <div className="hero-copy">
               <p className="hero-kicker"><span className="accent-dot" />Okan Can Özbek / Backend & systems engineer</p>
-              <h1 id="hero-title"><span className="hero-title-main">Complexity.</span><span className="hero-title-finish">Under control.</span></h1>
+              <div className="hero-title-row">
+                <h1 id="hero-title"><span className="hero-title-main">Complexity.</span><span className="hero-title-finish">Under control.</span></h1>
+                <div className="hero-art-caption" aria-hidden="true"><span className="signal-cross">+</span><span>FIELD NOTES — 001<br />Order, from complexity.</span><span className="signal-cross">+</span></div>
+              </div>
               <div className="hero-support"><p className="hero-description">I build the systems you don’t see.<br />And the reliability you do.</p><p className="hero-context">From the first byte to global scale.<br />Architecture, performance, and everything in between.</p></div>
               <div className="hero-actions">
                 <Button asChild className="button button-signal"><a href="#work">Explore my work<ArrowDownRight aria-hidden="true" /></a></Button>
                 <Button asChild variant="ghost" className="button button-outline-light"><a href="#contact">Let’s talk<ArrowUpRight aria-hidden="true" /></a></Button>
               </div>
             </div>
-            <div className="hero-art-caption" aria-hidden="true"><span className="signal-cross">+</span><span>FIELD NOTES — 001<br />Order, from complexity.</span><span className="signal-cross">+</span></div>
             <div className="hero-bottom">
               <p><MapPin aria-hidden="true" />Amsterdam, Netherlands</p>
               <p className="hero-focus">Distributed systems <span>/</span> Reliability <span>/</span> Performance</p>
