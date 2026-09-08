@@ -43,7 +43,7 @@ Linux-specific utilities; see the original `README.md` for those details.
 | `app/globals.css` | Red/ink/ivory palette, typography, spacing, canvas clipping, and responsive layouts |
 | `app/radish-architecture.tsx` | Radish diagram, feature-wide pointer tilt, ambient bokeh, pause control, and reduced-motion handling |
 | `app/wave-canvas.tsx` | WebGL ribbon background, motion speed, pause controls, and reduced-motion behavior |
-| `app/site-navigation.tsx` | Desktop/mobile navigation, reading progress, and section reveal transitions |
+| `app/site-navigation.tsx` | Static hero header, accessible hamburger navigation, and section reveal transitions |
 | `app/layout.tsx` | Page title, description, and favicon settings |
 | `public/icons/` | Local technology SVGs and their Devicon license |
 | `public/images/` | Original artwork assets retained in the repository |

@@ -28,13 +28,13 @@ export default function Home() {
   return (
     <>
       <a className="skip-link" href="#main-content">Skip to content</a>
-      <SiteNavigation />
       <PageEffects />
       <main id="main-content">
         <section className="hero" id="top" aria-labelledby="hero-title">
           <WaveCanvas variant="hero" />
           <div className="hero-scrim" aria-hidden="true" />
           <div className="shell hero-inner">
+            <SiteNavigation />
             <div className="hero-copy">
               <p className="hero-kicker"><span className="accent-dot" />Okan Can Özbek / Backend & systems engineer</p>
               <h1 id="hero-title"><span className="hero-title-main">Complexity.</span><span className="hero-title-finish">Under control.</span></h1>
