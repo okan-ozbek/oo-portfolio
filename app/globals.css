@@ -526,7 +526,8 @@ ul { padding: 0; margin: 0; list-style: none; }
 .hero h1 > span { display: block; }
 .hero h1 .hero-title-main { font-family: var(--poster-font); font-weight: 900; font-size: clamp(5rem, 13.6vw, 13.5rem); line-height: .83; letter-spacing: -.035em; text-transform: uppercase; color: var(--paper); }
 .hero h1 .hero-title-finish { font-family: var(--editorial-font); font-weight: 400; font-style: italic; font-size: clamp(4.5rem, 9.5vw, 9.5rem); line-height: 1.04; letter-spacing: -.045em; color: var(--signal); }
-.hero-art-caption { top: 67%; }
+.hero-title-row { position: relative; }
+.hero-art-caption { top: 50%; transform: translateY(-50%); }
 .section-intro h2 { font-weight: 900; }
 .expertise-section .section-intro h2 { max-width: 20ch; }
 .proof-item strong { font-weight: 800; }
