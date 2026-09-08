@@ -28,13 +28,13 @@ export default function Home() {
   return (
     <>
       <a className="skip-link" href="#main-content">Skip to content</a>
-      <SiteNavigation />
       <PageEffects />
       <main id="main-content">
         <section className="hero" id="top" aria-labelledby="hero-title">
           <WaveCanvas variant="hero" />
           <div className="hero-scrim" aria-hidden="true" />
           <div className="shell hero-inner">
+            <SiteNavigation />
             <div className="hero-copy">
               <p className="hero-kicker"><span className="accent-dot" />Okan Can Özbek / Backend & systems engineer</p>
               <h1 id="hero-title"><span className="hero-title-main">Complexity.</span><span className="hero-title-finish">Under control.</span></h1>
@@ -71,6 +71,7 @@ export default function Home() {
           <div className="shell">
             <SectionIntro number="02" label="The evidence" id="projects-title" title="Less friction. More possibility." description="The approach becomes tangible here. A database built from first principles. Faster search. Integrations that recover when the network doesn’t cooperate." />
             <article className="featured-project" data-reveal>
+              <div className="feature-bokeh" aria-hidden="true"><span className="bokeh-orb bokeh-orb--carmine" /><span className="bokeh-orb bokeh-orb--ash" /><span className="bokeh-orb bokeh-orb--sand" /></div>
               <div className="featured-copy">
                 <p className="overline"><span className="accent-dot" />01 / Independent engineering · C++23</p>
                 <h3>Radish</h3>
