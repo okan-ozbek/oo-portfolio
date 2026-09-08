@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// Four times the original motion rate, with time measured only while visible.
-const MOTION_RATE = 4;
+// Slow, continuous movement; time advances only while this panel is visible.
+const MOTION_RATE = 1.2;
 const MAX_PIXELS = 1_200_000;
 
 const vertexSource = `
@@ -48,20 +48,22 @@ const fragmentSource = `
     float phase = field * 5.2;
     float fold = 0.5 + 0.5 * sin(phase);
 
-    vec3 ink = vec3(0.0353);
-    vec3 red = vec3(1.0, 0.1647, 0.1020);
-    vec3 paper = vec3(0.9569, 0.9412, 0.9098);
+    vec3 ink = vec3(0.071, 0.067, 0.078);
+    vec3 signal = vec3(1.0, 0.0, 0.0);
+    vec3 paper = vec3(0.957, 0.949, 0.933);
 
-    // Broad red ribbons, deep shadow, and a narrow ivory reflection at the fold.
+    // The signature red folds through ink, with a narrow silver reflection.
     float body = smoothstep(0.10, 0.93, fold);
     float light = 0.76 + 0.24 * sin(p.y * 2.2 - t * 0.3 + 1.0);
-    vec3 color = mix(ink, red * light, pow(body, 1.35));
+    vec3 color = mix(ink, signal * light * 0.88, pow(body, 2.0));
     float reflection = pow(0.5 + 0.5 * sin(phase + 0.53), 42.0);
-    color = mix(color, paper, reflection * 0.68);
+    color = mix(color, paper, reflection * 0.8);
+    float contour = pow(0.5 + 0.5 * sin(phase + 0.63), 160.0);
+    color = mix(color, signal, contour * 0.9);
     float fineFold = pow(0.5 + 0.5 * sin(phase - 0.30), 18.0);
     color *= 1.0 - 0.26 * fineFold;
 
-    // Keep the red brightest on the right; the page supplies a text-area scrim.
+    // Keep the field brightest on the right; the page supplies a reading scrim.
     float lightField = mix(0.48, 1.0, smoothstep(0.10, 0.82, uv.x));
     color *= lightField;
     color += (hash(gl_FragCoord.xy) - 0.5) * 0.012;

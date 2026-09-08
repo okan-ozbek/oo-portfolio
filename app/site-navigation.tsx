@@ -32,11 +32,35 @@ export function SiteNavigation() {
           <a className="mobile-menu-email" href={`mailto:${contact.email}`}>{contact.email}</a>
         </SheetContent>
       </Sheet></div>
-    </div></header>
+    </div><div className="reading-progress" aria-hidden="true" /></header>
   );
 }
 
 export function PageEffects() {
+  useEffect(() => {
+    const progress = document.querySelector<HTMLElement>(".reading-progress");
+    if (!progress) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const distance = document.documentElement.scrollHeight - window.innerHeight;
+      const fraction = distance > 0 ? Math.min(1, Math.max(0, window.scrollY / distance)) : 0;
+      progress.style.transform = `scaleX(${fraction})`;
+    };
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    const resize = typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : null;
+    resize?.observe(document.body);
+    update();
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      resize?.disconnect();
+    };
+  }, []);
+
   useEffect(() => {
     if (!("IntersectionObserver" in window)) return;
     const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
