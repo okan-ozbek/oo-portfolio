@@ -245,6 +245,6 @@ export function WaveCanvas({ variant = "hero" }: { variant?: "hero" | "footer" }
 
   return <>
     <div className={`wave-background wave-background--${variant}`} aria-hidden="true"><canvas ref={canvasRef} className="wave-canvas" style={{ opacity: available ? 1 : 0 }} /></div>
-    {available && <Button variant="ghost" className="motion-toggle" aria-label={`${paused ? "Resume" : "Pause"} ${variant === "hero" ? "hero" : "contact"} background animation`} aria-pressed={paused} onClick={() => setPaused((value) => !value)}>{paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}<span>{paused ? "Resume motion" : "Pause motion"}</span></Button>}
+    {available && <Button variant="ghost" size="icon" className="motion-toggle" aria-label={`${paused ? "Resume" : "Pause"} ${variant === "hero" ? "hero" : "contact"} background animation`} title={paused ? "Resume motion" : "Pause motion"} aria-pressed={paused} onClick={() => setPaused((value) => !value)}>{paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}</Button>}
   </>;
 }
