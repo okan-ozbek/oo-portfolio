@@ -13,16 +13,18 @@ export function RadishArchitecture() {
   useEffect(() => {
     const card = cardRef.current;
     if (!card) return;
+    const ambientSurface = stageRef.current?.closest<HTMLElement>(".featured-project") ?? card;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let visible = false;
     const update = () => {
       card.dataset.bokehRunning = String(visible && !ambientPaused && !reducedMotion.matches && document.visibilityState === "visible");
+      ambientSurface.dataset.bokehRunning = card.dataset.bokehRunning;
     };
     const observer = typeof IntersectionObserver !== "undefined" ? new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting;
       update();
     }) : null;
-    if (observer) observer.observe(card);
+    if (observer) observer.observe(ambientSurface);
     else visible = true;
     update();
     document.addEventListener("visibilitychange", update);
@@ -32,6 +34,7 @@ export function RadishArchitecture() {
       document.removeEventListener("visibilitychange", update);
       reducedMotion.removeEventListener("change", update);
       delete card.dataset.bokehRunning;
+      delete ambientSurface.dataset.bokehRunning;
     };
   }, [ambientPaused]);
 
@@ -91,7 +94,6 @@ export function RadishArchitecture() {
   return (
     <div className="radish-holo-stage" ref={stageRef}>
       <div className="radish-holo-card" ref={cardRef}>
-        <div className="holo-bokeh" aria-hidden="true"><span className="bokeh-orb bokeh-orb--carmine" /><span className="bokeh-orb bokeh-orb--ash" /><span className="bokeh-orb bokeh-orb--sand" /></div>
         <div className="holo-card-content">
           <div className="holo-header"><span className="holo-mark">r.</span><span>RADISH / SYSTEM MAP<span className="holo-edition">In memory. On disk. After restart.</span></span><span className="holo-serial">01</span></div>
           <div className="radish-diagram" role="img" aria-label="Radish persistence architecture: redis-cli uses RESP2 or RESP3 to connect to the nonblocking Asio TCP server. The server accesses a TTL-aware in-memory store with concurrent readers. Writes go to an append-only log. On restart, crash replay restores the in-memory state from the log.">

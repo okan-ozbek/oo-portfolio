@@ -10,15 +10,31 @@ export function SiteNavigation() {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState("");
   useEffect(() => {
-    if (!("IntersectionObserver" in window)) return;
-    const observer = new IntersectionObserver((entries) => {
-      for (const entry of entries) if (entry.isIntersecting) setActive(`#${entry.target.id}`);
-    }, { rootMargin: "-18% 0px -62% 0px", threshold: 0 });
-    document.querySelectorAll("main > section[id]").forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
+    const sections = Array.from(document.querySelectorAll<HTMLElement>("main > section[id]"));
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const readingLine = Math.min(window.innerHeight * 0.28, 240);
+      let current = sections[0];
+      for (const section of sections) {
+        if (section.getBoundingClientRect().top <= readingLine) current = section;
+        else break;
+      }
+      if (current) setActive(`#${current.id}`);
+    };
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
+    update();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+    };
   }, []);
+  const lightSurface = ["#expertise", "#experience", "#entrepreneurship"].includes(active);
   return (
-    <header className="site-header"><div className="nav-shell">
+    <header className="site-header" data-surface={lightSurface ? "light" : "dark"}><div className="nav-shell">
       <a className="wordmark" href="#top" aria-label={`${contact.name}, back to top`}><span className="wordmark-symbol" aria-hidden="true">o.</span><span>{contact.name}</span></a>
       <nav className="desktop-nav" aria-label="Portfolio sections">{navigation.map((item) => <a key={item.href} href={item.href} aria-current={active === item.href ? "location" : undefined}>{item.label}</a>)}</nav>
       <a className="nav-contact" href="#contact">Let’s talk<ArrowUpRight aria-hidden="true" /></a>

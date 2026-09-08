@@ -71,6 +71,7 @@ export default function Home() {
           <div className="shell">
             <SectionIntro number="02" label="The evidence" id="projects-title" title="Less friction. More possibility." description="The approach becomes tangible here. A database built from first principles. Faster search. Integrations that recover when the network doesn’t cooperate." />
             <article className="featured-project" data-reveal>
+              <div className="feature-bokeh" aria-hidden="true"><span className="bokeh-orb bokeh-orb--carmine" /><span className="bokeh-orb bokeh-orb--ash" /><span className="bokeh-orb bokeh-orb--sand" /></div>
               <div className="featured-copy">
                 <p className="overline"><span className="accent-dot" />01 / Independent engineering · C++23</p>
                 <h3>Radish</h3>
