@@ -3,7 +3,9 @@ FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
 COPY package.json package-lock.json .npmrc ./
-RUN npm ci --include=dev
+# Keep downloaded packages across retries and show network/install-script progress.
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --include=dev --cache=/root/.npm --prefer-offline --loglevel=info --foreground-scripts
 COPY . .
 RUN npm run build:static
 

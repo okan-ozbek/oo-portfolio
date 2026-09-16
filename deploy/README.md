@@ -59,6 +59,15 @@ Docker is not installed in the development environment where this setup was prep
 
 ## Updating and stopping
 
+If a build appears stuck during dependency installation, use plain build output:
+
+```sh
+docker compose --progress plain build portfolio
+docker compose up -d
+```
+
+The Dockerfile logs npm downloads and dependency install scripts. A BuildKit cache mount preserves downloaded packages between attempts, including when an install fails. The initial download still depends on VPS network speed and resources. Share the last npm log lines if it repeatedly retries or stops progressing; elapsed time alone does not identify the cause.
+
 After bringing the latest source onto the VPS:
 
 ```sh
