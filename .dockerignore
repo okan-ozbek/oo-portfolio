@@ -1,6 +1,5 @@
 .git
-.openai/*
-!.openai/hosting.json
+.openai
 .agents
 .codex
 .sites-runtime

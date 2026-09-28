@@ -1,3 +1,10 @@
+/**
+ * Site navigation component for the portfolio website.
+ * 
+ * Currently taken from the portfolio content module. 
+ * Can be reapplied when needed.
+ */
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";

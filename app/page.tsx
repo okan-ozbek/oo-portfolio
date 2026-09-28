@@ -34,7 +34,6 @@ export default function Home() {
           <WaveCanvas variant="hero" />
           <div className="hero-scrim" aria-hidden="true" />
           <div className="shell hero-inner">
-            <SiteNavigation />
             <div className="hero-copy">
               <div className="hero-title-row">
                 <h1 id="hero-title"><span className="hero-title-main">Complexity.</span><span className="hero-title-finish">Under control.</span></h1>
@@ -111,7 +110,7 @@ export default function Home() {
           <div className="shell">
             <SectionIntro number="05" label="The toolkit" id="skills-title" title="Different layers. One connected practice." description="From memory and protocols to services and infrastructure. I choose tools around the problem, with correctness and operability as the constants." />
             <div className="stack-grid">{stackGroups.map((group, index) => <article className="stack-card" key={group.title} data-reveal><div className="stack-card-heading"><span className="stack-number">0{index + 1}</span><div><h3>{group.title}</h3><p>{group.description}</p><p className="stack-detail">{group.detail}</p></div></div><ul className="tool-grid">{group.tools.map((tool) => <li key={tool.name}><span className="tool-logo" aria-hidden="true"><img src={`/icons/${tool.icon}.svg`} alt="" width="28" height="28" loading="lazy" /></span><span>{tool.name}</span></li>)}</ul></article>)}</div>
-            <div className="personal-strip" data-reveal><div><span className="overline">In conversation</span><p>Dutch <span>Native</span><i aria-hidden="true" />English <span>Fluent</span></p></div><div><span className="overline">Beyond work</span><p>Guitar · Hiking · Gaming</p><span className="personal-interests">Graphics programming · Trading systems</span></div></div>
+            <div className="personal-strip" data-reveal><div><span className="overline">In conversation</span><p>Dutch <span>Native</span><i aria-hidden="true" />English <span>Fluent</span></p></div><div><span className="overline">Beyond work</span><p>Guitar · Hiking · Travel</p><span className="personal-interests">Graphics programming · Trading systems</span></div></div>
           </div>
         </section>
 

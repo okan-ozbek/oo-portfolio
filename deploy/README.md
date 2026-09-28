@@ -98,8 +98,8 @@ npm run build:static
 npm run test:static
 ```
 
-The export is in `dist/client/`. Serve only that directory; `dist/server/` is an intermediate build artifact. Node is used only during the image build. The usual Sites development/build commands retain their original behavior. `build:static` uses the prerender runner from the pinned vinext version; rerun export tests when upgrading it.
+The export is in `dist/client/`. Serve only that directory; `dist/server/` is an intermediate build artifact. Node is used only during the image build. `build:static` uses the prerender runner from the pinned vinext version; rerun export tests when upgrading it.
 
-Hashed `/assets/` files receive a one-year cache lifetime. HTML, RSC and unversioned files revalidate so updates appear promptly. Unknown routes and missing scripts return 404. The existing Google Fonts stylesheet still loads from Google; the runtime otherwise requires no server API, database or Cloudflare binding. New server actions, authentication or dynamic API routes would need a server-backed deployment instead of this static container.
+Hashed `/assets/` files receive a one-year cache lifetime. HTML, RSC and unversioned files revalidate so updates appear promptly. Unknown routes and missing scripts return 404. The existing Google Fonts stylesheet still loads from Google; the runtime otherwise requires no server API or database. New server actions, authentication or dynamic API routes would need a server-backed deployment instead of this static container.
 
 References: [Caddy automatic HTTPS](https://caddyserver.com/docs/automatic-https), [Caddy Docker image and persistent storage](https://hub.docker.com/_/caddy), [NGINX Docker documentation](https://docs.nginx.com/nginx/admin-guide/installing-nginx/installing-nginx-docker/).
