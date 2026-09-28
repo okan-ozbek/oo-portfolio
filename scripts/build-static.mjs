@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { validateStaticExport } from "./validate-static-export.mjs";
+import { generateSitemap } from "./generate-sitemap.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 process.env.PIXELWARE_STATIC_EXPORT = "1";
@@ -11,5 +12,6 @@ await builder.buildApp();
 // This internal runner belongs to the exact vinext version pinned in our lockfile.
 const { runPrerender } = await import(new URL("./build/run-prerender.js", import.meta.resolve("vinext")));
 await runPrerender({ root });
+await generateSitemap(new URL("../dist/client/", import.meta.url));
 await validateStaticExport(new URL("../dist/client/", import.meta.url));
 console.log("Static site ready in dist/client/ (validated for NGINX).");

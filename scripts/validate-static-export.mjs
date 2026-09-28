@@ -12,7 +12,7 @@ export async function validateStaticExport(directory) {
   assert.match(html, /Radish/);
   assert.equal([...html.matchAll(/<canvas\b/g)].length, 2, "Both animated panels must be exported");
   assert.match(html, /<script[^>]*>import\("\/assets\/[^"\s]+\.js"\)<\/script>/, "Client hydration bundle is required");
-  const assets = new Set(["/favicon.svg", "/pixelware-logo.svg", "/index.rsc", "/404.html"]);
+  const assets = new Set(["/favicon.svg", "/pixelware-logo.svg", "/index.rsc", "/404.html", "/sitemap.xml", "/robots.txt"]);
   for (const match of html.matchAll(/(?:src|href)="(\/[^"#]+)"/g)) assets.add(match[1].split("?")[0]);
   for (const match of html.matchAll(/import\("(\/assets\/[^"\s]+\.js)"\)/g)) assets.add(match[1]);
   for (const url of assets) {
