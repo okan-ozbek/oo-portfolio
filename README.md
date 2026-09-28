@@ -26,6 +26,8 @@ npm start
 
 Only `dist/client/` is public website output. `dist/server/` is an intermediate prerender artifact, not a production server to deploy.
 
+Each build generates `dist/client/sitemap.xml` for `https://pixelware.nl/`. The portfolio is a single page, so section anchors are not listed separately. `public/robots.txt` advertises the sitemap. When adding pages, update the canonical URL list in `scripts/generate-sitemap.mjs`. The generated sitemap is available in the built preview (`npm start`) and Docker deployment; `npm run dev` does not generate it. No build-time timestamp is used as a misleading content modification date.
+
 ## VPS deployment
 
 Point `pixelware.nl` to your VPS, allow TCP ports 80 and 443, then run:
