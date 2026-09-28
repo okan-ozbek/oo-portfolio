@@ -1,5 +1,9 @@
 # vinext-starter
 
+## VPS deployment with Docker and NGINX
+
+Point `pixelware.nl` to your VPS, allow ports 80 and 443, then run `docker compose up -d --build` to serve the portfolio at **https://pixelware.nl**. NGINX serves the website and a Caddy container handles Let's Encrypt certificates, automatic renewal, and HTTP-to-HTTPS redirects. Only Docker Engine and Docker Compose are needed on the VPS. See [the VPS deployment guide](deploy/README.md) for DNS, verification, and updates. Node and Cloudflare are not required at runtime.
+
 A clean full-stack starter running on [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and Drizzle support.
 
 ## Prerequisites

@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  ...(process.env.PIXELWARE_STATIC_EXPORT === "1" ? { output: "export" as const } : {}),
 };
 
 export default nextConfig;
