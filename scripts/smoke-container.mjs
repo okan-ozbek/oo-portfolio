@@ -42,6 +42,14 @@ const rsc = await request("/index.rsc");
 assert.equal(rsc.status, 200);
 assert.match(rsc.headers.get("content-type") ?? "", /text\/x-component/);
 await rsc.arrayBuffer();
+const sitemap = await request("/sitemap.xml");
+assert.equal(sitemap.status, 200);
+assert.match(sitemap.headers.get("content-type") ?? "", /(?:application|text)\/xml/);
+assert.match(await sitemap.text(), /<loc>https:\/\/pixelware\.nl\/<\/loc>/);
+const robots = await request("/robots.txt");
+assert.equal(robots.status, 200);
+assert.match(robots.headers.get("content-type") ?? "", /text\/plain/);
+assert.match(await robots.text(), /Sitemap: https:\/\/pixelware\.nl\/sitemap\.xml/);
 for (const path of ["/missing-page", "/assets/missing.js"]) {
   const missing = await request(path);
   assert.equal(missing.status, 404, `${path} must not silently serve the homepage`);
@@ -50,4 +58,4 @@ for (const path of ["/missing-page", "/assets/missing.js"]) {
 const secret = await request("/.env");
 assert.ok([403, 404].includes(secret.status));
 await secret.arrayBuffer();
-console.log(`NGINX smoke checks passed at ${base.origin}: page, health, hydration bundle, icons, RSC, caching, and 404s.`);
+console.log(`NGINX smoke checks passed at ${base.origin}: page, health, hydration bundle, icons, RSC, sitemap, robots, caching, and 404s.`);
