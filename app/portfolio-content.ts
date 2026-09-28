@@ -126,7 +126,6 @@ export const experience = [
 export const leadership = [
   {
     company: "Pixelware",
-    type: "Independent practice",
     years: "Jun 2024 — Present",
     role: "Senior Software Engineer",
     location: "Freelance · Rotterdam",
@@ -138,7 +137,6 @@ export const leadership = [
   },
   {
     company: "Cyber Dev",
-    type: "Founding role",
     years: "May 2025 — Feb 2026",
     role: "Founding Software Engineer",
     location: "Engineering & technical leadership",
