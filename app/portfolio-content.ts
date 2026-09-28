@@ -19,27 +19,27 @@ export const navigation = [
 ];
 
 export const proofPoints = [
-  { value: "5+", label: "Years in production", context: "Backend & systems engineering" },
-  { value: "200M+", label: "Monthly active users", context: "Scale of the platform I support at WBD" },
-  { value: "7–10 ms", label: "Cached search queries", context: "Down from approximately 400 ms" },
-  { value: "≈40%", label: "Fewer upstream requests", context: "Redis-backed search caching at WBD" },
+  { value: "5+", label: "Years in production", context: "Backend & systems engineering, using Node.js, TypeScript, Rust and C++" },
+  { value: "200M+", label: "Monthly active users", context: "Scale of the platform I support at Warner Bros. Discovery" },
+  { value: "5–10 ms", label: "Cached search queries", context: "Down from approximately 400 ms on average" },
+  { value: "3.6M+", label: "Requests per hour", context: "Handled by the platform I support at Warner Bros. Discovery" },
 ];
 
 export const expertise = [
   {
     title: "Distributed systems",
     copy: "Services that work together predictably. Clear API contracts, event-driven workflows, and replay-safe processing under concurrent load.",
-    detail: "Event-driven architecture · API design",
+    detail: "Event-driven architecture · Data-intensive workflows",
   },
   {
     title: "Reliability & performance",
     copy: "Make the critical path faster and the failure modes visible. Caching, bounded retries, profiling, and observability built into production delivery.",
-    detail: "Caching · Concurrency · Observability",
+    detail: "Caching · Concurrency · Observability · Correctness",
   },
   {
     title: "Systems programming",
-    copy: "Work close to the machine. C++23 and Linux tooling with attention to memory locality, synchronization, persistence, and protocol correctness.",
-    detail: "C++23 · Linux · Network protocols",
+    copy: "Work close to the machine. C++23 and Linux tooling with attention to memory locality, CPU cache behavior, and efficient memory management.",
+    detail: "C++23 · Linux · Network protocols · Memory management",
   },
 ];
 
@@ -47,26 +47,26 @@ export const projectOutcomes = [
   {
     company: "Warner Bros. Discovery",
     title: "A faster search hot path",
-    result: "400 → 7–10 ms",
-    resultLabel: "Query latency",
-    copy: "Led Redis-backed caching for a production search service, with explicit TTL and invalidation rules. Upstream requests fell by approximately 40%.",
+    result: "5–10 ms",
+    resultLabel: "Average query latency",
+    copy: "Led the implementation of a faster search hot path, reducing average query latency to 5–10 ms. Leveraging Redis for caching and Node.js with TypeScript for service implementation.",
     stack: ["Redis", "Node.js", "TypeScript"],
   },
   {
-    company: "FANSTR",
+    company: "Warner Bros. Discovery",
+    title: "From architecture to rollout",
+    result: "Leadership & ownership",
+    resultLabel: "Sitemap generation delivery",
+    copy: "Led sitemap architecture and cross-team delivery (six teams), turning product and SEO requirements into backend responsibilities and a coordinated production rollout.",
+    stack: ["Architecture", "Backend delivery", "SEO"],
+  },
+  {
+    company: "FANSTR via. Pixelware",
     title: "Integrations that recover",
     result: "25–30%",
     resultLabel: "Fewer failed external transactions",
     copy: "Made customer-critical integrations more reliable through deterministic idempotency, deduplication, and bounded retries under concurrent load.",
     stack: ["Node.js", "PostgreSQL", "RabbitMQ"],
-  },
-  {
-    company: "Bleacher Report · WBD",
-    title: "From architecture to rollout",
-    result: "End to end",
-    resultLabel: "Sitemap generation delivery",
-    copy: "Led sitemap architecture and cross-team delivery, turning product and SEO requirements into backend responsibilities and a coordinated production rollout.",
-    stack: ["Architecture", "Backend delivery", "SEO"],
   },
 ];
 
@@ -81,12 +81,14 @@ export const experience = [
     contributions: [
       "Led Bleacher Report sitemap architecture, cross-team alignment, and production rollout.",
       "Delivered search caching, replay-safe Kafka consumers, and shared Datadog instrumentation across Kafka, Redis, and Node.js.",
+      "Develop and operate TypeScript/Node.js microservices using Kafka and gRPC, including replay-safe, idempotent consumers for at-least-once event processing.",
+      "Extended shared Datadog instrumentation for Kafka, Redis, and Node.js services to improve production monitoring and troubleshooting.",
     ],
     stack: "Node.js · TypeScript · Kafka · Redis · AWS",
   },
   {
     years: "Aug 2024 — Aug 2025",
-    role: "Senior Software Engineer",
+    role: "Software Engineer",
     company: "FANSTR",
     location: "Rijswijk",
     current: false,
@@ -94,6 +96,7 @@ export const experience = [
     contributions: [
       "Reduced failed external transactions by approximately 25–30% with idempotency, deduplication, and controlled retries.",
       "Improved performance by approximately 40% and built RabbitMQ email and SMS pipelines with independent retries and failure isolation.",
+      "Refactored PHP API integrations by consolidating provider-specific clients into a reusable API client abstraction, simplifying support for new integrations and reducing duplicated integration logic.",
     ],
     stack: "TypeScript · Node.js · RabbitMQ · PostgreSQL",
   },
@@ -106,6 +109,7 @@ export const experience = [
     summary: "Architected reusable event-sourced workflows in Go, enabling auditable state transitions and adoption across teams.",
     contributions: [
       "Refactored legacy PHP into modular, testable services and strengthened delivery with automated tests, quality gates, and deployment checks.",
+      "Developed backend contracts and shared platform capabilities across TypeScript/Node.js, Go, and PHP services.",
     ],
     stack: "Go · TypeScript · PHP · MySQL · Azure DevOps",
   },
@@ -127,8 +131,8 @@ export const leadership = [
   {
     company: "Pixelware",
     years: "Jun 2024 — Present",
-    role: "Senior Software Engineer",
-    location: "Freelance · Rotterdam",
+    role: "Freelance Software Engineer",
+    location: "Rotterdam",
     summary: "Taking ownership of backend architecture and delivery for concurrent, multi-tenant systems.",
     contributions: [
       "Tenant isolation, deterministic state transitions, idempotency, and row-level database locking.",
@@ -138,8 +142,8 @@ export const leadership = [
   {
     company: "Cyber Dev",
     years: "May 2025 — Feb 2026",
-    role: "Founding Software Engineer",
-    location: "Engineering & technical leadership",
+    role: "Technical Co-founder",
+    location: "Rijswijk",
     summary: "Shaped technical strategy, security architecture, and delivery for a client-facing cybersecurity platform.",
     contributions: [
       "Established secure coding, testing, review, observability, and release standards.",
