@@ -55,11 +55,8 @@ h1 > span { color: #92929d; }
 .corner-tr { top: 0; right: 0; border-right: 1px solid #595960; border-top: 1px solid #595960; }
 .corner-bl { bottom: 0; left: 0; border-left: 1px solid #595960; border-bottom: 1px solid #595960; }
 .corner-br { bottom: 0; right: 0; border-right: 1px solid #595960; border-bottom: 1px solid #595960; }
-.hero-visual-label, .hero-visual-footer { position: absolute; left: 18px; right: 18px; z-index: 1; display: flex; justify-content: space-between; font: 10px var(--mono); color: #71717d; letter-spacing: .04em; }
+.hero-visual-label { position: absolute; left: 18px; right: 18px; z-index: 1; display: flex; justify-content: flex-end; font: 10px var(--mono); color: #71717d; letter-spacing: .04em; }
 .hero-visual-label { top: 15px; }
-.hero-visual-footer { bottom: 15px; }
-.hero-visual-footer > span:first-child { display: flex; align-items: center; gap: 8px; }
-.hero-visual-footer i { width: 4px; height: 4px; background: #ff3030; }
 .intro-bottom { grid-column: 1 / -1; display: flex; align-items: center; justify-content: flex-end; border-bottom: 1px solid var(--line); margin-top: 45px; padding: 0 0 23px; color: #6f6f7a; font-size: 12px; }
 .intro-bottom .mono { font-size: 10px; letter-spacing: .03em; }
 .projects-section { padding: 40px 0 0; }

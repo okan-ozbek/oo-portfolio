@@ -39,9 +39,8 @@ export function Showcase() {
           </div>
           <div className="intro-visual" aria-hidden="true">
             <div className="visual-corner corner-tl" /><div className="visual-corner corner-tr" />
-            <div className="hero-visual-label"><span>FIG. 001</span><span>ORDER IN THE NOISE</span></div>
+            <div className="hero-visual-label"><span>ORDER IN THE NOISE</span></div>
             <DataVisual kind="terrain" playing={playing} />
-            <div className="hero-visual-footer"><span><i />SIGNAL FIELD</span><span>01 / ∞</span></div>
             <div className="visual-corner corner-bl" /><div className="visual-corner corner-br" />
           </div>
           <div className="intro-bottom"><span className="intro-coordinate mono">52.3676° N · 4.9041° E</span></div>

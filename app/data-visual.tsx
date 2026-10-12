@@ -120,7 +120,6 @@ function binary(ctx: CanvasRenderingContext2D, w: number, h: number, time: numbe
     line(ctx, [[cx + sx * (box / 2 - length), cy + sy * box / 2], [cx + sx * box / 2, cy + sy * box / 2], [cx + sx * box / 2, cy + sy * (box / 2 - length)]], "#ff2424", 1.5);
   }
   ctx.font = "32px monospace"; ctx.fillStyle = "#d9d9de"; ctx.fillText("01", cx, cy + 11);
-  ctx.font = "9px monospace"; ctx.fillStyle = "#777780"; ctx.fillText("UNDEFINED / NEXT", cx, cy + box / 2 + 23);
 }
 
 export function DataVisual({kind, playing}: {kind: VisualKind; playing: boolean}) {
