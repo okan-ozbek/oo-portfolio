@@ -4,7 +4,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Pixelware - Complexity under control",
   description:
-    "Backend and systems software engineer in Amsterdam. Distributed systems, reliability, and performance with TypeScript, Node.js, C++23, and Go. Explore production work, Radish, and engineering experience.",
+    "Pixelware — independent software, systems, and experiments. Explore a growing collection of projects built with precision.",
+  metadataBase: new URL("https://pixelware.nl"),
+  alternates: { canonical: "/" },
   icons: {
     icon: "/favicon.svg?v=pixelware",
     shortcut: "/favicon.svg?v=pixelware",
