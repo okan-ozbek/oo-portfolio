@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { createMarketFeed, type MarketCandle } from "./market-feed";
 
 type VisualKind = "terrain" | "market" | "network" | "binary" | "stack" | "blackhole" | "latency";
 const TAU = Math.PI * 2;
@@ -12,13 +13,6 @@ function line(ctx: CanvasRenderingContext2D, points: number[][], color: string, 
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
   ctx.stroke();
-}
-
-function grid(ctx: CanvasRenderingContext2D, w: number, h: number, step = 42) {
-  ctx.strokeStyle = "rgba(210,210,218,.055)";
-  ctx.lineWidth = 1;
-  for (let x = 0; x < w; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
-  for (let y = 0; y < h; y += step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
 }
 
 function terrain(ctx: CanvasRenderingContext2D, w: number, h: number, time: number, pointer: number) {
@@ -44,34 +38,41 @@ function terrain(ctx: CanvasRenderingContext2D, w: number, h: number, time: numb
   ctx.strokeStyle = "rgba(255,0,0,.3)"; ctx.beginPath(); ctx.arc(px, py, 8 + Math.sin(time * 2) * 2, 0, TAU); ctx.stroke();
 }
 
-function market(ctx: CanvasRenderingContext2D, w: number, h: number, time: number) {
-  grid(ctx, w, h, 40);
-  const count = 27, left = 25, usable = w - 53, step = usable / count;
-  const value = (i: number) => .64 - i * .013 + Math.sin(i * .64) * .13 + Math.sin(i * 1.6) * .045;
-  const points: number[][] = [];
-  for (let i = 0; i < count; i++) {
-    const x = left + i * step, v = value(i), y = h * (.2 + v * .62);
-    const delta = (noise(i + 42) - .46) * h * .13;
-    const open = y + delta, close = y;
-    const high = Math.min(open, close) - 5 - noise(i + 61) * 13;
-    const low = Math.max(open, close) + 5 + noise(i + 80) * 12;
-    const rising = delta > 0;
-    ctx.fillStyle = rising ? "rgba(255,38,38,.86)" : "rgba(181,181,193,.45)";
-    ctx.strokeStyle = rising ? "rgba(255,38,38,.6)" : "rgba(181,181,193,.4)";
-    ctx.beginPath(); ctx.moveTo(x, high); ctx.lineTo(x, low); ctx.stroke();
-    ctx.fillRect(x - step * .24, Math.min(open, close), step * .48, Math.max(Math.abs(delta), 3));
-    ctx.fillStyle = rising ? "rgba(255,0,0,.16)" : "rgba(180,180,190,.1)";
-    ctx.fillRect(x - step * .26, h - 34 - noise(i + 20) * 31, step * .52, 20 + noise(i + 20) * 31);
-    points.push([x, y + 23]);
+function market(ctx: CanvasRenderingContext2D, w: number, h: number, candles: MarketCandle[]) {
+  const left = 23, right = w - 30, top = 51, bottom = h - 64;
+  const high = Math.max(...candles.map(candle => candle.high)), low = Math.min(...candles.map(candle => candle.low));
+  const padding = Math.max((high - low) * .12, 2), range = high - low + padding * 2;
+  const priceY = (price: number) => top + (high + padding - price) / range * Math.max(bottom - top, 1);
+  const step = (right - left) / (candles.length - 1);
+  for (let i = 0; i < 5; i++) line(ctx, [[left, top + i / 4 * (bottom - top)], [w - 15, top + i / 4 * (bottom - top)]], "rgba(210,210,218,.055)");
+  for (let i = 0; i < 7; i++) line(ctx, [[left + i / 6 * (right - left), top], [left + i / 6 * (right - left), h - 14]], "rgba(210,210,218,.04)");
+  const maxVolume = Math.max(...candles.map(candle => candle.volume), 1);
+  for (let i = 0; i < candles.length; i++) {
+    const data = candles[i], x = left + i * step;
+    const open = priceY(data.open), close = priceY(data.close), bodyWidth = step * .55;
+    const falling = data.close < data.open;
+    ctx.strokeStyle = falling ? "#ff3838" : "#b7b7c5"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, priceY(data.high)); ctx.lineTo(x, priceY(data.low)); ctx.stroke();
+    const bodyHeight = Math.abs(open - close), bodyTop = Math.min(open, close);
+    if (bodyHeight < 1) {
+      // A flat open/close is a doji, not an artificially enlarged body.
+      line(ctx, [[x - bodyWidth / 2, (open + close) / 2], [x + bodyWidth / 2, (open + close) / 2]], ctx.strokeStyle);
+    } else {
+      ctx.fillStyle = falling ? "#ee2929" : "#b7b7c5";
+      ctx.fillRect(x - bodyWidth / 2, bodyTop, bodyWidth, bodyHeight);
+      ctx.strokeRect(x - bodyWidth / 2, bodyTop, bodyWidth, bodyHeight);
+    }
+    const volumeHeight = data.volume / maxVolume * 34;
+    ctx.fillStyle = falling ? "rgba(255,0,0,.2)" : "rgba(180,180,190,.16)";
+    ctx.fillRect(x - bodyWidth / 2, h - 14 - volumeHeight, bodyWidth, volumeHeight);
+    if (i === candles.length - 1) {
+      ctx.setLineDash([3, 5]);
+      line(ctx, [[left, close], [x + 8, close]], "rgba(190,190,202,.15)");
+      ctx.setLineDash([]);
+    }
   }
-  line(ctx, points, "rgba(215,215,227,.25)");
-  const scanX = left + ((time * 12) % usable);
-  ctx.setLineDash([3, 5]);
-  line(ctx, [[scanX, 86], [scanX, h - 29]], "rgba(255,58,58,.38)");
-  ctx.setLineDash([]);
-  const pulse = .35 + Math.sin(time * 1.5) * .12;
   const glow = ctx.createRadialGradient(w * .77, h * .5, 0, w * .77, h * .5, w * .5);
-  glow.addColorStop(0, `rgba(255,0,0,${pulse * .08})`); glow.addColorStop(1, "rgba(255,0,0,0)");
+  glow.addColorStop(0, "rgba(255,0,0,.028)"); glow.addColorStop(1, "rgba(255,0,0,0)");
   ctx.fillStyle = glow; ctx.fillRect(0, 0, w, h);
 }
 
@@ -273,10 +274,11 @@ export function DataVisual({kind, playing}: {kind: VisualKind; playing: boolean}
     const ctx = canvas?.getContext("2d");
     if (!canvas || !host || !ctx) return;
     let w = 0, h = 0, frame = 0, last = 0, visible = false, pointer = 0;
+    const marketFeed = kind === "market" ? createMarketFeed() : null;
     const draw = () => {
       ctx.clearRect(0, 0, w, h);
       if (kind === "terrain") terrain(ctx, w, h, timeRef.current, pointer);
-      else if (kind === "market") market(ctx, w, h, timeRef.current);
+      else if (kind === "market" && marketFeed) market(ctx, w, h, marketFeed(timeRef.current));
       else if (kind === "network") network(ctx, w, h, timeRef.current, pointer);
       else if (kind === "stack") stack(ctx, w, h, timeRef.current, pointer);
       else if (kind === "blackhole") blackhole(ctx, w, h, timeRef.current);
