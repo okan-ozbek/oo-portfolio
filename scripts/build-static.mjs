@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { validateStaticExport } from "./validate-static-export.mjs";
 import { generateSitemap } from "./generate-sitemap.mjs";
+import { compressStatic } from "./compress-static.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 process.env.PIXELWARE_STATIC_EXPORT = "1";
@@ -14,4 +15,5 @@ const { runPrerender } = await import(new URL("./build/run-prerender.js", import
 await runPrerender({ root });
 await generateSitemap(new URL("../dist/client/", import.meta.url));
 await validateStaticExport(new URL("../dist/client/", import.meta.url));
+await compressStatic(new URL("../dist/client/", import.meta.url));
 console.log("Static site ready in dist/client/ (validated for NGINX).");
