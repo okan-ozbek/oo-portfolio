@@ -50,7 +50,7 @@ See [the deployment guide](deploy/README.md) for DNS, certificate storage, verif
 | `app/page.tsx` | Static page entry point |
 | `app/showcase.tsx` | Project grid, navigation, contact, and motion control |
 | `app/globals.css` | Palette, typography, responsive layout, and animations |
-| `app/data-visual.tsx` | Animated signal terrain, candlesticks, network cube, binary field, 3D stack, black hole, and simulated P50/P99 latency chart |
+| `app/data-visual.tsx` | Animated signal terrain, candlesticks, network cube, scrolling assembly and registers, 3D stack, black hole, and simulated P50/P99 latency chart |
 | `app/layout.tsx` | Metadata and favicon |
 | `components/ui/`, `public/icons/` | Retained primitives and licensed icons from the earlier portfolio |
 | `public/pixelware-logo.svg`, `public/favicon.svg` | Brand assets |

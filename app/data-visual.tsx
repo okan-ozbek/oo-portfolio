@@ -104,33 +104,59 @@ function network(ctx: CanvasRenderingContext2D, w: number, h: number, time: numb
 }
 
 function binary(ctx: CanvasRenderingContext2D, w: number, h: number, time: number) {
-  const columns = 17, rows = 10, dx = (w - 50) / columns, dy = (h - 100) / rows;
-  ctx.font = "11px monospace"; ctx.textAlign = "center";
-  for (let y = 0; y < rows; y++) for (let x = 0; x < columns; x++) {
-    const wave = Math.sin(x * .36 + y * .48 - time * .48);
-    const red = wave > .72 && x > 3 && x < 14;
-    const bit = noise(x * 53 + y * 17 + Math.floor(time * .7)) > .5 ? "1" : "0";
-    ctx.fillStyle = red ? `rgba(255,30,30,${.35 + wave * .5})` : `rgba(177,177,192,${.12 + noise(x * 7 + y * 21) * .16})`;
-    ctx.fillText(bit, 30 + x * dx, 76 + y * dy);
+  const scale = Math.min(w / 360, h / 265);
+  ctx.save(); ctx.translate((w - 360 * scale) / 2, (h - 265 * scale) / 2); ctx.scale(scale, scale);
+  ctx.textAlign = "left"; ctx.font = "9px monospace";
+  ctx.fillStyle = "#727280"; ctx.fillText("INSTRUCTIONS", 20, 63); ctx.fillText("REGISTERS", 242, 63);
+  line(ctx, [[226, 55], [226, 233]], "rgba(180,180,200,.12)");
+  const instructions = [
+    ["mov", "rax, [rdi]"], ["xor", "rcx, rcx"], ["test", "rax, rax"], ["je", "0x004020"],
+    ["add", "rcx, rax"], ["shr", "rax, 1"], ["cmp", "rcx, 0x20"], ["jne", "0x004010"],
+    ["lea", "rsi, [rsp+8]"], ["call", "0x004080"], ["inc", "rdx"], ["ret", ""],
+  ];
+  // An instruction stream passes a fixed execution cursor; all data is illustrative.
+  const rowHeight = 21, scroll = time * 10, first = Math.floor(scroll / rowHeight), offset = scroll % rowHeight;
+  ctx.save(); ctx.beginPath(); ctx.rect(15, 76, 206, 157); ctx.clip();
+  ctx.fillStyle = "rgba(255,0,0,.065)"; ctx.fillRect(15, 139, 202, rowHeight);
+  ctx.fillStyle = "#ff3434"; ctx.fillRect(15, 139, 2, rowHeight);
+  for (let row = -1; row < 9; row++) {
+    const index = first + row + 1, y = 90 + row * rowHeight - offset;
+    const [op, operand] = instructions[index % instructions.length];
+    const active = y >= 139 && y < 160;
+    ctx.font = "9px monospace"; ctx.fillStyle = "#595965";
+    ctx.fillText((0x4010 + index * 4).toString(16).padStart(6, "0"), 24, y);
+    ctx.font = "11px monospace"; ctx.fillStyle = active ? "#ff4b4b" : "#b4b4c1"; ctx.fillText(op, 75, y);
+    ctx.fillStyle = active ? "#e1e1e9" : "#80808f"; ctx.fillText(operand, 110, y);
   }
-  const cx = w / 2, cy = h * .51, box = Math.min(w, h) * .27;
-  ctx.fillStyle = "rgba(20,20,23,.88)"; ctx.fillRect(cx - box / 2, cy - box / 2, box, box);
-  const length = 13;
-  for (const [sx, sy] of [[-1,-1],[1,-1],[-1,1],[1,1]]) {
-    line(ctx, [[cx + sx * (box / 2 - length), cy + sy * box / 2], [cx + sx * box / 2, cy + sy * box / 2], [cx + sx * box / 2, cy + sy * (box / 2 - length)]], "#ff2424", 1.5);
+  ctx.restore();
+  const cycle = Math.floor(time * .8);
+  for (const [index, register] of ["RAX", "RBX", "RCX", "RDX"].entries()) {
+    const y = 87 + index * 37;
+    const value = Math.floor(noise(index * 17 + cycle) * 65536);
+    ctx.font = "9px monospace"; ctx.fillStyle = "#777785"; ctx.fillText(register, 242, y);
+    ctx.fillStyle = index === cycle % 4 ? "#ff5353" : "#c3c3cf";
+    ctx.fillText(`0x${value.toString(16).padStart(4, "0").toUpperCase()}`, 278, y);
+    ctx.font = "8px monospace"; ctx.fillStyle = "#61616e";
+    ctx.fillText(value.toString(2).padStart(16, "0"), 242, y + 13);
   }
-  ctx.font = "32px monospace"; ctx.fillStyle = "#d9d9de"; ctx.fillText("01", cx, cy + 11);
+  line(ctx, [[20, 240], [340, 240]], "rgba(180,180,200,.1)");
+  ctx.font = "8px monospace"; ctx.fillStyle = "#555563";
+  const bits = Array.from({length: 52}, (_, i) => noise(i + first * 5) > .5 ? "1" : "0").join("");
+  ctx.fillText(bits, 20, 252);
+  ctx.restore();
 }
 
 function stack(ctx: CanvasRenderingContext2D, w: number, h: number, time: number, pointer: number) {
-  const scale = Math.min(w / 360, h / 265), cx = w / 2, cy = h * .57;
-  const angle = time * .13 + .65 + pointer * .22;
-  const gap = 29 + Math.sin(time * .6) * 4;
+  const scale = Math.min(w / 400, (h - 55) / 235), cx = w / 2, cy = h * .58;
+  const angle = time * .13 + .65 + pointer * .22, elevation = .57;
+  const gap = 34 + Math.sin(time * .6) * 3;
+  const rotate = (x: number, z: number) => [x * Math.cos(angle) - z * Math.sin(angle), x * Math.sin(angle) + z * Math.cos(angle)];
+  const depth = (x: number, y: number, z: number) => rotate(x, z)[1] * Math.cos(elevation) + y * Math.sin(elevation);
   const project = (x: number, y: number, z: number) => {
-    const rx = x * Math.cos(angle) - z * Math.sin(angle);
-    const rz = x * Math.sin(angle) + z * Math.cos(angle);
-    const perspective = 450 / (450 + rz * .35);
-    return [cx + rx * scale * perspective, cy + (rz * .4 - y) * scale * perspective];
+    const [rx, rz] = rotate(x, z);
+    // Camera elevation and perspective use the same rotated depth for every face.
+    const perspective = 620 / (620 - depth(x, y, z));
+    return [cx + rx * scale * perspective, cy + (rz * Math.sin(elevation) - y * Math.cos(elevation)) * scale * perspective];
   };
   const polygon = (points: number[][], fill: string, stroke: string) => {
     ctx.beginPath(); points.forEach(([x,y], i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y)); ctx.closePath();
@@ -143,23 +169,28 @@ function stack(ctx: CanvasRenderingContext2D, w: number, h: number, time: number
   ctx.setLineDash([2,5]);
   corners.forEach(([x,z]) => line(ctx, [project(x,-gap*1.5,z), project(x,gap*1.5,z)], 'rgba(190,190,210,.16)'));
   ctx.setLineDash([]);
+  const faces: {depth: number; draw: () => void}[] = [];
   for (let layer = 0; layer < 4; layer++) {
     const y = (layer - 1.5) * gap, red = layer === 2;
     const top = corners.map(([x,z]) => project(x,y,z));
     const bottom = corners.map(([x,z]) => project(x,y-7,z));
     for (let i = 0; i < 4; i++) {
       const j = (i+1)%4;
-      if ((top[i][1]+top[j][1])/2 > project(0,y,0)[1])
-        polygon([top[i],top[j],bottom[j],bottom[i]], red ? '#661d24' : '#25252d', red ? '#aa343e' : '#4b4b57');
+      const mx = (corners[i][0] + corners[j][0]) / 2, mz = (corners[i][1] + corners[j][1]) / 2;
+      if (rotate(mx, mz)[1] > 0) faces.push({depth: depth(mx, y - 3.5, mz), draw: () =>
+        polygon([top[i],top[j],bottom[j],bottom[i]], red ? '#661d24' : '#25252d', red ? '#aa343e' : '#4b4b57')});
     }
-    polygon(top, red ? '#391d25' : '#222229', red ? '#ff3939' : '#686876');
-    for (let tick = -32; tick <= 32; tick += 32) {
-      line(ctx, [project(tick,y+.1,-65),project(tick,y+.1,65)], red ? 'rgba(255,90,90,.3)' : 'rgba(175,175,195,.18)');
-      line(ctx, [project(-65,y+.1,tick),project(65,y+.1,tick)], red ? 'rgba(255,90,90,.3)' : 'rgba(175,175,195,.18)');
-    }
-    const tile = 15 + Math.sin(time + layer) * 2;
-    polygon([project(-tile,y+.3,-tile),project(tile,y+.3,-tile),project(tile,y+.3,tile),project(-tile,y+.3,tile)], red ? '#b92b37' : '#35353f', red ? '#ff6666' : '#777784');
+    faces.push({depth: depth(0, y, 0), draw: () => {
+      polygon(top, red ? '#391d25' : '#222229', red ? '#ff3939' : '#686876');
+      for (let tick = -32; tick <= 32; tick += 32) {
+        line(ctx, [project(tick,y+.1,-65),project(tick,y+.1,65)], red ? 'rgba(255,90,90,.3)' : 'rgba(175,175,195,.18)');
+        line(ctx, [project(-65,y+.1,tick),project(65,y+.1,tick)], red ? 'rgba(255,90,90,.3)' : 'rgba(175,175,195,.18)');
+      }
+      const tile = 15;
+      polygon([project(-tile,y+.3,-tile),project(tile,y+.3,-tile),project(tile,y+.3,tile),project(-tile,y+.3,tile)], red ? '#b92b37' : '#35353f', red ? '#ff6666' : '#777784');
+    }});
   }
+  faces.sort((a, b) => a.depth - b.depth).forEach(face => face.draw());
 }
 
 function blackhole(ctx: CanvasRenderingContext2D, w: number, h: number, time: number) {

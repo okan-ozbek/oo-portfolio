@@ -57,9 +57,7 @@ export function Showcase() {
                 <div className="project-visual" aria-hidden="true">
                   <div className="project-visual-top mono"><span>{project.code}</span><span className="visual-index">{project.id}</span></div>
                   <DataVisual kind={project.visual} playing={playing} />
-                  {project.visual === "market" && <div className="chart-readout"><span className="mono">SIMULATED FEED</span><strong>128.42<span>+2.84%</span></strong></div>}
                   {project.visual === "network" && <div className="network-readout mono"><span>NODE / 008</span><span>CONNECTED</span></div>}
-                  {project.visual === "binary" && <div className="binary-readout mono"><span>01010000 01011000 01010111</span><span>EXPERIMENT / {project.id.padStart(3, "0")}</span></div>}
                   {project.visual === "latency" && <div className="metrics-legend mono"><span><i />P50</span><span><i />P99</span><span>SIMULATED · ms</span></div>}
                   <div className="visual-bottom-line" />
                 </div>

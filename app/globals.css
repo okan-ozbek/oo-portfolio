@@ -74,13 +74,8 @@ h1 > span { color: #92929d; }
 .project-visual-top { position: absolute; top: 20px; left: 20px; right: 20px; z-index: 1; display: flex; align-items: center; justify-content: space-between; color: #9a9aa6; font-size: 9px; letter-spacing: .045em; }
 .visual-index { font-size: 10px; color: #72727e; }
 .project-visual .data-canvas { transition: opacity 250ms ease; }
-.chart-readout { position: absolute; top: 52px; left: 23px; display: grid; gap: 3px; }
-.chart-readout > span { font-size: 8px; color: #70707c; letter-spacing: .07em; }
-.chart-readout strong { display: flex; align-items: baseline; gap: 12px; font-size: 23px; font-weight: 500; letter-spacing: -.055em; }
-.chart-readout strong span { font: 10px var(--mono); color: #ff5656; letter-spacing: 0; }
-.network-readout, .binary-readout { position: absolute; bottom: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; font-size: 8px; color: #6f6f7c; }
+.network-readout { position: absolute; bottom: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; font-size: 8px; color: #6f6f7c; }
 .network-readout span:last-child { color: #9a9aa6; }
-.binary-readout { font-size: 8px; gap: 10px; }
 .metrics-legend { position: absolute; top: 54px; left: 22px; right: 22px; z-index: 1; display: flex; align-items: center; gap: 16px; font-size: 10px; color: #a6a6b5; }
 .metrics-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .metrics-legend i { width: 12px; height: 2px; background: #a6a6b5; }
@@ -130,7 +125,6 @@ h1 > span { color: #92929d; }
   .project-title-row h3 { font-size: 21px; }
   .project-status { font-size: 8px; }
   .project-info p { font-size: 11px; }
-  .binary-readout span:last-child { display: none; }
 }
 @media (max-width: 760px) {
   .site-frame { width: calc(100% - 40px); }
@@ -154,7 +148,6 @@ h1 > span { color: #92929d; }
   .project-category { font-size: 11px; }
   .project-status { font-size: 10px; }
   .project-visual-top { font-size: 10px; }
-  .binary-readout span:last-child { display: inline; }
   .contact-strip { margin-top: 40px; padding: 28px 0; }
   .about-section { grid-template-columns: 1fr; gap: 18px; margin-top: 40px; padding-top: 28px; }
   .about-section h2 { font-size: 22px; }
