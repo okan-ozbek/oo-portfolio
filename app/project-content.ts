@@ -1,14 +1,6 @@
 export const projects = [
   {
     id: "01",
-    name: "Project 01",
-    category: "Trading systems",
-    description: "A space for the next trading idea.",
-    visual: "market" as const,
-    code: "PXW / MARKET",
-  },
-  {
-    id: "02",
     name: "Visual Hardware IDE",
     href: "https://systems.pixelware.nl/",
     category: "Educational tools",
@@ -17,12 +9,44 @@ export const projects = [
     code: "PXW / NETWORK",
   },
   {
+    id: "02",
+    name: "Project 02",
+    category: "Trading systems",
+    description: "A space for the next trading idea.",
+    visual: "market" as const,
+    code: "PXW / MARKET",
+  },
+  {
     id: "03",
     name: "Project 03",
     category: "Experimental software",
     description: "A space for something a little different.",
     visual: "binary" as const,
     code: "PXW / RESEARCH",
+  },
+  {
+    id: "04",
+    name: "Project 04",
+    category: "Systems tooling",
+    description: "A space for the next systems tool.",
+    visual: "stack" as const,
+    code: "PXW / TOOLS",
+  },
+  {
+    id: "05",
+    name: "Project 05",
+    category: "Data visualization",
+    description: "A space to explore data through visuals.",
+    visual: "blackhole" as const,
+    code: "PXW / DATA",
+  },
+  {
+    id: "06",
+    name: "Project 06",
+    category: "Performance experiments",
+    description: "A space to test ideas in performance.",
+    visual: "latency" as const,
+    code: "PXW / PERFORMANCE",
   },
 ];
 

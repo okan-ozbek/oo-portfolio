@@ -1,6 +1,6 @@
 # Pixelware — Complexity under control
 
-A static project showcase built with React, TypeScript, Vite/Vinext, and Tailwind CSS. A graphite palette, red accents, and a compact grid put the projects first. The grid links to the Visual Hardware IDE and includes two clearly labeled placeholders, with animated candlestick, network, and binary visuals; the market data is simulated. There is no database, authentication service, or application API.
+A static project showcase built with React, TypeScript, Vite/Vinext, and Tailwind CSS. A graphite palette, red accents, and a compact grid put the projects first. The six-card grid starts with the Visual Hardware IDE and includes five clearly labeled placeholders, with animated candlestick, network, and binary visuals; the market data is simulated. There is no database, authentication service, or application API.
 
 Native Canvas 2D renders the animated visuals without an animation dependency. Motion can be paused globally, respects reduced-motion preferences, and stops when canvases are outside the viewport or the tab is hidden.
 
@@ -50,7 +50,7 @@ See [the deployment guide](deploy/README.md) for DNS, certificate storage, verif
 | `app/page.tsx` | Static page entry point |
 | `app/showcase.tsx` | Project grid, navigation, contact, and motion control |
 | `app/globals.css` | Palette, typography, responsive layout, and animations |
-| `app/data-visual.tsx` | Animated signal terrain, candlesticks, network cube, and binary field |
+| `app/data-visual.tsx` | Animated signal terrain, candlesticks, network cube, binary field, 3D stack, black hole, and simulated P50/P99 latency chart |
 | `app/layout.tsx` | Metadata and favicon |
 | `components/ui/`, `public/icons/` | Retained primitives and licensed icons from the earlier portfolio |
 | `public/pixelware-logo.svg`, `public/favicon.svg` | Brand assets |

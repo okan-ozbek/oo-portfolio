@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-type VisualKind = "terrain" | "market" | "network" | "binary";
+type VisualKind = "terrain" | "market" | "network" | "binary" | "stack" | "blackhole" | "latency";
 const TAU = Math.PI * 2;
 const noise = (n: number) => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
 
@@ -122,6 +122,117 @@ function binary(ctx: CanvasRenderingContext2D, w: number, h: number, time: numbe
   ctx.font = "32px monospace"; ctx.fillStyle = "#d9d9de"; ctx.fillText("01", cx, cy + 11);
 }
 
+function stack(ctx: CanvasRenderingContext2D, w: number, h: number, time: number, pointer: number) {
+  const scale = Math.min(w / 360, h / 265), cx = w / 2, cy = h * .57;
+  const angle = time * .13 + .65 + pointer * .22;
+  const gap = 29 + Math.sin(time * .6) * 4;
+  const project = (x: number, y: number, z: number) => {
+    const rx = x * Math.cos(angle) - z * Math.sin(angle);
+    const rz = x * Math.sin(angle) + z * Math.cos(angle);
+    const perspective = 450 / (450 + rz * .35);
+    return [cx + rx * scale * perspective, cy + (rz * .4 - y) * scale * perspective];
+  };
+  const polygon = (points: number[][], fill: string, stroke: string) => {
+    ctx.beginPath(); points.forEach(([x,y], i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y)); ctx.closePath();
+    ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke();
+  };
+  const shadow = ctx.createRadialGradient(cx, cy + 75 * scale, 0, cx, cy + 75 * scale, 100 * scale);
+  shadow.addColorStop(0, 'rgba(0,0,0,.4)'); shadow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = shadow; ctx.fillRect(0, 0, w, h);
+  const corners = [[-65,-65],[65,-65],[65,65],[-65,65]];
+  ctx.setLineDash([2,5]);
+  corners.forEach(([x,z]) => line(ctx, [project(x,-gap*1.5,z), project(x,gap*1.5,z)], 'rgba(190,190,210,.16)'));
+  ctx.setLineDash([]);
+  for (let layer = 0; layer < 4; layer++) {
+    const y = (layer - 1.5) * gap, red = layer === 2;
+    const top = corners.map(([x,z]) => project(x,y,z));
+    const bottom = corners.map(([x,z]) => project(x,y-7,z));
+    for (let i = 0; i < 4; i++) {
+      const j = (i+1)%4;
+      if ((top[i][1]+top[j][1])/2 > project(0,y,0)[1])
+        polygon([top[i],top[j],bottom[j],bottom[i]], red ? '#661d24' : '#25252d', red ? '#aa343e' : '#4b4b57');
+    }
+    polygon(top, red ? '#391d25' : '#222229', red ? '#ff3939' : '#686876');
+    for (let tick = -32; tick <= 32; tick += 32) {
+      line(ctx, [project(tick,y+.1,-65),project(tick,y+.1,65)], red ? 'rgba(255,90,90,.3)' : 'rgba(175,175,195,.18)');
+      line(ctx, [project(-65,y+.1,tick),project(65,y+.1,tick)], red ? 'rgba(255,90,90,.3)' : 'rgba(175,175,195,.18)');
+    }
+    const tile = 15 + Math.sin(time + layer) * 2;
+    polygon([project(-tile,y+.3,-tile),project(tile,y+.3,-tile),project(tile,y+.3,tile),project(-tile,y+.3,tile)], red ? '#b92b37' : '#35353f', red ? '#ff6666' : '#777784');
+  }
+}
+
+function blackhole(ctx: CanvasRenderingContext2D, w: number, h: number, time: number) {
+  const cx = w / 2, cy = h * .55, radius = Math.min(w * .12, h * .17);
+  const halo = ctx.createRadialGradient(cx,cy,radius*.7,cx,cy,radius*2.6);
+  halo.addColorStop(0,'rgba(255,80,70,.2)'); halo.addColorStop(.45,'rgba(255,0,0,.12)'); halo.addColorStop(1,'rgba(255,0,0,0)');
+  ctx.fillStyle = halo; ctx.fillRect(0,0,w,h);
+  for (let i = 0; i < 65; i++) {
+    const x = noise(i+12)*w, y = 48+noise(i+92)*(h-65);
+    ctx.fillStyle = `rgba(195,195,210,${.07+noise(i+34)*.17})`; ctx.fillRect(x,y,1,1);
+  }
+  // Back of the disk, central shadow, then the foreground disk create depth.
+  const disk = (front: boolean) => {
+    for (let ring = 0; ring < 20; ring++) {
+      const r = radius * (1.2 + ring * .075), points: number[][] = [];
+      for (let i = 0; i <= 90; i++) {
+        const a = (front ? 0 : Math.PI) + i/90*Math.PI;
+        const bend = !front ? Math.exp(-Math.pow(Math.cos(a)*2.2,2))*radius*.83 : 0;
+        points.push([cx+Math.cos(a)*r,cy+Math.sin(a)*r*.25-bend]);
+      }
+      const brightness = .2 + (1+Math.sin(ring*.7-time*.65))*.17;
+      line(ctx, points, ring < 3 ? `rgba(255,206,187,${brightness+.2})` : `rgba(255,${35+ring*3},${35+ring*2},${brightness})`, ring < 3 ? 1.4 : .8);
+    }
+    for (let i = 0; i < 60; i++) {
+      const a = (i * 2.4 + time * .32) % TAU;
+      if ((Math.sin(a)>0) !== front) continue;
+      const r = radius*(1.3+noise(i+4)*1.25);
+      const bend = !front ? Math.exp(-Math.pow(Math.cos(a)*2.2,2))*radius*.83 : 0;
+      const x = cx+Math.cos(a)*r, y = cy+Math.sin(a)*r*.25-bend;
+      ctx.fillStyle = i%4 === 0 ? '#ffd3bf' : '#ff4d45';
+      ctx.beginPath(); ctx.arc(x,y,i%4===0?1.1:.6,0,TAU); ctx.fill();
+    }
+  };
+  disk(false);
+  ctx.fillStyle = '#08080b'; ctx.beginPath(); ctx.arc(cx,cy,radius,0,TAU); ctx.fill();
+  ctx.shadowColor = '#ff3828'; ctx.shadowBlur = 13;
+  ctx.strokeStyle = 'rgba(255,150,119,.85)'; ctx.lineWidth = 1.7;
+  ctx.beginPath(); ctx.arc(cx,cy,radius*1.03,0,TAU); ctx.stroke(); ctx.shadowBlur = 0;
+  disk(true);
+}
+
+function latency(ctx: CanvasRenderingContext2D, w: number, h: number, time: number) {
+  const left = 39, right = w-22, top = 93, bottom = h-29;
+  const width = Math.max(right-left,1), height = Math.max(bottom-top,1);
+  ctx.font = '9px monospace'; ctx.textAlign = 'right';
+  for (const value of [0,25,50,75,100]) {
+    const y = bottom-value/100*height;
+    line(ctx,[[left,y],[right,y]],'rgba(175,175,195,.1)');
+    ctx.fillStyle = '#696976'; ctx.fillText(String(value),left-8,y+3);
+  }
+  for (let i=0;i<7;i++) line(ctx,[[left+i/6*width,top],[left+i/6*width,bottom]],'rgba(175,175,195,.055)');
+  const values = (t: number) => {
+    const n = t*45+time*.75;
+    const index = Math.floor(n), mix = n-index;
+    const jitter = noise(index+7)*(1-mix)+noise(index+8)*mix;
+    const p50 = 14+jitter*9+Math.sin(n*.28)*3;
+    const spike = Math.pow(Math.max(0,Math.sin(n*.39+.8)),12)*36;
+    return [p50,p50+22+jitter*14+spike];
+  };
+  const series = [0,1].map(percentile => Array.from({length:100},(_,i) => [left+i/99*width,bottom-values(i/99)[percentile]/100*height]));
+  ctx.beginPath(); ctx.moveTo(left,bottom);
+  series[1].forEach(([x,y])=>ctx.lineTo(x,y)); ctx.lineTo(right,bottom); ctx.closePath();
+  const fill=ctx.createLinearGradient(0,top,0,bottom); fill.addColorStop(0,'rgba(255,0,0,.12)');fill.addColorStop(1,'rgba(255,0,0,0)');
+  ctx.fillStyle=fill;ctx.fill();
+  line(ctx,series[0],'#a6a6b5',1.5);
+  line(ctx,series[1],'#ff3b3b',1.6);
+  for (const [i,color] of [[0,'#c5c5d0'],[1,'#ff4a4a']] as const) {
+    const [x,y]=series[i][99];ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,2.7,0,TAU);ctx.fill();
+  }
+  ctx.textAlign='left';ctx.fillStyle='#696976';ctx.fillText('-60s',left,h-12);
+  ctx.textAlign='right';ctx.fillText('now',right,h-12);
+}
+
 export function DataVisual({kind, playing}: {kind: VisualKind; playing: boolean}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const timeRef = useRef(0);
@@ -136,6 +247,9 @@ export function DataVisual({kind, playing}: {kind: VisualKind; playing: boolean}
       if (kind === "terrain") terrain(ctx, w, h, timeRef.current, pointer);
       else if (kind === "market") market(ctx, w, h, timeRef.current);
       else if (kind === "network") network(ctx, w, h, timeRef.current, pointer);
+      else if (kind === "stack") stack(ctx, w, h, timeRef.current, pointer);
+      else if (kind === "blackhole") blackhole(ctx, w, h, timeRef.current);
+      else if (kind === "latency") latency(ctx, w, h, timeRef.current);
       else binary(ctx, w, h, timeRef.current);
     };
     const tick = (now: number) => {

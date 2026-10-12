@@ -16,6 +16,7 @@ export function Showcase() {
   const reducedMotion = useSyncExternalStore(subscribeMotion, getReducedMotion, () => false);
   const [motionOverride, setMotionOverride] = useState<boolean | null>(null);
   const playing = motionOverride ?? !reducedMotion;
+  const projectCount = String(projects.length).padStart(2, "0");
 
   return (
     <div className="site-frame" id="top" data-motion={playing ? "on" : "off"}>
@@ -25,7 +26,7 @@ export function Showcase() {
           <span className="brand-icon" aria-hidden="true" />Pixelware<span className="brand-period">.</span>
         </a>
         <nav aria-label="Main navigation">
-          <a className="nav-projects" href="#projects">Projects <span>03</span></a>
+          <a className="nav-projects" href="#projects">Projects <span>{projectCount}</span></a>
           <a className="nav-contact" href={`mailto:${contact.email}`}>Let’s talk <ArrowUpRight size={15} aria-hidden="true" /></a>
         </nav>
       </header>
@@ -48,7 +49,7 @@ export function Showcase() {
 
         <section className="projects-section" id="projects" aria-labelledby="projects-title">
           <div className="section-heading">
-            <div className="section-heading-title"><h2 id="projects-title">Project index<span className="title-count">(03)</span></h2></div>
+            <div className="section-heading-title"><h2 id="projects-title">Project index<span className="title-count">({projectCount})</span></h2></div>
           </div>
           <div className="project-grid">
             {projects.map(project => (
@@ -58,7 +59,8 @@ export function Showcase() {
                   <DataVisual kind={project.visual} playing={playing} />
                   {project.visual === "market" && <div className="chart-readout"><span className="mono">SIMULATED FEED</span><strong>128.42<span>+2.84%</span></strong></div>}
                   {project.visual === "network" && <div className="network-readout mono"><span>NODE / 008</span><span>CONNECTED</span></div>}
-                  {project.visual === "binary" && <div className="binary-readout mono"><span>01010000 01011000 01010111</span><span>EXPERIMENT / 003</span></div>}
+                  {project.visual === "binary" && <div className="binary-readout mono"><span>01010000 01011000 01010111</span><span>EXPERIMENT / {project.id.padStart(3, "0")}</span></div>}
+                  {project.visual === "latency" && <div className="metrics-legend mono"><span><i />P50</span><span><i />P99</span><span>SIMULATED · ms</span></div>}
                   <div className="visual-bottom-line" />
                 </div>
                 <div className="project-info">

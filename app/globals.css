@@ -81,6 +81,12 @@ h1 > span { color: #92929d; }
 .network-readout, .binary-readout { position: absolute; bottom: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; font-size: 8px; color: #6f6f7c; }
 .network-readout span:last-child { color: #9a9aa6; }
 .binary-readout { font-size: 8px; gap: 10px; }
+.metrics-legend { position: absolute; top: 54px; left: 22px; right: 22px; z-index: 1; display: flex; align-items: center; gap: 16px; font-size: 10px; color: #a6a6b5; }
+.metrics-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.metrics-legend i { width: 12px; height: 2px; background: #a6a6b5; }
+.metrics-legend span:nth-child(2) { color: #ff6565; }
+.metrics-legend span:nth-child(2) i { background: #ff3b3b; }
+.metrics-legend span:last-child { margin-left: auto; font-size: 8px; color: #777783; }
 .visual-bottom-line { position: absolute; bottom: 0; left: 20px; right: 20px; border-bottom: 1px solid #2c2c31; }
 .project-info { padding: 24px 22px 25px; }
 .project-category { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: #91919d; }
