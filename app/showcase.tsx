@@ -34,7 +34,7 @@ export function Showcase() {
         <section className="intro" aria-labelledby="intro-title">
           <div className="intro-copy">
             <h1 id="intro-title">Software.<br /><span>With an edge.</span></h1>
-            <p className="intro-description">Systems, tools, and experiments.<br />Built with precision. Made to move.</p>
+            <p className="intro-description">Systems, tools, and experiments.<br />Built with understanding and quality.</p>
             <a className="explore-link" href="#projects">Explore the projects <ArrowDownRight size={18} aria-hidden="true" /></a>
           </div>
           <div className="intro-visual" aria-hidden="true">
@@ -50,7 +50,6 @@ export function Showcase() {
         <section className="projects-section" id="projects" aria-labelledby="projects-title">
           <div className="section-heading">
             <div className="section-heading-title"><h2 id="projects-title">Project index<span className="title-count">(03)</span></h2></div>
-            <span className="section-note mono">THREE IDEAS. ROOM TO GROW.</span>
           </div>
           <div className="project-grid">
             {projects.map(project => (
@@ -71,7 +70,7 @@ export function Showcase() {
               </article>
             ))}
           </div>
-          <p className="projects-footnote"><span className="signal-square" />The next chapter is taking shape. Project details will land here.</p>
+          <p className="projects-footnote">The development and exploration of systems engineering.</p>
         </section>
 
         <section className="contact-strip" id="contact" aria-labelledby="contact-title">
