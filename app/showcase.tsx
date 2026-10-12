@@ -33,7 +33,6 @@ export function Showcase() {
       <main>
         <section className="intro" aria-labelledby="intro-title">
           <div className="intro-copy">
-            <p className="eyebrow"><span className="signal-square" />Independent software & systems</p>
             <h1 id="intro-title">Software.<br /><span>With an edge.</span></h1>
             <p className="intro-description">Systems, tools, and experiments.<br />Built with precision. Made to move.</p>
             <a className="explore-link" href="#projects">Explore the projects <ArrowDownRight size={18} aria-hidden="true" /></a>
@@ -45,12 +44,12 @@ export function Showcase() {
             <div className="hero-visual-footer"><span><i />SIGNAL FIELD</span><span>01 / ∞</span></div>
             <div className="visual-corner corner-bl" /><div className="visual-corner corner-br" />
           </div>
-          <div className="intro-bottom"><p><span className="mono">PIXELWARE /</span> Complexity under control.</p><span className="intro-coordinate mono">52.3676° N · 4.9041° E</span></div>
+          <div className="intro-bottom"><span className="intro-coordinate mono">52.3676° N · 4.9041° E</span></div>
         </section>
 
         <section className="projects-section" id="projects" aria-labelledby="projects-title">
           <div className="section-heading">
-            <div className="section-heading-title"><span className="section-index mono">01 /</span><h2 id="projects-title">Project index<span className="title-count">(03)</span></h2></div>
+            <div className="section-heading-title"><h2 id="projects-title">Project index<span className="title-count">(03)</span></h2></div>
             <span className="section-note mono">THREE IDEAS. ROOM TO GROW.</span>
           </div>
           <div className="project-grid">
