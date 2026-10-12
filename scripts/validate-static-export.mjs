@@ -8,9 +8,14 @@ export async function validateStaticExport(directory) {
   const root = resolve(directory instanceof URL ? fileURLToPath(directory) : directory);
   const html = await readFile(resolve(root, "index.html"), "utf8");
   assert.match(html, /Pixelware - Complexity under control/);
-  assert.match(html, /Complexity\./);
-  assert.match(html, /Radish/);
-  assert.equal([...html.matchAll(/<canvas\b/g)].length, 2, "Both animated panels must be exported");
+  assert.match(html, /Project index/);
+  assert.match(html, /Project 02/);
+  assert.match(html, /Visual Hardware IDE/);
+  assert.match(html, /Project 03/);
+  assert.match(html, /Project 04/);
+  assert.match(html, /Project 05/);
+  assert.match(html, /Project 06/);
+  assert.equal([...html.matchAll(/<canvas\b/g)].length, 7, "The hero and six project visuals must be exported");
   assert.match(html, /<script[^>]*>import\("\/assets\/[^"\s]+\.js"\)<\/script>/, "Client hydration bundle is required");
   const assets = new Set(["/favicon.svg", "/pixelware-logo.svg", "/index.rsc", "/404.html", "/sitemap.xml", "/robots.txt"]);
   for (const match of html.matchAll(/(?:src|href)="(\/[^"#]+)"/g)) assets.add(match[1].split("?")[0]);

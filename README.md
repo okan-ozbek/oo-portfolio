@@ -1,6 +1,8 @@
 # Pixelware — Complexity under control
 
-A static portfolio built with React, TypeScript, Vite/Vinext, and Tailwind CSS. The page includes an accessible navigation dialog, WebGL backgrounds, and an interactive Radish architecture card. Portfolio content lives in source files; there is no database, authentication service, or application API.
+A static project showcase built with React, TypeScript, Vite/Vinext, and Tailwind CSS. A graphite palette, red accents, and a compact grid put the projects first. The six-card grid starts with the Visual Hardware IDE and includes five clearly labeled placeholders, with animated candlestick, network, and binary visuals; the market data is simulated. There is no database, authentication service, or application API.
+
+Native Canvas 2D renders the animated visuals without an animation dependency. Motion can be paused globally, respects reduced-motion preferences, and stops when canvases are outside the viewport or the tab is hidden.
 
 ## Local development
 
@@ -44,20 +46,19 @@ See [the deployment guide](deploy/README.md) for DNS, certificate storage, verif
 
 | Location | Purpose |
 | --- | --- |
-| `app/portfolio-content.ts` | Résumé copy, projects, technology groups, and contact links |
-| `app/page.tsx` | Page layout and sections |
+| `app/project-content.ts` | Placeholder projects and contact links |
+| `app/page.tsx` | Static page entry point |
+| `app/showcase.tsx` | Project grid, navigation, contact, and motion control |
 | `app/globals.css` | Palette, typography, responsive layout, and animations |
-| `app/site-navigation.tsx` | Navigation dialog and section reveal effects |
-| `app/wave-canvas.tsx` | WebGL backgrounds and motion controls |
-| `app/radish-architecture.tsx` | Diagram, pointer tilt, bokeh, and motion controls |
+| `app/data-visual.tsx` | Animated signal terrain, candlesticks, network cube, scrolling assembly and registers, 3D stack, black hole, and simulated P50/P99 latency chart |
+| `app/market-feed.ts` | Deterministic simulated trades, evolving OHLC candles, volume, and changing bullish/bearish phases |
 | `app/layout.tsx` | Metadata and favicon |
-| `components/ui/` | The two shared primitives used by the site: Button and Sheet |
-| `public/icons/` | Technology SVGs and their license |
+| `components/ui/`, `public/icons/` | Retained primitives and licensed icons from the earlier portfolio |
 | `public/pixelware-logo.svg`, `public/favicon.svg` | Brand assets |
 | `scripts/`, `tests/` | Static export and deployment checks |
 | `deploy/` | NGINX, Caddy, and VPS instructions |
 
-The Google Fonts stylesheet loads Faculty Glyphic, DM Sans, and IBM Plex Mono. The animated backgrounds are rendered by code rather than image assets.
+The Google Fonts stylesheet loads Space Grotesk and IBM Plex Mono. The animated visuals are rendered by code rather than image assets. To fill the project grid later, edit `app/project-content.ts` and replace the placeholder status/layout in `app/showcase.tsx` when a real project is ready.
 
 Vinext requires the React/RSC Vite plugins and `react-server-dom-webpack` indirectly. Keep those dependencies even though page components do not import them. The `next` package supplies metadata/configuration types and TypeScript tooling; no Next.js server runs on the VPS. The static build uses the prerender runner from the pinned Vinext version, so verify the export when upgrading it.
 
