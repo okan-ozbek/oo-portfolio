@@ -3,7 +3,7 @@
 import { useState, useSyncExternalStore } from "react";
 import { ArrowDownRight, ArrowUpRight, Pause, Play } from "lucide-react";
 import { DataVisual } from "./data-visual";
-import { contact, projects } from "./project-content";
+import { about, contact, projects } from "./project-content";
 
 function subscribeMotion(callback: () => void) {
   const query = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -64,13 +64,23 @@ export function Showcase() {
                 </div>
                 <div className="project-info">
                   <div className="project-category mono">{project.category}</div>
-                  <div className="project-title-row"><h3 id={`project-${project.id}`}>{project.name}</h3><span className="project-status">Coming soon</span></div>
+                  <div className="project-title-row">
+                    <h3 id={`project-${project.id}`}>
+                      {project.href ? <a className="project-link" href={project.href} target="_blank" rel="noopener noreferrer" aria-label={`View ${project.name} (opens in a new tab)`}>{project.name}</a> : project.name}
+                    </h3>
+                    <span className="project-status">{project.href ? <>View project <ArrowUpRight size={11} aria-hidden="true" /></> : "Coming soon"}</span>
+                  </div>
                   <p>{project.description}</p>
                 </div>
               </article>
             ))}
           </div>
           <p className="projects-footnote">The development and exploration of systems engineering.</p>
+        </section>
+
+        <section className="about-section" id="about" aria-labelledby="about-title">
+          <h2 id="about-title">About me</h2>
+          <div className="about-copy">{about.map(paragraph => <p key={paragraph}>{paragraph}</p>)}</div>
         </section>
 
         <section className="contact-strip" id="contact" aria-labelledby="contact-title">
