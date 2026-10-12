@@ -1,6 +1,6 @@
 # Pixelware — Complexity under control
 
-A static project showcase built with React, TypeScript, Vite/Vinext, and Tailwind CSS. A graphite palette, red accents, and a compact grid put the projects first. The three clearly labeled placeholders have animated candlestick, network, and binary visuals; the market data is simulated. There is no database, authentication service, or application API.
+A static project showcase built with React, TypeScript, Vite/Vinext, and Tailwind CSS. A graphite palette, red accents, and a compact grid put the projects first. The grid links to the Visual Hardware IDE and includes two clearly labeled placeholders, with animated candlestick, network, and binary visuals; the market data is simulated. There is no database, authentication service, or application API.
 
 Native Canvas 2D renders the animated visuals without an animation dependency. Motion can be paused globally, respects reduced-motion preferences, and stops when canvases are outside the viewport or the tab is hidden.
 

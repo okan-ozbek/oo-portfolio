@@ -10,7 +10,7 @@ export async function validateStaticExport(directory) {
   assert.match(html, /Pixelware - Complexity under control/);
   assert.match(html, /Project index/);
   assert.match(html, /Project 01/);
-  assert.match(html, /Project 02/);
+  assert.match(html, /Visual Hardware IDE/);
   assert.match(html, /Project 03/);
   assert.equal([...html.matchAll(/<canvas\b/g)].length, 4, "The hero and three project visuals must be exported");
   assert.match(html, /<script[^>]*>import\("\/assets\/[^"\s]+\.js"\)<\/script>/, "Client hydration bundle is required");

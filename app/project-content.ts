@@ -9,10 +9,10 @@ export const projects = [
   },
   {
     id: "02",
-    name: "Project 02",
+    name: "Visual Hardware IDE",
     href: "https://systems.pixelware.nl/",
-    category: "Data infrastructure",
-    description: "A space for systems beneath the surface.",
+    category: "Educational tools",
+    description: "Explore CPU, cache, and memory behavior through interactive 3D simulations and an experimental C++ workspace.",
     visual: "network" as const,
     code: "PXW / NETWORK",
   },
