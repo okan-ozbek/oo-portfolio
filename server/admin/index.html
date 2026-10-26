@@ -38,7 +38,7 @@
           <article><p>TODAY <span>⌁</span></p><strong id="today-clicks">0</strong><small>Since midnight UTC</small></article>
           <article><p>ACTIVE LINKS <span>⊙</span></p><strong id="active-links">0</strong><small id="links-caption">Ready to share</small></article>
         </div>
-        <section class="activity panel"><div class="panel-heading"><div><h2>Click activity</h2><p class="muted">Daily clicks for each active link.</p></div>
+        <section class="activity panel"><div class="panel-heading"><div><h2>Click activity</h2><p class="muted">Counted clicks for each active link.</p></div>
           <div class="range-picker">
             <button id="activity-range" class="range-trigger" type="button" aria-label="Click activity range: Last 30 days" aria-haspopup="listbox" aria-expanded="false" aria-controls="activity-range-menu">
               <span class="range-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><rect x="3" y="4.5" width="14" height="12.5" rx="2"></rect><path d="M6.5 3v3M13.5 3v3M3 8.5h14M6.5 12h2M11.5 12h2"></path></svg></span><span id="activity-range-label">Last 30 days</span><svg class="range-chevron" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4"></path></svg>
@@ -53,16 +53,16 @@
           </div>
         </div>
           <ul id="chart-legend" class="chart-legend" aria-label="Active link colors"></ul>
-          <div class="chart-wrap"><div id="chart-scale" class="chart-scale" aria-hidden="true"></div><svg id="activity-chart" viewBox="0 0 900 200" preserveAspectRatio="none" role="img" tabindex="0" aria-describedby="chart-help chart-tooltip" aria-label="Daily redirect requests per active link over the last 30 days"></svg><div id="chart-tooltip" class="chart-tooltip" role="tooltip" hidden><p id="chart-tooltip-date" class="chart-tooltip-date"></p><div id="chart-tooltip-links"></div></div></div><div class="chart-labels"><span id="chart-start"></span><span id="chart-message">No clicks yet. Share a link to start the signal.</span><span>Today</span></div>
+          <div class="chart-wrap"><div id="chart-scale" class="chart-scale" aria-hidden="true"></div><svg id="activity-chart" viewBox="0 0 900 200" preserveAspectRatio="none" role="img" tabindex="0" aria-describedby="chart-help chart-tooltip" aria-label="Daily counted clicks per active link over the last 30 days"></svg><div id="chart-tooltip" class="chart-tooltip" role="tooltip" hidden><p id="chart-tooltip-date" class="chart-tooltip-date"></p><div id="chart-tooltip-links"></div></div></div><div class="chart-labels"><span id="chart-start"></span><span id="chart-message">No clicks yet. Share a link to start the signal.</span><span>Today</span></div>
           <p id="chart-help" class="sr-only">Hover a line for its daily clicks. When the chart is focused, use Left and Right arrow keys to explore dates, Home and End to jump, and Escape to dismiss.</p>
         </section>
         <section class="links panel"><div class="panel-heading"><div class="links-title"><h2>Your links</h2><span id="link-count" class="count-badge">0</span></div><div class="table-tools"><label class="sr-only" for="search">Search links</label><input id="search" type="search" placeholder="Search links…"><button id="refresh" class="secondary">↻ Refresh</button></div></div>
           <div id="empty-state" class="empty-state"><span class="empty-symbol">↗</span><h3>Your first link starts here.</h3><p>Create a short link for your resume, portfolio, or anywhere else.<br>We’ll keep track of the clicks along the way.</p><button id="empty-create" class="secondary">＋ Create your first link</button></div>
-          <div id="table-wrap" class="table-wrap" hidden><table><thead><tr><th scope="col">LINK / DESTINATION</th><th scope="col">SOURCE</th><th scope="col">STATUS</th><th scope="col" class="number">CLICKS</th><th scope="col">LAST CLICK</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="link-rows"></tbody></table></div>
+          <div id="table-wrap" class="table-wrap" hidden><table><thead><tr><th scope="col">LINK / DESTINATION</th><th scope="col">SOURCE</th><th scope="col">STATUS</th><th scope="col" class="number">CLICKS</th><th scope="col">LAST COUNTED</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="link-rows"></tbody></table></div>
           <p id="no-results" class="empty-state" hidden>No links match your search.</p>
         </section>
-        <footer class="workspace-footer"><span><span class="status-dot"></span> Aggregate counts. No visitor profiles or tracking cookies.</span></footer>
-        <p class="measurement-note">Clicks are redirect requests, not unique visitors. Repeat clicks, bots, and link scanners can count; HEAD requests and explicit prefetches are excluded. Admin link previews do not count. Times are shown in UTC.</p>
+        <footer class="workspace-footer"><span><span class="status-dot"></span> One counted click per browser, per link, per hour.</span></footer>
+        <p class="measurement-note">A short-lived anonymous cookie filters repeat clicks. Clearing or blocking cookies, switching browsers or devices, and bots can count separately. HEAD requests, explicit prefetches, and admin destination previews do not count. Times are shown in UTC.</p>
       </main>
     </div>
   </div>

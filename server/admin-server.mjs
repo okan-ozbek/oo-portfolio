@@ -8,6 +8,7 @@ import { validatePasswordHash, verifyPassword } from "./security.mjs";
 
 const sha256 = value => createHash("sha256").update(value).digest("hex");
 const SESSION_SECONDS = 12 * 60 * 60;
+const CLICK_COOLDOWN_SECONDS = 60 * 60;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const assets = new Map([
   ["/admin", ["index.html", "text/html; charset=utf-8"]],
@@ -80,14 +81,26 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
     CREATE TABLE IF NOT EXISTS login_limit (
       id INTEGER PRIMARY KEY CHECK(id = 1), attempts INTEGER NOT NULL, resets_at INTEGER NOT NULL
     ) STRICT;
+    CREATE TABLE IF NOT EXISTS click_cooldowns (
+      link_id TEXT NOT NULL REFERENCES links(id) ON DELETE CASCADE,
+      visitor_hash TEXT NOT NULL, expires_at INTEGER NOT NULL,
+      PRIMARY KEY (link_id, visitor_hash)
+    ) STRICT;
+    CREATE INDEX IF NOT EXISTS click_cooldowns_expiry ON click_cooldowns(expires_at);
   `);
+  const pruneCooldowns = db.prepare("DELETE FROM click_cooldowns WHERE expires_at <= ?");
+  pruneCooldowns.run(now());
   const passwordVersion = sha256(passwordHash);
   db.prepare("DELETE FROM sessions WHERE expires_at <= ? OR password_version != ?").run(now(), passwordVersion);
   const cookieName = secureCookies ? "__Host-pixelware_admin" : "pixelware_admin_dev";
+  const visitorCookieName = secureCookies ? "__Host-pixelware_click" : "pixelware_click_dev";
   const cookie = (token, maxAge) => `${cookieName}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secureCookies ? "; Secure" : ""}`;
   let loginsInFlight = 0;
+  function readCookie(req, name) {
+    return (req.headers.cookie ?? "").split(";").map(value => value.trim()).find(value => value.startsWith(`${name}=`))?.slice(name.length + 1);
+  }
   function session(req) {
-    const token = (req.headers.cookie ?? "").split(";").map(value => value.trim()).find(value => value.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1);
+    const token = readCookie(req, cookieName);
     if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
     return db.prepare("SELECT * FROM sessions WHERE token_hash = ? AND expires_at > ? AND password_version = ?").get(sha256(token), now(), passwordVersion) ?? null;
   }
@@ -146,16 +159,29 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
         const link = SLUG.test(slug) && db.prepare("SELECT * FROM links WHERE slug = ? AND enabled = 1").get(slug);
         if (!link) throw new HttpError(404, "Link not found or paused.");
         const preview = /prefetch|prerender/i.test(`${req.headers.purpose ?? ""} ${req.headers["sec-purpose"] ?? ""}`);
-        // Counts are aggregate requests, not unique people. HEAD and explicit prefetches do not count.
+        // Lax cookies accompany external top-level navigations from resumes.
+        // One count per browser/link/hour; HEAD and prefetches do not count.
         if (req.method === "GET" && !preview) {
-          const timestamp = new Date(now()).toISOString();
+          const currentTime = now();
+          const timestamp = new Date(currentTime).toISOString();
+          const existingVisitor = readCookie(req, visitorCookieName);
+          const visitor = /^[a-f0-9]{64}$/.test(existingVisitor ?? "") ? existingVisitor : randomBytes(32).toString("hex");
           db.exec("BEGIN IMMEDIATE");
           try {
-            db.prepare(`INSERT INTO daily_clicks (link_id, day, clicks) VALUES (?, ?, 1)
-              ON CONFLICT(link_id, day) DO UPDATE SET clicks = clicks + 1`).run(link.id, timestamp.slice(0, 10));
-            db.prepare("UPDATE links SET last_clicked_at = ? WHERE id = ?").run(timestamp, link.id);
+            pruneCooldowns.run(currentTime);
+            const accepted = db.prepare(`INSERT INTO click_cooldowns (link_id, visitor_hash, expires_at)
+              VALUES (?, ?, ?) ON CONFLICT(link_id, visitor_hash) DO NOTHING`)
+              .run(link.id, sha256(visitor), currentTime + CLICK_COOLDOWN_SECONDS * 1000);
+            if (accepted.changes === 1) {
+              db.prepare(`INSERT INTO daily_clicks (link_id, day, clicks) VALUES (?, ?, 1)
+                ON CONFLICT(link_id, day) DO UPDATE SET clicks = clicks + 1`).run(link.id, timestamp.slice(0, 10));
+              db.prepare("UPDATE links SET last_clicked_at = ? WHERE id = ?").run(timestamp, link.id);
+            }
             db.exec("COMMIT");
           } catch (error) { db.exec("ROLLBACK"); throw error; }
+          // Refresh browser recognition, not the per-link cooldown. This also
+          // preserves an hour's protection for links clicked later in a visit.
+          res.setHeader("Set-Cookie", `${visitorCookieName}=${visitor}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${CLICK_COOLDOWN_SECONDS}${secureCookies ? "; Secure" : ""}`);
         }
         res.writeHead(302, { Location: link.destination });
         return res.end();
@@ -243,7 +269,12 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
   });
   server.requestTimeout = 10000;
   server.headersTimeout = 10000;
-  server.on("close", () => db.close());
+  const cleanup = setInterval(() => {
+    try { pruneCooldowns.run(now()); }
+    catch (error) { console.error("Click cooldown cleanup failed:", error.message); }
+  }, 60000);
+  cleanup.unref();
+  server.on("close", () => { clearInterval(cleanup); db.close(); });
   return server;
 }
 

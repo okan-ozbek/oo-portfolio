@@ -44,11 +44,27 @@ Hover near a chart line to inspect its UTC date and daily click count. Overlappi
 lines share a tooltip. Focus the chart and use Left/Right, Home/End, and Escape
 to inspect dates or dismiss the tooltip with the keyboard.
 
-Counts are GET redirect requests, **not unique people** or verified human visits.
-Repeat clicks, scanners, and bots can count; HEAD and explicit prefetch/prerender
-requests are excluded. UTC daily aggregates are retained. Analytics store no IP
-address, referrer, user agent, or visitor cookie. Redirect query strings are not
-forwarded. There are no conversion metrics in this draft.
+Clicks count once per browser, per link, per hour. Repeated visits still redirect
+immediately but do not increment totals or move the last-counted timestamp.
+The hour starts with the last counted click; duplicates do not extend it, and
+midnight does not reset it. Other links have independent cooldowns. Historical
+counts from before this feature remain unchanged and cannot be deduplicated
+retroactively from daily aggregates.
+
+An anonymous random browser cookie lasts one hour after the latest normal link
+visit. It is HttpOnly, host-only, SameSite=Lax (so it accompanies visits from
+external resumes/social sites), and Secure in production. SQLite stores only its
+SHA-256 hash paired with a link and cooldown expiry. Expired cooldown rows are
+removed at startup, during redirect counting, and every minute. Cooldowns survive
+container restarts, deployments, and admin password changes. No IP address,
+referrer, or user agent is used for identification. These are not verified unique
+people: clearing/blocking cookies, private browsing, other browsers/devices, and
+bots can produce extra counts. Simultaneous first-ever requests before a browser
+receives its first cookie can also count separately.
+
+HEAD and explicit prefetch/prerender requests are excluded and do not set a
+visitor cookie. UTC daily aggregates are retained. Redirect query strings are
+not forwarded. There are no conversion metrics in this draft.
 
 ## Production password
 

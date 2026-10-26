@@ -23,18 +23,22 @@ async function fixture(t, options = {}) {
   t.after(close);
   const base = `http://127.0.0.1:${server.address().port}`;
   let cookie = "";
+  let visitorCookie = "";
   let csrf = "";
   async function request(path, options = {}) {
     const method = options.method ?? "GET";
-    return fetch(`${base}${path}`, {
+    const response = await fetch(`${base}${path}`, {
       ...options, redirect: "manual", signal: AbortSignal.timeout(10000),
       headers: {
-        ...(cookie ? { Cookie: cookie } : {}),
+        ...((cookie || visitorCookie) ? { Cookie: [cookie, visitorCookie].filter(Boolean).join("; ") } : {}),
         ...(method !== "GET" && method !== "HEAD" ? { Origin: origin, "Content-Type": "application/json", "X-CSRF-Token": csrf } : {}),
         ...options.headers,
       },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
+    const visitor = response.headers.getSetCookie().find(value => /^(?:__Host-pixelware_click|pixelware_click_dev)=/.test(value));
+    if (visitor) visitorCookie = visitor.split(";")[0];
+    return response;
   }
   async function login() {
     const response = await request("/api/admin/login", { method: "POST", body: { password } });
@@ -111,7 +115,7 @@ test("create, edit, pause, and persist redirects with accurate UTC aggregate cou
   assert.equal(redirect.status, 302);
   assert.equal(redirect.headers.get("location"), linkBody.destination);
   assert.equal(redirect.headers.get("cache-control"), "no-store");
-  clock += 2000;
+  clock += 3600000;
   await app.request("/r/resume-linkedin");
   let data = await (await app.request("/api/admin/links")).json();
   assert.equal(data.links[0].clicks, 2);
@@ -157,6 +161,112 @@ test("invalid destinations, credentials, looping targets, slugs, and fields are 
   }
 });
 
+test("one-hour cooldown is per browser/link, spans midnight, and is not extended by repeats", async t => {
+  const started = Date.parse("2026-10-25T23:50:00Z");
+  let clock = started;
+  const app = await fixture(t, { now: () => clock });
+  await app.login();
+  await app.request("/api/admin/links", { method: "POST", body: linkBody });
+  await app.request("/api/admin/links", { method: "POST", body: { ...linkBody, slug: "other-link" } });
+  const first = await app.request(`/r/${linkBody.slug}`);
+  const browser = first.headers.get("set-cookie").split(";")[0];
+  for (const flag of ["__Host-pixelware_click=", "Secure", "HttpOnly", "SameSite=Lax", "Path=/", "Max-Age=3600"]) assert.ok(first.headers.get("set-cookie").includes(flag));
+  clock += 10 * 60000;
+  const repeated = await app.request(`/r/${linkBody.slug}?source=changed`, { headers: { Cookie: browser } });
+  assert.equal(repeated.status, 302);
+  assert.equal(repeated.headers.get("location"), linkBody.destination);
+  let data = await (await app.request("/api/admin/links")).json();
+  let link = data.links.find(link => link.slug === linkBody.slug);
+  assert.equal(link.clicks, 1);
+  assert.equal(link.today, 0, "Midnight must not reset a still-active cooldown");
+  assert.equal(link.lastClickedAt, new Date(started).toISOString());
+  await app.request("/r/other-link", { headers: { Cookie: browser } });
+  await app.request(`/r/${linkBody.slug}`, { headers: { Cookie: "" } }); // Another browser counts independently.
+  clock = started + 3600000 - 1;
+  await app.request(`/r/${linkBody.slug}`, { headers: { Cookie: browser } });
+  data = await (await app.request("/api/admin/links")).json();
+  assert.equal(data.links.find(link => link.slug === linkBody.slug).clicks, 2);
+  clock++;
+  await app.request(`/r/${linkBody.slug}`, { headers: { Cookie: browser } });
+  data = await (await app.request("/api/admin/links")).json();
+  link = data.links.find(link => link.slug === linkBody.slug);
+  assert.equal(link.clicks, 3, "The original browser counts again exactly one hour after its first counted click");
+  assert.equal(link.today, 2);
+  assert.equal(data.links.find(link => link.slug === "other-link").clicks, 1);
+});
+
+test("parallel clicks with the same browser cookie count only once", async t => {
+  const app = await fixture(t);
+  await app.login();
+  await app.request("/api/admin/links", { method: "POST", body: linkBody });
+  await app.request("/api/admin/links", { method: "POST", body: { ...linkBody, slug: "parallel-link" } });
+  const first = await app.request(`/r/${linkBody.slug}`);
+  const browser = first.headers.get("set-cookie").split(";")[0];
+  const responses = await Promise.all(Array.from({ length: 12 }, () => app.request("/r/parallel-link", { headers: { Cookie: browser } })));
+  for (const response of responses) assert.equal(response.status, 302);
+  const data = await (await app.request("/api/admin/links")).json();
+  assert.equal(data.links.find(link => link.slug === "parallel-link").clicks, 1);
+});
+
+test("cooldowns survive restarts, store only token hashes, and expire without losing click history", async t => {
+  const dir = await mkdtemp(join(tmpdir(), "pixelware-cooldown-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const databasePath = join(dir, "admin.sqlite");
+  const started = Date.parse("2026-10-26T10:00:00Z");
+  let clock = started;
+  const app = await fixture(t, { databasePath, now: () => clock });
+  await app.login();
+  await app.request("/api/admin/links", { method: "POST", body: linkBody });
+  await app.request("/api/admin/links", { method: "POST", body: { ...linkBody, slug: "expiry-check" } });
+  const response = await app.request(`/r/${linkBody.slug}`);
+  const browser = response.headers.get("set-cookie").split(";")[0];
+  const rawToken = browser.split("=")[1];
+  await app.request("/r/expiry-check", { headers: { Cookie: browser } });
+  await app.close();
+  const inspect = new DatabaseSync(databasePath);
+  const records = inspect.prepare("SELECT * FROM click_cooldowns").all();
+  assert.equal(records.length, 2);
+  assert.ok(records.every(row => row.visitor_hash === createHash("sha256").update(rawToken).digest("hex")));
+  assert.ok(records.every(row => row.expires_at === started + 3600000));
+  assert.deepEqual(inspect.prepare("PRAGMA table_info(click_cooldowns)").all().map(row => row.name), ["link_id", "visitor_hash", "expires_at"]);
+  inspect.close();
+  assert.equal((await readFile(databasePath)).includes(Buffer.from(rawToken)), false);
+  clock += 30 * 60000;
+  const restarted = await fixture(t, { databasePath, now: () => clock });
+  await restarted.login();
+  await restarted.request(`/r/${linkBody.slug}`, { headers: { Cookie: browser } });
+  let data = await (await restarted.request("/api/admin/links")).json();
+  assert.equal(data.links.find(link => link.slug === linkBody.slug).clicks, 1);
+  clock += 30 * 60000;
+  await restarted.request(`/r/${linkBody.slug}`, { headers: { Cookie: browser } });
+  data = await (await restarted.request("/api/admin/links")).json();
+  assert.equal(data.links.find(link => link.slug === linkBody.slug).clicks, 2);
+  assert.equal(data.links.find(link => link.slug === "expiry-check").clicks, 1);
+  await restarted.close();
+  const afterExpiry = new DatabaseSync(databasePath);
+  assert.equal(afterExpiry.prepare("SELECT COUNT(*) AS count FROM click_cooldowns").get().count, 1);
+  afterExpiry.close();
+});
+
+test("invalid visitor cookies are replaced; preview and missing routes never set one", async t => {
+  const app = await fixture(t, { secureCookies: false });
+  await app.login();
+  await app.request("/api/admin/links", { method: "POST", body: linkBody });
+  for (const options of [{ method: "HEAD" }, { headers: { Purpose: "prefetch" } }, { headers: { "Sec-Purpose": "prerender" } }]) {
+    const response = await app.request(`/r/${linkBody.slug}`, options);
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("set-cookie"), null);
+  }
+  assert.equal((await app.request("/r/not-found")).headers.get("set-cookie"), null);
+  const first = await app.request(`/r/${linkBody.slug}`, { headers: { Cookie: "pixelware_click_dev=invalid" } });
+  const cookie = first.headers.get("set-cookie");
+  assert.match(cookie, /^pixelware_click_dev=[a-f0-9]{64};/);
+  assert.doesNotMatch(cookie, /Secure/);
+  await app.request(`/r/${linkBody.slug}`, { headers: { Cookie: cookie.split(";")[0], "Sec-Fetch-Site": "cross-site" } });
+  const data = await (await app.request("/api/admin/links")).json();
+  assert.equal(data.links[0].clicks, 1);
+});
+
 test("activity separates active links, includes zero-click links, and restores paused history", async t => {
   const app = await fixture(t, { now: () => Date.parse("2026-10-26T12:00:00Z") });
   await app.login();
@@ -169,7 +279,7 @@ test("activity separates active links, includes zero-click links, and restores p
   const second = await create("resume-second");
   const empty = await create("resume-zero");
   await app.request("/r/resume-first");
-  await app.request("/r/resume-first");
+  await app.request("/r/resume-first", { headers: { Cookie: "" } }); // A second browser.
   await app.request("/r/resume-second");
   const activity = async () => (await app.request("/api/admin/links")).json();
   let data = await activity();
