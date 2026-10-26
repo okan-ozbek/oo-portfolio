@@ -47,7 +47,7 @@ try {
   assert.equal((await fetch(`${base}/`)).status, 200);
   const page = await fetch(`${base}/admin`);
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /Link studio/);
+  assert.match(await page.text(), /<title>Analytics · Pixelware<\/title>/);
   assert.equal((await fetch(`${base}/admin/assets/admin.js`)).status, 200);
   assert.equal((await fetch(`${base}/api/admin/links`)).status, 401);
   const headers = { Origin: "https://pixelware.test", "Content-Type": "application/json" };
@@ -65,6 +65,11 @@ try {
   assert.equal(redirect.status, 302);
   assert.equal(redirect.headers.get("location"), "https://github.com/okan-ozbek");
   assert.equal(redirect.headers.get("cache-control"), "no-store");
+  const visitorCookie = redirect.headers.get("set-cookie");
+  assert.match(visitorCookie, /SameSite=Lax/);
+  assert.match(visitorCookie, /Max-Age=3600/);
+  headers.Cookie += `; ${visitorCookie.split(";")[0]}`;
+  assert.equal((await fetch(`${base}/r/container-smoke`, { headers, redirect: "manual" })).status, 302);
   const stats = await (await fetch(`${base}/api/admin/links`, { headers })).json();
   assert.equal(stats.links[0].clicks, 1);
   docker("restart", `${id}-admin`);

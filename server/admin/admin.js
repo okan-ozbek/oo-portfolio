@@ -104,7 +104,7 @@ function renderRows() {
     clicks.dataset.label = "Clicks";
     const time = link.lastClickedAt ? new Intl.DateTimeFormat(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }).format(new Date(link.lastClickedAt)) : "No clicks yet";
     const lastClick = element("td", "last-click", time);
-    lastClick.dataset.label = "Last click";
+    lastClick.dataset.label = "Last counted";
     const actions = element("td");
     const actionWrap = element("div", "row-actions");
     const copy = element("button", "secondary", "Copy ↗");
