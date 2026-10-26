@@ -31,7 +31,11 @@ function dataVolume(id) {
   return info.Mounts.find(mount => mount.Destination === "/data").Name;
 }
 try {
-  const production = JSON.parse(docker("compose", "-f", join(root, "compose.yaml"), "config", "--format", "json"));
+  const production = JSON.parse(docker("compose", "-f", join(root, "compose.vps.yaml"), "config", "--format", "json"));
+  assert.deepEqual(Object.keys(production.services).sort(), ["admin", "portfolio"], "The VPS deployment must reuse its external HTTPS proxy");
+  assert.equal(production.networks.proxy.external, true);
+  assert.equal(production.networks.proxy.name, "pixelware-proxy");
+  assert.ok(production.services.portfolio.networks.proxy.aliases.includes("portfolio-web"));
   const service = {
     ...production.services.admin,
     image,

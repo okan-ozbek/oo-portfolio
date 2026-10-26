@@ -60,6 +60,14 @@ and redeploying invalidates sessions while keeping links and counts.
 
 ## GitHub Actions → VPS
 
+The current VPS uses `/var/www/oo-portfolio` and Compose project `oo-portfolio`.
+Its separate Caddy stack in `/var/www/reverse-proxy` already serves HTTPS through
+the external `pixelware-proxy` network. `compose.vps.yaml` reuses the base service
+definitions and connects NGINX with the existing `portfolio-web` alias. It starts
+only the portfolio and admin services, leaving the shared proxy and certificates
+in their current stack. `compose.yaml` remains the standalone stack for a host
+where this application also runs its own Caddy instance.
+
 The `Deploy portfolio and link studio` workflow runs automatically on every push
 to **master**, including merged pull requests. It can also be run manually from
 the Actions tab with `master` selected. Other branches and pull-request events
@@ -82,34 +90,42 @@ and configure these environment secrets (repository secrets also work):
 Optionally set environment variable `VPS_PORT` (default 22). For a custom port,
 known_hosts needs `[hostname]:port`. Verify the host fingerprint through the
 provider console or another trusted channel; the workflow enforces verification.
-The account needs Docker Compose without interactive sudo. Docker access gives
-broad control of the VPS. Provision Docker, DNS, and firewall first.
+The account needs passwordless `sudo -n bash` for the installer because the
+deployment directory is owned by root. The workflow uploads as the SSH user and
+runs only the installer through sudo. This is broad root access; the deployment
+key and production environment must be restricted to trusted maintainers.
+Docker, the shared proxy network/Caddy stack, DNS, and firewall must exist first.
 
 Set the required environment variable `VPS_COMPOSE_PROJECT` to the existing VPS Compose
 project name before the first automatic deployment. Find it with
-`docker compose ls` or the running containers' `com.docker.compose.project`
-label. For a fresh VPS set it to `pixelware`. The workflow fails before contacting
+`sudo docker compose ls` or the running containers' `com.docker.compose.project`
+label. On the current VPS use `oo-portfolio`. The workflow fails before contacting
 the VPS if this setting is missing; it does not guess a new project name.
 Commit and push the workflow and application files to `master` after configuring
 the secrets and variables. Deployment runs after the checks pass. An environment
 approval rule, if configured in GitHub, still applies.
 
-Source and hash transfer over SSH through `~/pixelware-incoming/`. Releases are
-under `~/pixelware/releases/`; the runtime hash lives in the private directory
-`~/pixelware/.deploy-secrets/` and is mounted as a read-only Docker secret. It is
+Source and hash transfer over SSH through the SSH user's `~/pixelware-incoming/`.
+The root installer obtains that user's home from `SUDO_USER` and the system
+account database. Releases are under `/var/www/oo-portfolio/releases/`; the
+runtime hash lives in `/var/www/oo-portfolio/.deploy-secrets/` and is mounted as
+a read-only Docker secret. It is
 excluded from image builds and frontend `VITE_*` variables. The VPS must retain
 the hash for authentication: GitHub Secrets controls delivery, not automatic
 synchronization or encrypted storage at rest. Compose file secrets are read-only
 bind mounts, not Swarm-encrypted secrets.
 
-**Database preservation:** each release runs `docker compose -p <project> build`
-followed by `docker compose -p <project> up -d --force-recreate --wait`. The existing
+**Database preservation:** each release runs Docker Compose with
+`-f compose.vps.yaml -p <project>`, builds, then runs
+`up -d --force-recreate --wait`. The existing
 `<project>_admin_data` named volume is reattached, preserving links, click counts,
 and sessions. The workflow never removes volumes, prunes Docker resources, or
-copies a development database over the server database. Caddy volumes are reused
-in the same way. Containers can be briefly unavailable while being replaced.
+copies a development database over the server database. The shared Caddy stack
+and its volumes are not changed. The first admin deployment creates an empty
+database; locally created links are not migrated. Containers can be briefly
+unavailable while being replaced.
 
-After the first successful deployment, `~/pixelware/compose-project` records the
+After the first successful deployment, `/var/www/oo-portfolio/compose-project` records the
 project name. A later run with a different `VPS_COMPOSE_PROJECT` fails before
 altering the release or runtime secret, preventing an accidental switch to an
 empty database. Do not change it as part of routine deployment. For an existing
@@ -117,13 +133,20 @@ deployment's first adoption, use its actual project name; no volume migration is
 automated. Explicit custom volume names/other Compose overrides require carrying
 those settings over before adopting this workflow.
 
-Keep releases for rollback. Run `docker compose -p <your-project> up -d --build --wait`
+Keep releases for rollback. Run `sudo docker compose -f compose.vps.yaml -p <your-project> up -d --build --wait`
 from a previous release to roll code back. There is no automatic rollback or old
 release cleanup. Inspect Docker logs after failed builds or health checks.
 See [GitHub's secret setup](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
 for environment-secret access rules and plan availability.
 
 ## Manual Docker startup
+
+On the current shared-proxy VPS, use `sudo docker compose -f compose.vps.yaml
+-p oo-portfolio ...` from a prepared release directory. Do not start the standalone
+Caddy service there; ports 80/443 belong to `/var/www/reverse-proxy`.
+
+The following commands are for a **standalone host** where this application owns
+its HTTPS proxy:
 
 Create `.deploy-secrets/` in the repo root with directory mode 0700, save the hash
 in `.deploy-secrets/admin_password_hash`, and set file mode 0444. The private parent
