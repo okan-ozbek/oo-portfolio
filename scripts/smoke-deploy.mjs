@@ -76,7 +76,9 @@ try {
   });
   assert.equal(created.status, 201);
   const originalLink = (await created.json()).link;
-  assert.equal((await request(base, "/r/deploy-check")).status, 302);
+  const firstClick = await request(base, "/r/deploy-check");
+  assert.equal(firstClick.status, 302);
+  headers.Cookie += `; ${firstClick.headers.get("set-cookie").split(";")[0]}`;
 
   // Match production's new release directory and forced container replacement.
   release = releases[1];
@@ -92,9 +94,11 @@ try {
   assert.equal(links[0].id, originalLink.id);
   assert.equal(links[0].destination, "https://example.com/");
   assert.equal(links[0].clicks, 1, "Existing click counts must survive a rebuilt release");
-  assert.equal((await request(base, "/r/deploy-check")).status, 302);
+  assert.equal((await request(base, "/r/deploy-check", { headers })).status, 302);
+  assert.equal((await (await request(base, "/api/admin/links", { headers })).json()).links[0].clicks, 1, "The browser cooldown must survive container replacement");
+  assert.equal((await request(base, "/r/deploy-check")).status, 302); // New browser.
   assert.equal((await (await request(base, "/api/admin/links", { headers })).json()).links[0].clicks, 2);
-  console.log("Deployment smoke passed: two built releases, different containers, same volume, saved links, click history, and sessions.");
+  console.log("Deployment smoke passed: two built releases, same volume, saved links, click history, sessions, and browser cooldowns.");
 } catch (error) {
   if (started) {
     try { console.error(compose("logs", "--tail", "30")); } catch { /* Keep the original failure. */ }
