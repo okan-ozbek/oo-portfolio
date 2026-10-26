@@ -47,7 +47,7 @@ try {
   assert.equal((await fetch(`${base}/`)).status, 200);
   const page = await fetch(`${base}/admin`);
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /Link studio/);
+  assert.match(await page.text(), /<title>Analytics · Pixelware<\/title>/);
   assert.equal((await fetch(`${base}/admin/assets/admin.js`)).status, 200);
   assert.equal((await fetch(`${base}/api/admin/links`)).status, 401);
   const headers = { Origin: "https://pixelware.test", "Content-Type": "application/json" };
