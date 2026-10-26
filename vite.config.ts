@@ -8,7 +8,7 @@ export default defineConfig({
     fs: {
       deny: ["**/.env*", "**/*.{crt,pem,key}", "**/.git/**", "**/.admin-local-password", "**/data/**", "**/.deploy-secrets/**"],
     },
-    proxy: Object.fromEntries(["/admin", "/api/admin", "/r/"].map(path => [path, {
+    proxy: Object.fromEntries(["/admin", "/api/admin", "/api/public/resume", "/resume.pdf", "/resumes/", "/r/"].map(path => [path, {
       target: process.env.PIXELWARE_ADMIN_TARGET ?? "http://127.0.0.1:3031",
     }])),
   },

@@ -1,4 +1,4 @@
-name: Deploy portfolio and link studio
+name: Deploy portfolio and analytics
 on:
   push:
     branches:
@@ -31,6 +31,10 @@ jobs:
           docker compose -f compose.vps.yaml config --quiet
       - name: Verify database survives rebuilding and replacing containers
         run: npm run test:deploy
+      - name: Verify LaTeX compilation and PDF tracking
+        run: npm run test:resumes:compiler
+      - name: Verify resume upload and publication through NGINX
+        run: npm run test:admin:container
   deploy:
     if: github.ref == 'refs/heads/master'
     needs: verify

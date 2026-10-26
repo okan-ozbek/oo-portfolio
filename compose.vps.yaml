@@ -14,8 +14,14 @@ services:
     extends:
       file: compose.yaml
       service: admin
+  compiler:
+    extends:
+      file: compose.yaml
+      service: compiler
 
 networks:
+  compilation:
+    internal: true
   proxy:
     name: pixelware-proxy
     external: true

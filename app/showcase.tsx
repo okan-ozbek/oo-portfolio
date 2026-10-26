@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { ArrowDownRight, ArrowUpRight, Pause, Play } from "lucide-react";
 import { DataVisual } from "./data-visual";
 import { about, contact, projects } from "./project-content";
@@ -15,6 +15,15 @@ const getReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduc
 export function Showcase() {
   const reducedMotion = useSyncExternalStore(subscribeMotion, getReducedMotion, () => false);
   const [motionOverride, setMotionOverride] = useState<boolean | null>(null);
+  const [resumeAvailable, setResumeAvailable] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/public/resume', { signal: controller.signal, cache: 'no-store' })
+      .then(response => response.ok ? response.json() : null)
+      .then(data => { if (!controller.signal.aborted) setResumeAvailable(data?.available === true); })
+      .catch(() => { /* The portfolio remains usable when no resume is published. */ });
+    return () => controller.abort();
+  }, []);
   const playing = motionOverride ?? !reducedMotion;
   const projectCount = String(projects.length).padStart(2, "0");
 
@@ -90,7 +99,7 @@ export function Showcase() {
 
       <footer className="site-footer">
         <p className="mono">© {new Date().getFullYear()} PIXELWARE</p>
-        <div className="footer-links"><a href={contact.github} target="_blank" rel="noreferrer">GitHub <ArrowUpRight size={13} aria-hidden="true" /></a><a href={`mailto:${contact.email}`}>Email <ArrowUpRight size={13} aria-hidden="true" /></a></div>
+        <div className="footer-links">{resumeAvailable && <a href="/resume.pdf" download>Resume PDF <ArrowDownRight size={13} aria-hidden="true" /></a>}<a href={contact.github} target="_blank" rel="noreferrer">GitHub <ArrowUpRight size={13} aria-hidden="true" /></a><a href={`mailto:${contact.email}`}>Email <ArrowUpRight size={13} aria-hidden="true" /></a></div>
         <button className="motion-control" type="button" aria-label={playing ? "Pause animations" : "Play animations"} aria-pressed={!playing} onClick={() => setMotionOverride(!playing)}>{playing ? <Pause size={12} aria-hidden="true" /> : <Play size={12} aria-hidden="true" />}<span>Motion {playing ? "on" : "off"}</span></button>
       </footer>
     </div>
