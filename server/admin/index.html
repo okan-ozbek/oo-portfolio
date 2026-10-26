@@ -3,36 +3,35 @@
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow"><meta name="color-scheme" content="dark">
-  <title>Link studio · Pixelware</title>
+  <title>Analytics · Pixelware</title>
   <link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/admin/assets/admin.css">
   <script src="/admin/assets/admin.js" defer></script>
 </head>
 <body>
-  <div id="loading" class="loading" role="status">Opening your workspace…</div>
+  <div id="loading" class="loading" role="status">Loading analytics…</div>
   <section id="login-view" class="login-layout" hidden>
     <div class="login-story">
       <a class="wordmark" href="/">pixelware<span>.</span></a>
-      <div class="story-copy"><p class="eyebrow"><span class="red-dot"></span> PRIVATE WORKSPACE</p>
-        <h1>Every link.<br>A little more<br><span>insight.</span></h1>
-        <p>A small control room for the links you put out into the world.</p>
-        <div class="story-route"><span>YOUR RESUME</span><span class="route-line">─────────↗</span><span>WHAT’S NEXT</span></div>
+      <div class="story-copy">
+        <h1>Your website.<br><span>In focus.</span></h1>
+        <p>One place to understand your website’s performance and how people interact with it.</p>
       </div>
-      <p class="fine-print">PIXELWARE / LINK STUDIO / 01</p>
     </div>
     <div class="login-form-wrap"><form id="login-form" class="login-form">
-      <div class="lock-icon" aria-hidden="true">⌑</div><p class="eyebrow">OWNER ACCESS</p>
-      <h2>Welcome back.</h2><p class="muted">Sign in to manage your links and see what gets clicked.</p>
+      <p class="eyebrow">OWNER ACCESS</p>
+      <h2>Welcome back.</h2><p class="muted">Sign in to view your website’s analytics.</p>
       <label for="password">Admin password</label><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256">
       <p id="login-error" class="error" role="alert"></p>
-      <button id="sign-in" class="primary" type="submit">Open workspace <span>↗</span></button>
+      <button id="sign-in" class="primary" type="submit">Open analytics <span>↗</span></button>
       <p class="login-note">Private dashboard. No public registration.</p>
     </form></div>
   </section>
   <div id="dashboard" class="app-shell" hidden>
     <div class="workspace">
-      <header class="topbar"><div class="topbar-brand"><a class="wordmark" href="/">pixelware<span>.</span></a><span class="divider">/</span><strong>Link studio</strong></div><div class="topbar-actions"><a href="/" target="_blank" rel="noopener">View website ↗</a><button id="logout" class="text-button">Sign out ↗</button></div></header>
+      <header class="topbar"><div class="topbar-brand"><a class="wordmark" href="/">pixelware<span>.</span></a></div><div class="topbar-actions"><a href="/" target="_blank" rel="noopener">View website ↗</a><button id="logout" class="text-button">Sign out ↗</button></div></header>
       <main>
-        <div class="page-heading"><div><p class="eyebrow"><span class="red-dot"></span> FOLLOW THE SIGNAL</p><h1>Link studio<span>.</span></h1><p class="muted">Your links, their destinations, and what happens in between.</p></div><button id="new-link" class="primary">＋ Create link</button></div>
+        <h1 class="sr-only">Website analytics</h1>
+        <div class="page-heading"><div><p class="eyebrow"><span class="red-dot"></span> FOLLOW THE SIGNAL</p><p class="muted">Your links, their destinations, and what happens in between.</p></div><button id="new-link" class="primary">＋ Create link</button></div>
         <div class="metrics" aria-label="Link statistics">
           <article><p>TOTAL CLICKS <span>↗</span></p><strong id="total-clicks">0</strong><small>Across all your links</small></article>
           <article><p>LAST 30 DAYS <span>◷</span></p><strong id="month-clicks">0</strong><small>Including today · UTC</small></article>
@@ -62,14 +61,14 @@
           <div id="table-wrap" class="table-wrap" hidden><table><thead><tr><th scope="col">LINK / DESTINATION</th><th scope="col">SOURCE</th><th scope="col">STATUS</th><th scope="col" class="number">CLICKS</th><th scope="col">LAST CLICK</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="link-rows"></tbody></table></div>
           <p id="no-results" class="empty-state" hidden>No links match your search.</p>
         </section>
-        <footer class="workspace-footer"><span><span class="status-dot"></span> Aggregate counts. No visitor profiles or tracking cookies.</span><span>LINK STUDIO / PIXELWARE</span></footer>
+        <footer class="workspace-footer"><span><span class="status-dot"></span> Aggregate counts. No visitor profiles or tracking cookies.</span></footer>
         <p class="measurement-note">Clicks are redirect requests, not unique visitors. Repeat clicks, bots, and link scanners can count; HEAD requests and explicit prefetches are excluded. Admin link previews do not count. Times are shown in UTC.</p>
       </main>
     </div>
   </div>
-  <dialog id="link-dialog"><form id="link-form"><div class="dialog-heading"><div><p class="eyebrow">MAKE A CONNECTION</p><h2 id="dialog-title">Create a link<span>.</span></h2></div><button id="close-dialog" class="icon-button" type="button" aria-label="Close dialog">×</button></div>
+  <dialog id="link-dialog"><form id="link-form"><div class="dialog-heading"><h2 id="dialog-title">Create a link<span>.</span></h2><button id="close-dialog" class="icon-button" type="button" aria-label="Close dialog">×</button></div>
     <label for="label">Link name</label><input id="label" name="label" placeholder="LinkedIn · resume" required maxlength="100">
-    <label for="slug">Short link</label><div class="slug-field"><span>/r/</span><input id="slug" name="slug" placeholder="resume-linkedin" required maxlength="80" pattern="[a-z0-9]+(-[a-z0-9]+)*"></div><p class="field-note" id="slug-note">Lowercase letters, numbers, and hyphens. Permanent once created.</p>
+    <label for="slug">Short link</label><div class="slug-field"><span aria-hidden="true">/r/</span><input id="slug" name="slug" placeholder="resume-linkedin" required maxlength="80" pattern="[a-z0-9]+(-[a-z0-9]+)*"></div><p class="field-note" id="slug-note">Lowercase letters, numbers, and hyphens. Permanent once created.</p>
     <label for="destination">Destination URL</label><input id="destination" name="destination" type="url" placeholder="https://www.linkedin.com/in/your-profile" required maxlength="2048">
     <label for="source">Source <span class="optional">optional</span></label><input id="source" name="source" placeholder="Resume · October 2026" maxlength="100"><p class="field-note">Create separate links per placement to compare performance.</p>
     <label class="toggle-label" for="enabled"><input id="enabled" name="enabled" type="checkbox" checked> Link is active <span class="muted">Paused links return 404.</span></label>
