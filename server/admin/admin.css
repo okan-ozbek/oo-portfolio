@@ -1,5 +1,6 @@
 :root{color-scheme:dark;--bg:#111113;--panel:#19191c;--line:#2c2c32;--text:#ededf1;--muted:#93939f;--red:#ff3939;--mono:'Consolas','Courier New',monospace;font-family:'Segoe UI',Arial,sans-serif;font-size:14px}
 *{box-sizing:border-box}
+html{scrollbar-gutter:stable}
 body{margin:0;background:var(--bg);color:var(--text)}
 [hidden]{display:none!important}
 a{color:inherit;text-decoration:none}
