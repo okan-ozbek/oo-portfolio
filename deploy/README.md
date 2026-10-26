@@ -53,9 +53,9 @@ If Node 22.13+ is available on your workstation or VPS, run:
 npm run test:container
 ```
 
-This defaults to `https://pixelware.nl` and checks TLS trust through normal HTTPS requests, HTTP redirects, page content, the health endpoint, script MIME type, cache headers, icons, RSC payload, and missing-file behavior. It only verifies this deployment after DNS points to it. To target a different deployment, set `PIXELWARE_URL`.
+This defaults to `https://pixelware.nl` and checks TLS trust through normal HTTPS requests, HTTP redirects, page content, the health endpoint, script MIME type, immutable cache headers, gzip through the proxy, conditional requests, icons, RSC payload, and missing-file behavior. It only verifies this deployment after DNS points to it. To target a different deployment, set `PIXELWARE_URL`.
 
-Docker is not installed in the development environment where this setup was prepared, so the actual image build, proxy configuration validation, and certificate issuance still need verification on the Docker host.
+Compression and cache behavior have been checked with the static export served through local NGINX and Caddy containers. Verify the full image build and certificate issuance on your Docker host as well.
 
 ## Updating and stopping
 
@@ -100,6 +100,14 @@ npm run test:static
 
 The export is in `dist/client/`. Serve only that directory; `dist/server/` is an intermediate build artifact. Node is used only during the image build. `build:static` uses the prerender runner from the pinned vinext version; rerun export tests when upgrading it.
 
-Hashed `/assets/` files receive a one-year cache lifetime. HTML, RSC and unversioned files revalidate so updates appear promptly. Unknown routes and missing scripts return 404. The existing Google Fonts stylesheet still loads from Google; the runtime otherwise requires no server API or database. New server actions, authentication or dynamic API routes would need a server-backed deployment instead of this static container.
+Hashed `/assets/` files receive `Cache-Control: public, max-age=31536000, immutable`, allowing browsers to reuse them without another request. HTML, RSC and unversioned files revalidate using ETag/Last-Modified so updates appear promptly. Unknown routes and missing scripts return 404 without immutable caching.
+
+The build writes `.gz` versions of compressible files at gzip level 9. NGINX negotiates these with `gzip_static on`; `gzip_proxied any` allows compressed responses through Caddy's `Via` header. Compression costs occur during the build instead of on every VPS request. Keep the original files for clients that request uncompressed content. `Vary: Accept-Encoding` separates cached representations. The framework bundle is 189,805 bytes uncompressed and 58,912 bytes gzipped (about 69% less transfer). Browser developer tools may still show the original decoded size; check transferred bytes and `Content-Encoding: gzip`.
+
+Visible graphics share a timer and animation frame. Candles redraw at 3 fps, preserving their four-second period; latency and instruction graphics use 10 and 12 fps. Other graphics use 20 or 24 fps according to canvas width. Offscreen graphics, hidden tabs, and paused animations stop scheduling work. Terrain vertices are reused within each draw and black hole disk paths are reused until resize. These changes reduce drawing work; gzip reduces transfer size, not the amount of JavaScript the browser parses.
+
+The existing Google Fonts stylesheet still loads from Google; the runtime otherwise requires no server API or database. New server actions, authentication or dynamic API routes would need a server-backed deployment instead of this static container.
 
 References: [Caddy automatic HTTPS](https://caddyserver.com/docs/automatic-https), [Caddy Docker image and persistent storage](https://hub.docker.com/_/caddy), [NGINX Docker documentation](https://docs.nginx.com/nginx/admin-guide/installing-nginx/installing-nginx-docker/).
+
+Compression references: [NGINX precompressed files](https://nginx.org/en/docs/http/ngx_http_gzip_static_module.html), [NGINX proxy compression](https://nginx.org/en/docs/http/ngx_http_gzip_module.html#gzip_proxied).

@@ -11,7 +11,7 @@
     "build:static": "npm run build",
     "start": "vite preview --host 127.0.0.1 --outDir dist/client",
     "test": "npm run build && npm run test:static",
-    "test:static": "node --test tests/static-export.test.mjs",
+    "test:static": "node --experimental-strip-types --test tests/static-export.test.mjs tests/animation-clock.test.mjs",
     "test:container": "node scripts/smoke-container.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."

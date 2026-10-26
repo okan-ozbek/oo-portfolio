@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 
 const base = new URL(process.env.PIXELWARE_URL ?? "https://pixelware.nl");
-async function request(path) {
-  return fetch(new URL(path, base), { signal: AbortSignal.timeout(10_000) });
+async function request(path, headers = {}) {
+  return fetch(new URL(path, base), { headers, signal: AbortSignal.timeout(10_000) });
 }
 if (base.protocol === "https:") {
   const insecure = new URL("/favicon.svg?redirect-check=1", base);
@@ -31,7 +31,23 @@ const asset = await request(script);
 assert.equal(asset.status, 200);
 assert.match(asset.headers.get("content-type") ?? "", /javascript/);
 assert.match(asset.headers.get("cache-control") ?? "", /max-age=31536000/);
+assert.match(asset.headers.get("cache-control") ?? "", /immutable/);
+assert.equal(asset.headers.get("x-content-type-options"), "nosniff");
 await asset.arrayBuffer();
+// Emulate the Via header Caddy adds, including for cached immutable assets.
+for (const path of ["/", script, "/index.rsc"]) {
+  const compressed = await request(path, { "Accept-Encoding": "gzip", Via: "1.1 compression-smoke" });
+  const identity = await request(path, { "Accept-Encoding": "identity" });
+  assert.equal(compressed.status, 200);
+  assert.equal(compressed.headers.get("content-encoding"), "gzip", `${path} must compress behind Caddy`);
+  assert.match(compressed.headers.get("vary") ?? "", /Accept-Encoding/i);
+  assert.equal(identity.headers.get("content-encoding"), null);
+  assert.ok(Number(compressed.headers.get("content-length")) < Number(identity.headers.get("content-length")), "NGINX must serve the smaller precompressed file");
+  // Fetch decodes gzip automatically.
+  assert.deepEqual(new Uint8Array(await compressed.arrayBuffer()), new Uint8Array(await identity.arrayBuffer()));
+  const cached = await request(path, { "Accept-Encoding": "identity", "If-None-Match": identity.headers.get("etag") });
+  assert.equal(cached.status, 304, `${path} must support conditional cache revalidation`);
+}
 for (const path of ["/favicon.svg", "/pixelware-logo.svg"]) {
   const icon = await request(path);
   assert.equal(icon.status, 200);
@@ -53,9 +69,10 @@ assert.match(await robots.text(), /Sitemap: https:\/\/pixelware\.nl\/sitemap\.xm
 for (const path of ["/missing-page", "/assets/missing.js"]) {
   const missing = await request(path);
   assert.equal(missing.status, 404, `${path} must not silently serve the homepage`);
+  assert.doesNotMatch(missing.headers.get("cache-control") ?? "", /immutable/);
   await missing.arrayBuffer();
 }
 const secret = await request("/.env");
 assert.ok([403, 404].includes(secret.status));
 await secret.arrayBuffer();
-console.log(`NGINX smoke checks passed at ${base.origin}: page, health, hydration bundle, icons, RSC, sitemap, robots, caching, and 404s.`);
+console.log(`NGINX smoke checks passed at ${base.origin}: page, health, hydration bundle, icons, RSC, sitemap, robots, immutable caching, proxied gzip, conditional requests, and 404s.`);

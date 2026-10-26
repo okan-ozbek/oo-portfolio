@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { createMarketFeed, type MarketCandle } from "./market-feed";
+import { animate } from "./animation-clock";
 
 type VisualKind = "terrain" | "market" | "network" | "binary" | "stack" | "blackhole" | "latency";
 const TAU = Math.PI * 2;
@@ -25,11 +26,12 @@ function terrain(ctx: CanvasRenderingContext2D, w: number, h: number, time: numb
     const crest = Math.exp(-Math.pow((x - 18 - Math.sin(time * .18) * 2) / 7, 2)) * 54;
     return [w * .5 + (u * .85 + v * .75) * scale, h * .58 + (v * .36 - u * .19 - swell - crest + pointer * v * .035) * scale];
   };
-  for (let z = 0; z < rows; z++) line(ctx, Array.from({length: cols}, (_, x) => point(x, z)), `rgba(190,190,201,${.09 + (z / rows) * .15})`);
-  for (let x = 0; x < cols; x++) line(ctx, Array.from({length: rows}, (_, z) => point(x, z)), "rgba(160,160,174,.15)");
+  const mesh = Array.from({length: rows}, (_, z) => Array.from({length: cols}, (_, x) => point(x, z)));
+  for (let z = 0; z < rows; z++) line(ctx, mesh[z], `rgba(190,190,201,${.09 + (z / rows) * .15})`);
+  for (let x = 0; x < cols; x++) line(ctx, mesh.map(row => row[x]), "rgba(160,160,174,.15)");
   for (const z of [8, 9, 10]) {
     ctx.shadowColor = "#ff0000"; ctx.shadowBlur = z === 9 ? 13 : 0;
-    line(ctx, Array.from({length: cols}, (_, x) => point(x, z)), z === 9 ? "#ff2424" : "rgba(255,0,0,.25)", z === 9 ? 1.7 : 1);
+    line(ctx, mesh[z], z === 9 ? "#ff2424" : "rgba(255,0,0,.25)", z === 9 ? 1.7 : 1);
   }
   ctx.shadowBlur = 0;
   const cursor = (time * 1.6) % (cols - 1);
@@ -194,8 +196,25 @@ function stack(ctx: CanvasRenderingContext2D, w: number, h: number, time: number
   faces.sort((a, b) => a.depth - b.depth).forEach(face => face.draw());
 }
 
+const diskCache = new WeakMap<CanvasRenderingContext2D, {w: number; h: number; paths: Path2D[][]}>();
+
 function blackhole(ctx: CanvasRenderingContext2D, w: number, h: number, time: number) {
   const cx = w / 2, cy = h * .55, radius = Math.min(w * .12, h * .17);
+  let geometry = diskCache.get(ctx);
+  if (!geometry || geometry.w !== w || geometry.h !== h) {
+    const paths = [false, true].map(front => Array.from({length: 20}, (_, ring) => {
+      const path = new Path2D(), r = radius * (1.2 + ring * .075);
+      for (let i = 0; i <= 90; i++) {
+        const a = (front ? 0 : Math.PI) + i / 90 * Math.PI;
+        const bend = !front ? Math.exp(-Math.pow(Math.cos(a) * 2.2, 2)) * radius * .83 : 0;
+        const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r * .25 - bend;
+        if (i === 0) path.moveTo(x, y); else path.lineTo(x, y);
+      }
+      return path;
+    }));
+    geometry = {w, h, paths}; diskCache.set(ctx, geometry);
+  }
+  const paths = geometry.paths;
   const halo = ctx.createRadialGradient(cx,cy,radius*.7,cx,cy,radius*2.6);
   halo.addColorStop(0,'rgba(255,80,70,.2)'); halo.addColorStop(.45,'rgba(255,0,0,.12)'); halo.addColorStop(1,'rgba(255,0,0,0)');
   ctx.fillStyle = halo; ctx.fillRect(0,0,w,h);
@@ -206,14 +225,10 @@ function blackhole(ctx: CanvasRenderingContext2D, w: number, h: number, time: nu
   // Back of the disk, central shadow, then the foreground disk create depth.
   const disk = (front: boolean) => {
     for (let ring = 0; ring < 20; ring++) {
-      const r = radius * (1.2 + ring * .075), points: number[][] = [];
-      for (let i = 0; i <= 90; i++) {
-        const a = (front ? 0 : Math.PI) + i/90*Math.PI;
-        const bend = !front ? Math.exp(-Math.pow(Math.cos(a)*2.2,2))*radius*.83 : 0;
-        points.push([cx+Math.cos(a)*r,cy+Math.sin(a)*r*.25-bend]);
-      }
       const brightness = .2 + (1+Math.sin(ring*.7-time*.65))*.17;
-      line(ctx, points, ring < 3 ? `rgba(255,206,187,${brightness+.2})` : `rgba(255,${35+ring*3},${35+ring*2},${brightness})`, ring < 3 ? 1.4 : .8);
+      ctx.strokeStyle = ring < 3 ? `rgba(255,206,187,${brightness+.2})` : `rgba(255,${35+ring*3},${35+ring*2},${brightness})`;
+      ctx.lineWidth = ring < 3 ? 1.4 : .8;
+      ctx.stroke(paths[front ? 1 : 0][ring]);
     }
     for (let i = 0; i < 60; i++) {
       const a = (i * 2.4 + time * .32) % TAU;
@@ -273,7 +288,8 @@ export function DataVisual({kind, playing}: {kind: VisualKind; playing: boolean}
     const host = canvas?.parentElement;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !host || !ctx) return;
-    let w = 0, h = 0, frame = 0, last = 0, visible = false, pointer = 0;
+    let w = 0, h = 0, visible = false, pointer = 0;
+    let stop: (() => void) | undefined;
     const marketFeed = kind === "market" ? createMarketFeed() : null;
     const draw = () => {
       ctx.clearRect(0, 0, w, h);
@@ -285,14 +301,14 @@ export function DataVisual({kind, playing}: {kind: VisualKind; playing: boolean}
       else if (kind === "latency") latency(ctx, w, h, timeRef.current);
       else binary(ctx, w, h, timeRef.current);
     };
-    const tick = (now: number) => {
-      if (now - last > 32) { timeRef.current += Math.min((now - last) / 1000, .05); last = now; draw(); }
-      frame = requestAnimationFrame(tick);
-    };
     const refresh = () => {
-      cancelAnimationFrame(frame);
+      stop?.(); stop = undefined;
       draw();
-      if (playing && visible && document.visibilityState === "visible") { last = performance.now(); frame = requestAnimationFrame(tick); }
+      if (playing && visible && document.visibilityState === "visible") {
+        // The feed has 12 trades per four-second candle; 3 fps captures every trade.
+        const fps = kind === "market" ? 3 : kind === "latency" ? 10 : kind === "binary" ? 12 : w < 500 ? 20 : 24;
+        stop = animate(delta => { timeRef.current += delta; draw(); }, fps);
+      }
     };
     const resize = () => {
       w = host.clientWidth; h = host.clientHeight;
@@ -302,7 +318,7 @@ export function DataVisual({kind, playing}: {kind: VisualKind; playing: boolean}
     };
     const onPointer = (event: PointerEvent) => {
       pointer = (event.clientX - host.getBoundingClientRect().left) / Math.max(w, 1) - .5;
-      if (!playing) draw();
+      if (!playing && visible && document.visibilityState === "visible") draw();
     };
     const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; refresh(); });
     const resizeObserver = new ResizeObserver(resize);
@@ -310,7 +326,7 @@ export function DataVisual({kind, playing}: {kind: VisualKind; playing: boolean}
     host.addEventListener("pointermove", onPointer, {passive: true});
     document.addEventListener("visibilitychange", refresh);
     resize();
-    return () => { cancelAnimationFrame(frame); observer.disconnect(); resizeObserver.disconnect(); host.removeEventListener("pointermove", onPointer); document.removeEventListener("visibilitychange", refresh); };
+    return () => { stop?.(); observer.disconnect(); resizeObserver.disconnect(); host.removeEventListener("pointermove", onPointer); document.removeEventListener("visibilitychange", refresh); };
   }, [kind, playing]);
   return <canvas className="data-canvas" ref={canvasRef} aria-hidden="true" />;
 }
