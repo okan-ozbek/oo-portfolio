@@ -85,8 +85,8 @@ try {
   const resumePath = `/api/admin/resumes/${uploadedBody.resume.id}`;
   const selected = uploadedBody.resume.links.filter(link => link.trackable).map((link, index) => ({ key: link.key, tracked: true, slug: `container-resume-${index}`, label: `Resume link ${index}` }));
   assert.equal((await fetch(`${base}${resumePath}/compile`, { method: 'POST', headers, body: JSON.stringify({ links: selected }) })).status, 200);
-  assert.equal((await fetch(`${base}/resumes/container-resume.pdf`)).status, 404);
-  assert.equal((await fetch(`${base}${resumePath}/publish`, { method: 'POST', headers, body: JSON.stringify({ makeDefault: true }) })).status, 200);
+  assert.equal((await fetch(`${base}/resumes/container-resume.pdf`, { method: 'HEAD' })).status, 200);
+  assert.equal((await fetch(`${base}${resumePath}`, { method: 'PATCH', headers, body: JSON.stringify({ isDefault: true }) })).status, 200);
   assert.equal((await (await fetch(`${base}/api/public/resume`)).json()).available, true);
   const downloaded = await fetch(`${base}/resume.pdf`, { headers });
   assert.equal(downloaded.status, 200); assert.equal(downloaded.headers.get('content-type'), 'application/pdf');
@@ -105,7 +105,7 @@ try {
   assert.ok(ready, "Sessions and counts must survive a container restart");
   assert.deepEqual(Buffer.from(await (await fetch(`${base}/resume.pdf`, { headers })).arrayBuffer()), publishedBytes);
   assert.equal((await (await fetch(`${base}${resumePath}`, { headers })).json()).resume.downloads, 1, 'PDF and download cooldown survive restart');
-  console.log("Container smoke passed: NGINX + admin + real compiler, large project upload, tracked PDF publication/downloads, auth, redirects, and restart persistence.");
+  console.log("Container smoke passed: NGINX + admin + real compiler, large project upload, immediate PDF updates/downloads, auth, redirects, and restart persistence.");
 } catch (error) {
   for (const name of created) console.error(docker("logs", "--tail", "30", name));
   throw error;

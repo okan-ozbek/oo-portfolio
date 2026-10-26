@@ -15,7 +15,7 @@ const encodeFile = file => new Promise((resolve, reject) => {
 });
 
 export function initResumes({ api, toast, refreshLinks }) {
-  let selected = null, copying = null, deleting = null, pending = false, dirty = false, version = 0;
+  let selected = null, copying = null, deleting = null, pending = false, version = 0;
   function reset() {
     version++;
     selected = null;
@@ -25,9 +25,7 @@ export function initResumes({ api, toast, refreshLinks }) {
     for (const name of ['upload', 'copy', 'delete']) $(`resume-${name}-dialog`).close();
   }
   function setDirty(value) {
-    dirty = value;
-    $('resume-publish').disabled = value;
-    $('resume-build-note').textContent = value ? 'Unsaved selections. Build your draft before publishing.' : 'Draft ready. Publish to update the shared PDF.';
+    $('resume-build-note').textContent = value ? 'Unsaved selections. Save to update the downloadable PDF.' : '';
   }
   function button(text, action, className = 'secondary') {
     const node = el('button', className, text);
@@ -73,9 +71,8 @@ export function initResumes({ api, toast, refreshLinks }) {
       row.addEventListener('input', () => setDirty(true));
       $('resume-detected-links').append(row);
     }
-    if (!resume.links.length) $('resume-detected-links').append(el('p', 'muted', 'No external hyperlinks were found. The PDF is ready to preview and publish.'));
+    if (!resume.links.length) $('resume-detected-links').append(el('p', 'muted', 'No external hyperlinks were found. The PDF is ready to download.'));
     setDirty(false);
-    $('resume-publish').textContent = resume.published ? 'Publish current draft ↗' : 'Publish PDF ↗';
   }
   async function loadDetail(id) {
     const revision = ++version;
@@ -91,22 +88,22 @@ export function initResumes({ api, toast, refreshLinks }) {
     for (const resume of resumes) {
       const card = el('article', `resume-card${selected?.id === resume.id ? ' selected' : ''}`); card.dataset.id = resume.id;
       const top = el('div', 'resume-card-top');
-      top.append(el('span', 'resume-paper-icon', '▤'), el('span', `resume-badge${resume.published ? ' live' : ''}`, resume.isDefault ? 'ON YOUR WEBSITE' : resume.published ? 'PUBLISHED' : 'DRAFT'));
-      card.append(top, button(resume.name, () => loadDetail(resume.id).catch(error => toast(error.message)), 'resume-card-title'), el('p', 'field-note', `${resume.pages} ${resume.pages === 1 ? 'page' : 'pages'} · ${resume.trackedLinks} tracked destinations`));
+      top.append(button(resume.name, () => loadDetail(resume.id).catch(error => toast(error.message)), 'resume-card-title'));
+      if (resume.isDefault) top.append(el('span', 'resume-badge live', 'WEBSITE'));
+      card.append(top, el('p', 'field-note', `${resume.pages} ${resume.pages === 1 ? 'page' : 'pages'} · ${resume.trackedLinks} tracked links`));
       const stats = el('div', 'resume-card-stats');
       for (const [number, label] of [[resume.downloads, 'DOWNLOADS'], [resume.clicks, 'LINK CLICKS']]) { const stat = el('div'); stat.append(el('strong', '', format.format(number)), el('span', '', label)); stats.append(stat); }
       card.append(stats);
       const url = el('p', 'resume-public-url', `/resumes/${resume.slug}.pdf`); url.title = resume.url; card.append(url);
-      if (resume.published && resume.unpublishedChanges) card.append(el('p', 'field-note', 'New draft waiting to be published.'));
       const actions = el('div', 'resume-card-actions');
       actions.append(button('Manage ↗', () => loadDetail(resume.id).then(() => $('resume-editor').scrollIntoView({ behavior: 'smooth', block: 'start' })).catch(error => toast(error.message))));
-      if (resume.published) actions.append(button('Copy URL', () => copy(resume.url), 'text-button'));
       actions.append(button('Duplicate', () => {
         copying = resume; $('resume-copy-name').value = `${resume.name.slice(0, 70)} copy`; $('resume-copy-slug').value = `${resume.slug.slice(0, 50)}-copy`; $('resume-copy-error').textContent = ''; $('resume-copy-dialog').showModal();
       }, 'text-button'));
-      if (resume.published) actions.append(button('Unpublish', () => perform($('resumes-view'), async () => {
-        await api(`resumes/${resume.id}`, { method: 'PATCH', body: { published: false } }); await refresh(); if (selected?.id === resume.id) await loadDetail(resume.id); toast('Resume unpublished. Its tracking links still work.');
-      }, 'resume-error'), 'text-button'));
+      const copyButton = button('', () => copy(resume.url), 'icon-button resume-copy-url');
+      copyButton.setAttribute('aria-label', `Copy PDF URL for ${resume.name}`); copyButton.title = 'Copy PDF URL';
+      const copySvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); copySvg.setAttribute('viewBox', '0 0 20 20'); copySvg.setAttribute('aria-hidden', 'true');
+      const copyPath = document.createElementNS(copySvg.namespaceURI, 'path'); copyPath.setAttribute('d', 'M7 7h10v10H7zM13 7V3H3v10h4'); copySvg.append(copyPath); copyButton.append(copySvg); actions.append(copyButton);
       const remove = button('', () => { deleting = resume; $('resume-delete-name').textContent = resume.name; $('resume-delete-error').textContent = ''; $('resume-delete-dialog').showModal(); }, 'icon-button resume-trash');
       remove.setAttribute('aria-label', `Delete resume ${resume.name}`);
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', '0 0 20 20'); svg.setAttribute('aria-hidden', 'true');
@@ -121,7 +118,7 @@ export function initResumes({ api, toast, refreshLinks }) {
     const controls = [...scope.querySelectorAll('button,input')].filter(node => !node.disabled);
     controls.forEach(node => { node.disabled = true; });
     try { await work(); } catch (error) { $(errorId).textContent = error.message; }
-    finally { pending = false; controls.filter(node => node.isConnected).forEach(node => { node.disabled = false; }); if (dirty) $('resume-publish').disabled = true; }
+    finally { pending = false; controls.filter(node => node.isConnected).forEach(node => { node.disabled = false; }); }
   }
   function openUpload() {
     $('resume-upload-form').reset(); delete $('resume-slug').dataset.edited; $('resume-upload-error').textContent = ''; $('resume-upload-dialog').showModal();
@@ -164,15 +161,19 @@ export function initResumes({ api, toast, refreshLinks }) {
     const links = [...$('resume-detected-links').children].filter(row => row.querySelector('input[data-key]')).map(row => ({ key: row.querySelector('input[data-key]').dataset.key, tracked: row.querySelector('input[data-key]').checked, slug: row.querySelector('[data-field=slug]')?.value, label: row.querySelector('[data-field=label]')?.value }));
     perform($('resumes-view'), async () => {
       $('resume-build').textContent = 'Building PDF…';
-      try { const { resume } = await api(`resumes/${selected.id}/compile`, { method: 'POST', body: { links } }); showDetail(resume); await refresh(); await refreshLinks(); toast('Tracking connected. Your draft PDF is ready.'); }
-      finally { $('resume-build').textContent = 'Save tracking & build PDF ↗'; }
+      try { const { resume } = await api(`resumes/${selected.id}/compile`, { method: 'POST', body: { links } }); showDetail(resume); await refresh(); await refreshLinks(); toast('Tracking saved. The downloadable PDF is updated.'); }
+      finally { $('resume-build').textContent = 'Save tracking & update PDF ↗'; }
     }, 'resume-build-error');
   });
-  $('resume-publish').addEventListener('click', () => {
-    if (!selected || dirty) return;
-    perform($('resumes-view'), async () => {
-      const { resume } = await api(`resumes/${selected.id}/publish`, { method: 'POST', body: { makeDefault: $('resume-default').checked } });
-      showDetail(resume); await refresh(); toast('PDF published. Your share link is ready.');
+  $('resume-default').addEventListener('change', () => {
+    if (!selected) return;
+    const previous = selected.isDefault;
+    const isDefault = $('resume-default').checked;
+    perform($('resume-view-settings'), async () => {
+      try {
+        const { resume } = await api(`resumes/${selected.id}`, { method: 'PATCH', body: { isDefault } });
+        selected.isDefault = resume.isDefault; await refresh(); toast(isDefault ? 'Website resume updated.' : 'Website download button removed.');
+      } catch (error) { $('resume-default').checked = previous; throw error; }
     }, 'resume-build-error');
   });
   $('resume-copy-form').addEventListener('submit', event => {

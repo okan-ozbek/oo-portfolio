@@ -55,27 +55,27 @@ button.primary,button.secondary{display:inline-flex;align-items:center;justify-c
 .sidebar-note{margin-top:auto;padding:20px 10px 0;color:#686875;font-size:9px}
 .app-shell>.workspace{min-width:0;flex:1}
 .app-shell .topbar-brand{visibility:hidden}
-.resume-heading{font-size:34px;letter-spacing:-.05em;margin-top:15px}
-.resume-intro{display:flex;gap:18px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:26px;color:#555560;font:10px var(--mono);flex-wrap:wrap}
-.step-index{color:#a16e76;display:inline-flex;gap:10px;align-items:center}
-.step-index b{font:11px 'Segoe UI',Arial,sans-serif;color:#b5b5c1}
-.resume-engine{margin-left:auto;color:#71717e;font-size:9px}
-.resume-library{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));gap:18px;margin:12px 0 28px}
-.resume-card{border:1px solid var(--line);border-radius:7px;background:var(--panel);padding:22px;min-width:0}
+.resume-page-heading h1{font-size:26px}
+.resume-library{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:start;gap:14px;margin:0 0 24px}
+.resume-card{border:1px solid var(--line);border-radius:7px;background:var(--panel);padding:16px;min-width:0}
 .resume-card.selected{border-color:#96616a;box-shadow:0 0 0 1px #96616a33}
-.resume-card-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
-.resume-paper-icon{font-size:28px;color:#a7a7b5}
-.resume-badge{font:8px var(--mono);letter-spacing:.08em;border:1px solid #44444c;color:#a7a7b4;padding:6px 8px;border-radius:4px}
+.resume-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.resume-badge{font:7px var(--mono);letter-spacing:.05em;border:1px solid #44444c;color:#a7a7b4;padding:4px 5px;border-radius:4px;flex-shrink:0}
 .resume-badge.live{color:#abd3bb;border-color:#3b5b49;background:#22362a55}
-.resume-card-title{display:block;background:none;color:var(--text);padding:0;text-align:left;font-size:20px;letter-spacing:-.035em;line-height:1.4;margin-bottom:8px;overflow-wrap:anywhere}
-.resume-card-stats{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:22px 0 16px;padding:19px 0}
-.resume-card-stats strong{display:block;font-size:28px;font-weight:450;margin-bottom:8px}
+.resume-card-title{display:block;background:none;color:var(--text);padding:0;text-align:left;font-size:16px;letter-spacing:-.025em;line-height:1.4;overflow-wrap:anywhere}
+.resume-card>.field-note{font-size:9px;margin-top:5px}
+.resume-card-stats{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:14px 0 11px;padding:11px 0}
+.resume-card-stats strong{display:block;font-size:23px;font-weight:450;margin-bottom:4px}
 .resume-card-stats span{font:8px var(--mono);letter-spacing:.07em;color:#82828f}
-.resume-public-url{font:10px var(--mono);color:#8a8a98;overflow-wrap:anywhere;line-height:1.7;user-select:all;margin-bottom:16px}
-.resume-card-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.resume-card-actions .secondary{padding:8px 12px;font-size:10px}
+.resume-public-url{font:9px var(--mono);color:#8a8a98;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.7;user-select:all;margin-bottom:10px}
+.resume-card-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.resume-card-actions .secondary{padding:7px 9px;font-size:10px}
+.resume-card-actions .text-button{font-size:10px}
+.resume-card-actions .icon-button{width:24px;height:28px;display:grid;place-items:center}
+.resume-copy-url{margin-left:auto}
 .resume-trash{margin-left:auto;color:#b47e85}
-.resume-trash svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
+.resume-card-actions .resume-trash{margin-left:0}
+.resume-trash svg,.resume-copy-url svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
 .resume-empty{text-align:center;padding:60px 24px}
 .document-glyph{font-size:48px;color:#6c515a;margin-bottom:25px}
 .resume-empty h2{font-size:27px;margin-bottom:13px}
@@ -87,8 +87,8 @@ button.primary,button.secondary{display:inline-flex;align-items:center;justify-c
 .resume-preview-actions{display:flex;gap:8px;flex-wrap:wrap}
 .resume-editor-body{padding:0 24px 26px}
 .resume-link-heading{border-top:1px solid var(--line);padding:25px 0}
-.resume-link-heading h3,.resume-publish h3{font-size:19px;margin-bottom:8px}
-.resume-link-heading .muted,.resume-publish .muted{font-size:11px;max-width:540px}
+.resume-link-heading h3{font-size:19px;margin-bottom:8px}
+.resume-link-heading .muted{font-size:11px;max-width:540px}
 .resume-link-row{border:1px solid #34343c;border-radius:6px;background:#151518;padding:18px;margin-bottom:12px}
 .resume-link-top{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap}
 .resume-track-label{display:flex;align-items:center;gap:9px;margin:0;color:#c8c8d2;font-size:11px}
@@ -99,8 +99,11 @@ button.primary,button.secondary{display:inline-flex;align-items:center;justify-c
 .resume-link-fields .slug-field input{margin-top:0}
 .resume-link-row>.field-note{margin-top:12px}
 .resume-build-actions{display:flex;justify-content:space-between;align-items:center;gap:20px;padding-bottom:24px}
-.resume-publish{display:flex;align-items:center;justify-content:space-between;gap:24px;border-top:1px solid var(--line);padding-top:26px;margin-bottom:24px}
-.resume-publish label{font-size:11px}
+.resume-website-setting{border-top:1px solid var(--line);padding-top:18px;margin-bottom:20px}
+.resume-website-setting label{font-size:11px;margin-top:0}
+@media(max-width:1279px){.resume-library{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1050px){.resume-library{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){.resume-library{grid-template-columns:minmax(0,1fr)}}
 .link-button{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:5px;font-size:11px;white-space:nowrap}
 #resume-upload-dialog{max-width:610px}
 #resume-upload-dialog .muted,#resume-copy-dialog .muted,#resume-delete-dialog .muted{font-size:12px;line-height:1.8}
@@ -108,8 +111,8 @@ button.primary,button.secondary{display:inline-flex;align-items:center;justify-c
 #resume-upload-error,#resume-build-error{white-space:pre-wrap;overflow-wrap:anywhere;max-height:240px;overflow:auto}
 input[type=file]{font-size:11px;line-height:1.6;color:#9999a6}
 input[type=file]::file-selector-button{background:#2b2b32;color:#dddde7;border:1px solid #484852;border-radius:4px;padding:7px 10px;margin-right:12px;cursor:pointer}
-@media(max-width:1200px){.sidebar{width:180px;padding:26px 12px}.app-shell main{padding:32px 26px}.app-shell .topbar{padding:0 26px}.resume-engine{margin-left:0}}
-@media(max-width:800px){.app-shell{display:block}.sidebar{width:100%;height:auto;position:static;border-right:0;border-bottom:1px solid var(--line);padding:16px 20px}.sidebar>.wordmark{margin:0 0 18px;padding:0}.sidebar>.eyebrow,.sidebar-note{display:none}.sidebar nav{display:flex;gap:8px}.nav-item{margin:0;justify-content:center}.app-shell .topbar{height:50px}.app-shell .topbar-brand{display:none}.topbar-actions{margin-left:auto}.app-shell main{padding:26px 20px}.resume-intro{gap:12px}.resume-heading{font-size:28px}.resume-build-actions,.resume-publish{align-items:flex-start;flex-direction:column}.resume-link-fields{grid-template-columns:1fr}.resume-editor-body{padding:0 18px 22px}}
+@media(max-width:1200px){.sidebar{width:180px;padding:26px 12px}.app-shell main{padding:32px 26px}.app-shell .topbar{padding:0 26px}}
+@media(max-width:800px){.app-shell{display:block}.sidebar{width:100%;height:auto;position:static;border-right:0;border-bottom:1px solid var(--line);padding:16px 20px}.sidebar>.wordmark{margin:0 0 18px;padding:0}.sidebar>.eyebrow,.sidebar-note{display:none}.sidebar nav{display:flex;gap:8px}.nav-item{margin:0;justify-content:center}.app-shell .topbar{height:50px}.app-shell .topbar-brand{display:none}.topbar-actions{margin-left:auto}.app-shell main{padding:26px 20px}.resume-build-actions{align-items:flex-start;flex-direction:column}.resume-link-fields{grid-template-columns:1fr}.resume-editor-body{padding:0 18px 22px}}
 .text-button{color:#a6a6b2;background:none;padding:8px 0;font-size:11px;white-space:nowrap}
 .text-button:hover{color:#fff}
 .workspace{width:100%}

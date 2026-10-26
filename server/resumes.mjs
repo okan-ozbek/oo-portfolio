@@ -59,8 +59,7 @@ export function createResumes({ db, origin, now, send, visitor, compile = compil
   const defaultId = () => db.prepare('SELECT default_resume_id FROM resume_settings WHERE id = 1').get().default_resume_id;
   function metadata(row) {
     return { id: row.id, name: row.name, slug: row.slug, mainFile: row.main_file, pages: row.pages,
-      createdAt: row.created_at, compiledAt: row.compiled_at, publishedAt: row.published_at,
-      published: row.published_at !== null, unpublishedChanges: row.draft_version !== row.published_version,
+      createdAt: row.created_at, compiledAt: row.compiled_at,
       isDefault: defaultId() === row.id, url: `${origin}/resumes/${row.slug}.pdf`,
       downloads: db.prepare('SELECT COALESCE(SUM(downloads), 0) AS n FROM resume_downloads_daily WHERE resume_id = ?').get(row.id).n,
       clicks: db.prepare('SELECT COALESCE(SUM(d.clicks), 0) AS n FROM daily_clicks d JOIN resume_links r ON r.link_id = d.link_id WHERE r.resume_id = ?').get(row.id).n,
@@ -103,8 +102,7 @@ export function createResumes({ db, origin, now, send, visitor, compile = compil
     return detail(get(id));
   }
   function pdfResponse(req, res, row, publicDownload) {
-    const pdf = publicDownload ? row.published_pdf : row.draft_pdf;
-    if (!pdf) throw new HttpError(404, 'This resume has not been published.');
+    const pdf = row.draft_pdf;
     const preview = /prefetch|prerender/i.test(`${req.headers.purpose ?? ''} ${req.headers['sec-purpose'] ?? ''}`);
     if (publicDownload && req.method === 'GET' && !preview) {
       const token = visitor(req, res);
@@ -125,9 +123,9 @@ export function createResumes({ db, origin, now, send, visitor, compile = compil
     const match = url.pathname.match(/^\/resumes\/([a-z0-9-]+)\.pdf$/);
     if (url.pathname !== '/api/public/resume' && url.pathname !== '/resume.pdf' && !match) return false;
     if (!['GET', 'HEAD'].includes(req.method)) throw new HttpError(405, 'Method not allowed.');
-    const row = match ? db.prepare('SELECT * FROM resumes WHERE slug = ? AND published_pdf IS NOT NULL').get(match[1]) : db.prepare('SELECT * FROM resumes WHERE id = ? AND published_pdf IS NOT NULL').get(defaultId());
+    const row = match ? db.prepare('SELECT * FROM resumes WHERE slug = ?').get(match[1]) : db.prepare('SELECT * FROM resumes WHERE id = ?').get(defaultId());
     if (url.pathname === '/api/public/resume') { send(res, 200, { available: Boolean(row), ...(row ? { name: row.name, url: '/resume.pdf' } : {}) }); return true; }
-    if (!row) throw new HttpError(404, 'No published resume is available.');
+    if (!row) throw new HttpError(404, 'No resume is available.');
     pdfResponse(req, res, row, true); return true;
   }
   async function adminRoute(req, res, url) {
@@ -141,7 +139,7 @@ export function createResumes({ db, origin, now, send, visitor, compile = compil
       const result = await compile('compile', project);
       send(res, 201, { resume: insert(body, project, result) }); return true;
     }
-    const match = url.pathname.match(/^\/api\/admin\/resumes\/([a-f0-9-]{36})(?:\/(compile|duplicate|publish|pdf))?$/);
+    const match = url.pathname.match(/^\/api\/admin\/resumes\/([a-f0-9-]{36})(?:\/(compile|duplicate|pdf))?$/);
     if (!match) throw new HttpError(404, 'Not found.');
     const [, id, action] = match;
     const row = get(id);
@@ -177,7 +175,7 @@ export function createResumes({ db, origin, now, send, visitor, compile = compil
       try {
         const mappings = active.map(link => ({ from: link.destination, to: `${origin}/r/${link.slug}` }));
         const result = await compile('rewrite', { pdf: Buffer.from(row.original_pdf).toString('base64'), mappings });
-        for (const mapping of mappings) if (!result.links.some(link => link.destination === mapping.to)) throw new HttpError(422, 'A selected hyperlink could not be replaced. The previous draft was kept.');
+        for (const mapping of mappings) if (!result.links.some(link => link.destination === mapping.to)) throw new HttpError(422, 'A selected hyperlink could not be replaced. The previous PDF was kept.');
         transaction(() => {
           get(id); checkSlugs();
           db.prepare('UPDATE resume_links SET tracked = 0 WHERE resume_id = ?').run(id);
@@ -191,23 +189,11 @@ export function createResumes({ db, origin, now, send, visitor, compile = compil
         send(res, 200, { resume: detail(get(id)) }); return true;
       } finally { busy.delete(id); }
     }
-    if (req.method === 'POST' && action === 'publish') {
-      const body = await readJson(req);
-      if (typeof body.makeDefault !== 'boolean') throw new HttpError(400, 'Choose whether this is the website resume.');
-      transaction(() => {
-        db.prepare('UPDATE resumes SET published_pdf = draft_pdf, published_at = ?, published_version = draft_version WHERE id = ?').run(new Date(now()).toISOString(), id);
-        if (body.makeDefault) db.prepare('UPDATE resume_settings SET default_resume_id = ? WHERE id = 1').run(id);
-        else db.prepare('UPDATE resume_settings SET default_resume_id = NULL WHERE default_resume_id = ?').run(id);
-      });
-      send(res, 200, { resume: detail(get(id)) }); return true;
-    }
     if (req.method === 'PATCH' && !action) {
       const body = await readJson(req);
-      if (body.published !== false || Object.keys(body).length !== 1) throw new HttpError(400, 'Send published: false to unpublish.');
-      transaction(() => {
-        db.prepare('UPDATE resumes SET published_pdf = NULL, published_at = NULL, published_version = NULL WHERE id = ?').run(id);
-        db.prepare('UPDATE resume_settings SET default_resume_id = NULL WHERE default_resume_id = ?').run(id);
-      });
+      if (typeof body.isDefault !== 'boolean' || Object.keys(body).length !== 1) throw new HttpError(400, 'Send only an isDefault boolean.');
+      if (body.isDefault) db.prepare('UPDATE resume_settings SET default_resume_id = ? WHERE id = 1').run(id);
+      else db.prepare('UPDATE resume_settings SET default_resume_id = NULL WHERE default_resume_id = ?').run(id);
       send(res, 200, { resume: detail(get(id)) }); return true;
     }
     if (req.method === 'DELETE' && !action) {

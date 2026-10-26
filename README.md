@@ -16,7 +16,7 @@ npm run dev
 Open the localhost URL printed by Vite. First startup creates a local password in `.admin-local-password`. Open `/admin` to manage tracked links. Credentials and SQLite data are excluded from Git and image builds. See [admin setup and GitHub Actions deployment](deploy/ADMIN.md). These commands work on Windows, macOS, and Linux.
 
 The **Resumes** admin section accepts LaTeX projects with supporting files, finds
-their compiled hyperlinks, creates tracking links per variant, and publishes
+their compiled hyperlinks, creates tracking links per variant, and provides
 downloadable PDFs. Start its isolated compiler with `npm run resume:compiler`
 (Docker required). See [the resume workflow and deployment notes](deploy/RESUMES.md).
 

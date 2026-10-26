@@ -30,19 +30,19 @@ Projects requiring other engines or additional system packages may need changes.
 Compile errors are shown in the upload dialog; no resume is saved on failure.
 
 After compilation, choose HTTP(S) destinations to track. Give each destination a
-name and unique `/r/` slug, then **Save tracking & build PDF**. Repeated instances
+name and unique `/r/` slug, then **Save tracking & update PDF**. Repeated instances
 of the same URL share a tracking link within one resume. Email and telephone links
 remain direct. Existing tracking slugs remain fixed. Link names, destinations,
 and activation can subsequently be managed in Link analytics.
 
-**Preview PDF** opens the private draft in the browser's PDF viewer without
-incrementing download counts. **Download draft** saves it directly and also does
-not count. Browsers without an embedded PDF viewer can use the download button.
-**Publish PDF** snapshots that draft at `/resumes/<slug>.pdf`. Selecting **Use as
-the website resume** also exposes it at `/resume.pdf` and displays a Resume PDF
-link in the public website footer. Changing the draft does not change the public
-PDF until published again. Unpublishing removes public PDF downloads; previously
-downloaded PDFs and their tracking links continue working.
+Every uploaded resume is immediately downloadable at `/resumes/<slug>.pdf`.
+Saving tracking changes updates that PDF immediately; a failed build preserves
+the previous working PDF. There is no separate publishing step.
+
+**Preview PDF** and **Download PDF** in the admin editor do not increment download
+counts. Selecting **Use as the website resume** immediately exposes that version
+at `/resume.pdf` and displays a Resume PDF link in the public footer. Clearing
+this setting removes the footer link while each resume's own URL stays available.
 
 Duplicate a resume to get the same source/layout with a fresh tracking setup and
 independent statistics. To compare different content/layouts, upload each LaTeX
@@ -72,7 +72,7 @@ with a read-only root, a bounded temporary filesystem, memory/CPU/PID limits, an
 25-second process timeouts. Only the authenticated owner can submit projects.
 The development compiler exposes port 3032 on loopback only.
 
-Source files, original/draft/published PDF bytes, mappings, and counts live in the
+Source files, original/current PDF bytes, mappings, and counts live in the
 existing SQLite database in the `admin_data` volume. Back up the database with
 SQLite's backup API (or stop the admin service before copying the database and
 WAL files). A rebuild/recreate reuses this volume; never use `down --volumes` on
@@ -98,6 +98,6 @@ The compiler test uses disposable Docker resources. It checks a real multi-file
 resume with uploaded fonts, an image, and a custom style, macro-generated/repeated
 links, exact text and pixel preservation after rewriting, direct email links,
 path validation, and disabled shell escape. The NGINX test checks the complete
-upload/build/publish/download workflow and restart persistence. Sample
+upload/update/download workflow and restart persistence. Sample
 PDFs and renders are written under ignored `outputs/resume-compiler/`. GitHub
 Actions runs this test before deploying master.

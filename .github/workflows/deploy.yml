@@ -33,7 +33,7 @@ jobs:
         run: npm run test:deploy
       - name: Verify LaTeX compilation and PDF tracking
         run: npm run test:resumes:compiler
-      - name: Verify resume upload and publication through NGINX
+      - name: Verify resume upload and downloads through NGINX
         run: npm run test:admin:container
   deploy:
     if: github.ref == 'refs/heads/master'

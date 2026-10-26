@@ -19,7 +19,7 @@ async function fixture(t) {
     compileResume: async (action, body) => {
       if (delay) await delay;
       if (fail) throw new HttpError(422, 'Synthetic compiler failure');
-      return { pdf, pages: 1, links: action === 'compile' ? scanned : scanned.map(link => ({ ...link, destination: body.mappings.find(mapping => mapping.from === link.destination)?.to ?? link.destination })) };
+      return { pdf: action === 'compile' ? pdf : Buffer.from(`%PDF-1.7\n${JSON.stringify(body.mappings)}`).toString('base64'), pages: 1, links: action === 'compile' ? scanned : scanned.map(link => ({ ...link, destination: body.mappings.find(mapping => mapping.from === link.destination)?.to ?? link.destination })) };
     } });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
@@ -38,7 +38,7 @@ async function fixture(t) {
 const route = id => `/api/admin/resumes/${id}`;
 const selection = slug => ({ links: [{ key, tracked: true, slug, label: 'GitHub' }] });
 
-test('resume routes require authentication, origin and CSRF; sources and draft PDFs stay private', async t => {
+test('resume management and source files stay private; PDFs are available immediately', async t => {
   const app = await fixture(t);
   assert.equal((await app.request('/api/admin/resumes')).status, 401);
   await app.login();
@@ -46,8 +46,8 @@ test('resume routes require authentication, origin and CSRF; sources and draft P
   assert.equal((await app.request('/api/admin/resumes', 'POST', upload, { Origin: 'https://evil.test' })).status, 403);
   const { resume } = await app.json('/api/admin/resumes', 'POST', upload);
   assert.equal(resume.links[0].occurrences, 2); assert.equal(resume.links[1].trackable, false);
-  assert.equal(resume.published, false); assert.equal(resume.downloads, 0);
-  assert.equal((await app.request('/resumes/engineering.pdf')).status, 404);
+  assert.equal(resume.downloads, 0);
+  assert.equal((await app.request('/resumes/engineering.pdf', 'HEAD')).status, 200);
   assert.equal((await app.request('/resume.pdf')).status, 404);
   const preview = await app.request(`${route(resume.id)}/pdf`);
   assert.equal(preview.status, 200);
@@ -60,14 +60,17 @@ test('resume routes require authentication, origin and CSRF; sources and draft P
   assert.deepEqual(await app.json('/api/public/resume'), { available: false });
 });
 
-test('independent variants, PDF publication, browser cooldowns, rebuild failures and cascading deletion', async t => {
+test('independent variants, immediate PDF updates, website selection, cooldowns and cascading deletion', async t => {
   const app = await fixture(t); await app.login();
   const { resume: first } = await app.json('/api/admin/resumes', 'POST', upload);
   const path = route(first.id);
+  const original = await (await app.request('/resumes/engineering.pdf', 'GET', undefined, { Purpose: 'prefetch' })).text();
   await app.json(`${path}/compile`, 'POST', selection('engineering-github'));
+  const updated = await (await app.request('/resumes/engineering.pdf', 'GET', undefined, { Purpose: 'prefetch' })).text();
+  assert.notEqual(updated, original, 'Saving tracking must immediately update the public PDF');
   let { links } = await app.json('/api/admin/links'); assert.equal(links.length, 1);
   assert.equal(links[0].destination, scanned[0].destination);
-  await app.json(`${path}/publish`, 'POST', { makeDefault: true });
+  await app.json(path, 'PATCH', { isDefault: true });
   assert.equal((await app.json('/api/public/resume')).url, '/resume.pdf');
   for (const [method, headers] of [['HEAD', {}], ['GET', { Purpose: 'prefetch' }]]) assert.equal((await app.request('/resume.pdf', method, undefined, headers)).status, 200);
   assert.equal((await app.json(path)).resume.downloads, 0);
@@ -79,24 +82,29 @@ test('independent variants, PDF publication, browser cooldowns, rebuild failures
   assert.equal((await app.json(path)).resume.clicks, 1);
   app.advance(); await app.request('/resume.pdf'); assert.equal((await app.json(path)).resume.downloads, 2);
   const { resume: second } = await app.json(`${path}/duplicate`, 'POST', { name: 'Engineering variant', slug: 'engineering-b' });
-  assert.equal(second.published, false); assert.equal(second.clicks, 0); assert.equal(second.links[0].tracked, false);
+  assert.equal(second.clicks, 0); assert.equal(second.links[0].tracked, false);
+  assert.equal((await app.request('/resumes/engineering-b.pdf', 'HEAD')).status, 200);
   assert.equal((await app.request(`${route(second.id)}/compile`, 'POST', selection('engineering-github'))).status, 409);
   await app.json(`${route(second.id)}/compile`, 'POST', selection('engineering-b-github'));
   assert.equal((await app.json('/api/admin/links')).links.length, 2);
   app.fail(true);
   assert.equal((await app.request(`${path}/compile`, 'POST', selection('engineering-github'))).status, 422);
-  assert.equal((await app.json(path)).resume.unpublishedChanges, false);
+  assert.equal(await (await app.request('/resume.pdf', 'GET', undefined, { Purpose: 'prefetch' })).text(), updated, 'A failed build preserves the working PDF');
   assert.equal((await app.json(path)).resume.clicks, 1);
   app.fail(false);
   await app.json(`${path}/compile`, 'POST', { links: [] });
-  assert.equal((await app.json(path)).resume.unpublishedChanges, true);
-  // The previous published PDF and its redirect remain available until republishing.
+  assert.notEqual(await (await app.request('/resume.pdf', 'GET', undefined, { Purpose: 'prefetch' })).text(), updated);
+  // Existing PDF copies keep their redirects and history after unselecting a link.
   assert.equal((await app.request('/resume.pdf')).status, 200);
   assert.equal((await app.request('/r/engineering-github')).status, 302);
-  await app.json(`${route(second.id)}/publish`, 'POST', { makeDefault: true });
-  await app.json(path, 'PATCH', { published: false });
-  assert.equal((await app.request('/resumes/engineering.pdf')).status, 404);
+  await app.json(route(second.id), 'PATCH', { isDefault: true });
+  await app.json(path, 'PATCH', { isDefault: false });
+  assert.equal((await app.request('/resumes/engineering.pdf', 'HEAD')).status, 200);
   assert.equal((await app.request('/resume.pdf')).status, 200);
+  await app.json(route(second.id), 'PATCH', { isDefault: false });
+  assert.equal((await app.request('/resume.pdf')).status, 404);
+  assert.equal((await app.request('/resumes/engineering-b.pdf', 'HEAD')).status, 200);
+  await app.json(route(second.id), 'PATCH', { isDefault: true });
   await app.json(path, 'DELETE', {});
   assert.equal((await app.request('/r/engineering-github')).status, 404);
   assert.equal((await app.request('/r/engineering-b-github')).status, 302);
