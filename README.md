@@ -38,6 +38,11 @@ rebuilt and replaced while reusing the existing database and certificate volumes
 For an existing stack, set `VPS_COMPOSE_PROJECT` to its current Compose project
 name first. See [the automatic deployment setup](deploy/ADMIN.md).
 
+The current VPS uses project `oo-portfolio` in `/var/www/oo-portfolio` with a
+separate shared Caddy proxy. Its workflow uses `compose.vps.yaml` and passwordless
+sudo, reusing the existing `portfolio-web` network alias. The standalone commands
+below are for a host where this application owns its HTTPS proxy.
+
 Configure the runtime admin hash using [the admin deployment guide](deploy/ADMIN.md), point `pixelware.nl` to the VPS, allow TCP ports 80 and 443, then run:
 
 ```sh

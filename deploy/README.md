@@ -4,6 +4,11 @@ The Docker stack serves **https://pixelware.nl**. NGINX serves the static portfo
 
 ## DNS and firewall
 
+For the existing VPS installation, use [the shared-proxy deployment instructions](ADMIN.md).
+It uses `compose.vps.yaml`, project `oo-portfolio`, and the existing Caddy stack in
+`/var/www/reverse-proxy`. The standalone startup commands below would start a
+second HTTPS proxy and are intended only for a fresh standalone host.
+
 Before starting the stack:
 
 - Set the DNS **A** record for `pixelware.nl` (usually host `@`) to your VPS's public IPv4 address.

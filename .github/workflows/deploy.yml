@@ -25,6 +25,10 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - name: Validate VPS deployment files
+        run: |
+          bash -n deploy/install-release.sh
+          docker compose -f compose.vps.yaml config --quiet
       - name: Verify database survives rebuilding and replacing containers
         run: npm run test:deploy
   deploy:
@@ -72,4 +76,4 @@ jobs:
           scp "${ssh_options[@]}" -P "$VPS_PORT" "$archive" "$VPS_USER@$VPS_HOST:pixelware-incoming/source.tgz"
           scp "${ssh_options[@]}" -P "$VPS_PORT" "$hash" "$VPS_USER@$VPS_HOST:pixelware-incoming/admin_password_hash"
           # The project argument is restricted to the safe characters checked above.
-          ssh "${ssh_options[@]}" -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "bash -se -- $VPS_COMPOSE_PROJECT" < deploy/install-release.sh
+          ssh "${ssh_options[@]}" -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "sudo -n bash -se -- $VPS_COMPOSE_PROJECT" < deploy/install-release.sh

@@ -1,0 +1,28 @@
+# This VPS already runs Caddy in /var/www/reverse-proxy. Keep its certificates
+# and other sites in that stack; expose only NGINX to its shared Docker network.
+services:
+  portfolio:
+    extends:
+      file: compose.yaml
+      service: portfolio
+    networks:
+      default: {}
+      proxy:
+        aliases:
+          - portfolio-web
+  admin:
+    extends:
+      file: compose.yaml
+      service: admin
+
+networks:
+  proxy:
+    name: pixelware-proxy
+    external: true
+
+secrets:
+  admin_password_hash:
+    file: ./.deploy-secrets/admin_password_hash
+
+volumes:
+  admin_data:
