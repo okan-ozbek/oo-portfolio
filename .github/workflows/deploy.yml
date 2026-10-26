@@ -1,0 +1,75 @@
+name: Deploy portfolio and link studio
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pixelware-production
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - name: Verify database survives rebuilding and replacing containers
+        run: npm run test:deploy
+  deploy:
+    if: github.ref == 'refs/heads/master'
+    needs: verify
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Transfer source and runtime secret over verified SSH
+        shell: bash
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          VPS_PORT: ${{ vars.VPS_PORT || '22' }}
+          VPS_COMPOSE_PROJECT: ${{ vars.VPS_COMPOSE_PROJECT }}
+          ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$VPS_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$VPS_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]]
+          [[ "$VPS_PORT" =~ ^[0-9]{1,5}$ ]]
+          if [[ ! "$VPS_COMPOSE_PROJECT" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+            echo '::error::Set VPS_COMPOSE_PROJECT to the existing VPS Compose project name, or pixelware for a fresh installation.'
+            exit 1
+          fi
+          [[ "$ADMIN_PASSWORD_HASH" =~ ^scrypt-v1:[a-f0-9]{32}:[a-f0-9]{128}$ ]]
+          [[ -n "$VPS_SSH_KEY" && -n "$VPS_KNOWN_HOSTS" ]]
+          key="$RUNNER_TEMP/deploy-key"
+          hosts="$RUNNER_TEMP/deploy-known-hosts"
+          hash="$RUNNER_TEMP/admin-password-hash"
+          archive="$RUNNER_TEMP/pixelware-source.tgz"
+          trap 'rm -f "$key" "$hosts" "$hash" "$archive"' EXIT
+          printf '%s\n' "$VPS_SSH_KEY" > "$key"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$hosts"
+          printf '%s\n' "$ADMIN_PASSWORD_HASH" > "$hash"
+          git archive --format=tar.gz --output="$archive" HEAD
+          ssh_options=(-i "$key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$hosts")
+          ssh "${ssh_options[@]}" -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" 'umask 077; mkdir -p "$HOME/pixelware-incoming"'
+          scp "${ssh_options[@]}" -P "$VPS_PORT" "$archive" "$VPS_USER@$VPS_HOST:pixelware-incoming/source.tgz"
+          scp "${ssh_options[@]}" -P "$VPS_PORT" "$hash" "$VPS_USER@$VPS_HOST:pixelware-incoming/admin_password_hash"
+          # The project argument is restricted to the safe characters checked above.
+          ssh "${ssh_options[@]}" -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "bash -se -- $VPS_COMPOSE_PROJECT" < deploy/install-release.sh
