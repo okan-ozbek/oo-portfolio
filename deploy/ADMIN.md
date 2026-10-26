@@ -24,8 +24,15 @@ Create a name, permanent slug, HTTP(S) destination, and optional source label.
 Slug `resume-linkedin` produces `https://pixelware.nl/r/resume-linkedin`.
 Put this URL in the resume. Create separate slugs for other placements to compare
 performance. URLs use the configured origin, never the request Host header.
-You can change destinations and pause links. Unknown/paused links return 404.
-Slugs cannot be renamed or deleted, protecting URLs on published resumes.
+You can change destinations and use the row's Pause/Activate button to switch a
+link on or off immediately. Pausing preserves history and browser cooldowns.
+Unknown/paused links return 404. Slugs cannot be renamed.
+
+The trash icon beside Edit opens a permanent-deletion confirmation. Confirming
+deletes the link, its daily click history, and its cooldown records together.
+Its URL then returns 404, and totals/charts exclude that link's history. Other
+links are unaffected. There is no in-app restore; existing database backups are
+not rewritten. Creating the same slug again creates a new link with fresh history.
 Edits preserve counts. Admin destination previews do not count. Use Refresh to
 fetch current totals.
 

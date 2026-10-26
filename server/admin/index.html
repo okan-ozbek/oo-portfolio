@@ -74,5 +74,12 @@
     <label class="toggle-label" for="enabled"><input id="enabled" name="enabled" type="checkbox" checked> Link is active <span class="muted">Paused links return 404.</span></label>
     <p id="form-error" class="error" role="alert"></p><div class="dialog-actions"><button id="cancel-dialog" type="button" class="secondary">Cancel</button><button id="save-link" type="submit" class="primary">Create link ↗</button></div>
   </form></dialog>
+  <dialog id="delete-dialog" aria-labelledby="delete-title" aria-describedby="delete-warning"><form id="delete-form">
+    <div class="dialog-heading"><h2 id="delete-title">Delete this link?</h2><button id="close-delete" class="icon-button" type="button" aria-label="Close delete confirmation">×</button></div>
+    <div class="delete-link-summary"><strong id="delete-link-name"></strong><span id="delete-link-url"></span></div>
+    <p id="delete-warning" class="muted">This permanently removes the link, its click history, and its cooldown records. Shared URLs will stop working. This cannot be undone.</p>
+    <p id="delete-error" class="error" role="alert"></p>
+    <div class="dialog-actions"><button id="cancel-delete" type="button" class="secondary" autofocus>Cancel</button><button id="confirm-delete" type="submit" class="primary">Delete permanently</button></div>
+  </form></dialog>
   <div id="toast" role="status" hidden></div>
 </body></html>
