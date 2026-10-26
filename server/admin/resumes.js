@@ -96,7 +96,7 @@ export function initResumes({ api, toast, refreshLinks }) {
       card.append(stats);
       const url = el('p', 'resume-public-url', `/resumes/${resume.slug}.pdf`); url.title = resume.url; card.append(url);
       const actions = el('div', 'resume-card-actions');
-      actions.append(button('Manage ↗', () => loadDetail(resume.id).then(() => $('resume-editor').scrollIntoView({ behavior: 'smooth', block: 'start' })).catch(error => toast(error.message))));
+      actions.append(button('Manage ↗', () => loadDetail(resume.id).catch(error => toast(error.message))));
       actions.append(button('Duplicate', () => {
         copying = resume; $('resume-copy-name').value = `${resume.name.slice(0, 70)} copy`; $('resume-copy-slug').value = `${resume.slug.slice(0, 50)}-copy`; $('resume-copy-error').textContent = ''; $('resume-copy-dialog').showModal();
       }, 'text-button'));
