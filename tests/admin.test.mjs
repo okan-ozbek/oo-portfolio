@@ -300,6 +300,94 @@ test("activity separates active links, includes zero-click links, and restores p
   assert.deepEqual(data.series.find(link => link.id === first.id).daily, [{ day: "2026-10-26", clicks: 2 }]);
 });
 
+test("quick activation changes only status and preserves redirect settings, history, and cooldown", async t => {
+  const app = await fixture(t);
+  await app.login();
+  const link = (await (await app.request("/api/admin/links", { method: "POST", body: linkBody })).json()).link;
+  await app.request(`/r/${link.slug}`);
+  const patch = body => app.request(`/api/admin/links/${link.id}`, { method: "PATCH", body });
+  for (const body of [{ enabled: "false" }, {}, { enabled: false, destination: "https://example.com/" }]) assert.equal((await patch(body)).status, 400);
+  const paused = await patch({ enabled: false });
+  assert.equal(paused.status, 200);
+  assert.equal((await paused.json()).link.enabled, false);
+  assert.equal((await app.request(`/r/${link.slug}`)).status, 404);
+  let data = await (await app.request("/api/admin/links")).json();
+  assert.equal(data.links[0].clicks, 1);
+  assert.equal(data.series.length, 0);
+  const activated = await patch({ enabled: true });
+  assert.equal(activated.status, 200);
+  const active = (await activated.json()).link;
+  assert.equal(active.enabled, true);
+  for (const field of ["label", "slug", "source", "destination"]) assert.equal(active[field], link[field]);
+  assert.equal((await app.request(`/r/${link.slug}`)).status, 302);
+  data = await (await app.request("/api/admin/links")).json();
+  assert.equal(data.links[0].clicks, 1, "Reactivating must not reset the existing browser cooldown");
+  assert.equal(data.series.length, 1);
+});
+
+test("permanent deletion removes redirects, all link history and cooldowns, while preserving other links", async t => {
+  const dir = await mkdtemp(join(tmpdir(), "pixelware-delete-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const databasePath = join(dir, "admin.sqlite");
+  const app = await fixture(t, { databasePath });
+  await app.login();
+  const create = async slug => (await (await app.request("/api/admin/links", { method: "POST", body: { ...linkBody, slug } })).json()).link;
+  const removed = await create("delete-this-link");
+  const kept = await create("keep-this-link");
+  const firstClick = await app.request(`/r/${removed.slug}`);
+  const browser = firstClick.headers.get("set-cookie").split(";")[0];
+  await app.request(`/r/${kept.slug}`);
+  const deletion = await app.request(`/api/admin/links/${removed.id}`, { method: "DELETE", body: {} });
+  assert.equal(deletion.status, 200);
+  assert.deepEqual(await deletion.json(), { ok: true });
+  for (const method of ["GET", "HEAD"]) assert.equal((await app.request(`/r/${removed.slug}`, { method })).status, 404);
+  assert.equal((await app.request(`/api/admin/links/${removed.id}`, { method: "DELETE", body: {} })).status, 404);
+  assert.equal((await app.request(`/api/admin/links/${removed.id}`, { method: "PATCH", body: { enabled: true } })).status, 404);
+  const data = await (await app.request("/api/admin/links?range=year")).json();
+  assert.equal(data.links.length, 1);
+  assert.equal(data.links[0].id, kept.id);
+  assert.equal(data.links[0].clicks, 1);
+  assert.equal(data.series.length, 1);
+  assert.equal(data.series[0].id, kept.id);
+  assert.equal(data.daily.reduce((sum, day) => sum + day.clicks, 0), 1);
+  const inspect = new DatabaseSync(databasePath, { readOnly: true });
+  assert.equal(inspect.prepare("SELECT COUNT(*) AS n FROM links WHERE id = ?").get(removed.id).n, 0);
+  for (const table of ["daily_clicks", "click_cooldowns"]) {
+    assert.equal(inspect.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE link_id = ?`).get(removed.id).n, 0);
+    assert.equal(inspect.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE link_id = ?`).get(kept.id).n, 1);
+  }
+  inspect.close();
+  await app.close();
+  const restarted = await fixture(t, { databasePath });
+  await restarted.login();
+  assert.equal((await restarted.request(`/r/${removed.slug}`)).status, 404);
+  const recreated = (await (await restarted.request("/api/admin/links", { method: "POST", body: { ...linkBody, slug: removed.slug } })).json()).link;
+  assert.notEqual(recreated.id, removed.id);
+  assert.equal(recreated.clicks, 0);
+  await restarted.request(`/r/${recreated.slug}`, { headers: { Cookie: browser } });
+  const after = await (await restarted.request("/api/admin/links")).json();
+  assert.equal(after.links.find(link => link.id === recreated.id).clicks, 1, "A recreated slug must not inherit the deleted link's cooldown or history");
+  await restarted.close();
+});
+
+test("deletion and quick activation require authentication, same-origin requests, and CSRF", async t => {
+  const app = await fixture(t);
+  const missing = "/api/admin/links/00000000-0000-0000-0000-000000000000";
+  for (const method of ["PATCH", "DELETE"]) assert.equal((await app.request(missing, { method, body: { enabled: true } })).status, 401);
+  await app.login();
+  const link = (await (await app.request("/api/admin/links", { method: "POST", body: linkBody })).json()).link;
+  for (const method of ["PATCH", "DELETE"]) {
+    const path = `/api/admin/links/${link.id}`;
+    assert.equal((await app.request(path, { method, headers: { "X-CSRF-Token": "" }, body: { enabled: false } })).status, 403);
+    assert.equal((await app.request(path, { method, headers: { Origin: "https://evil.test" }, body: { enabled: false } })).status, 403);
+    assert.equal((await app.request(path, { method, headers: { "Content-Type": "text/plain" }, body: { enabled: false } })).status, 415);
+    assert.equal((await app.request(missing, { method, body: { enabled: false } })).status, 404);
+  }
+  const data = await (await app.request("/api/admin/links")).json();
+  assert.equal(data.links.length, 1);
+  assert.equal(data.links[0].enabled, true);
+});
+
 test("sessions expire and password rotation invalidates previous cookies", async t => {
   const dir = await mkdtemp(join(tmpdir(), "pixelware-session-"));
   t.after(() => rm(dir, { recursive: true, force: true }));

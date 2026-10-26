@@ -252,6 +252,19 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
         return send(res, 201, { link: linkList().find(link => link.id === id) });
       }
       const match = path.match(/^\/api\/admin\/links\/([a-f0-9-]{36})$/);
+      if (match && req.method === "PATCH") {
+        const body = await readJson(req);
+        if (typeof body.enabled !== "boolean" || Object.keys(body).length !== 1) throw new HttpError(400, "Send only an enabled boolean.");
+        const result = db.prepare("UPDATE links SET enabled = ? WHERE id = ?").run(Number(body.enabled), match[1]);
+        if (!result.changes) throw new HttpError(404, "Link not found.");
+        return send(res, 200, { link: linkList().find(link => link.id === match[1]) });
+      }
+      if (match && req.method === "DELETE") {
+        // SQLite atomically cascades this to daily_clicks and click_cooldowns.
+        const result = db.prepare("DELETE FROM links WHERE id = ?").run(match[1]);
+        if (!result.changes) throw new HttpError(404, "Link not found.");
+        return send(res, 200, { ok: true });
+      }
       if (match && req.method === "PUT") {
         const existing = db.prepare("SELECT * FROM links WHERE id = ?").get(match[1]);
         if (!existing) throw new HttpError(404, "Link not found.");
