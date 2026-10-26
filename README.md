@@ -1,6 +1,6 @@
 # Pixelware — Complexity under control
 
-A static project showcase built with React, TypeScript, Vite/Vinext, and Tailwind CSS. A graphite palette, red accents, and a compact grid put the projects first. The six-card grid starts with the Visual Hardware IDE and includes five clearly labeled placeholders, with animated candlestick, network, and binary visuals; the market data is simulated. There is no database, authentication service, or application API.
+A static project showcase built with React, TypeScript, Vite/Vinext, and Tailwind CSS. A graphite palette, red accents, and a compact grid put the projects first. The six-card grid starts with the Visual Hardware IDE and includes five clearly labeled placeholders, with animated candlestick, network, and binary visuals; the market data is simulated. The public portfolio remains a static export. A private Node/SQLite service now powers the password-protected link studio at `/admin` and tracked redirects at `/r/<slug>`.
 
 Native Canvas 2D renders the animated visuals without an animation dependency. Motion can be paused globally, respects reduced-motion preferences, and stops when canvases are outside the viewport or the tab is hidden.
 
@@ -13,7 +13,7 @@ npm ci
 npm run dev
 ```
 
-Open the localhost URL printed by Vite. These commands work on Windows, macOS, and Linux without Bash-specific wrappers.
+Open the localhost URL printed by Vite. First startup creates a local password in `.admin-local-password`. Open `/admin` to manage tracked links. Credentials and SQLite data are excluded from Git and image builds. See [admin setup and GitHub Actions deployment](deploy/ADMIN.md). These commands work on Windows, macOS, and Linux.
 
 ## Build and check
 
@@ -24,7 +24,7 @@ npm test
 npm start
 ```
 
-`npm test` creates and validates the static export. `npm start` previews the existing `dist/client/` export locally; build first. `npm run build` produces the same export without running the separate test suite. `npm run build:static` remains an alias for Docker and existing deployment commands.
+`npm test` builds and validates the static export and tests the admin backend. `npm start` previews only the existing `dist/client/` export locally; build first. Use `npm run dev` for admin access. `npm run build` produces the same export without running the separate test suite. `npm run build:static` remains an alias for Docker and existing deployment commands.
 
 Only `dist/client/` is public website output. `dist/server/` is an intermediate prerender artifact, not a production server to deploy.
 
@@ -32,13 +32,19 @@ Each build generates `dist/client/sitemap.xml` for `https://pixelware.nl/`. The 
 
 ## VPS deployment
 
-Point `pixelware.nl` to your VPS, allow TCP ports 80 and 443, then run:
+Pushes to `master` automatically test and deploy the portfolio and admin service
+through GitHub Actions once the VPS secrets are configured. Containers are
+rebuilt and replaced while reusing the existing database and certificate volumes.
+For an existing stack, set `VPS_COMPOSE_PROJECT` to its current Compose project
+name first. See [the automatic deployment setup](deploy/ADMIN.md).
+
+Configure the runtime admin hash using [the admin deployment guide](deploy/ADMIN.md), point `pixelware.nl` to the VPS, allow TCP ports 80 and 443, then run:
 
 ```sh
 docker compose up -d --build
 ```
 
-NGINX serves the exported website. Caddy handles Let's Encrypt certificates, automatic renewal, and HTTP-to-HTTPS redirects for **https://pixelware.nl**. The VPS only needs Docker Engine and Docker Compose; Node is used inside the build stage only.
+NGINX serves the exported website and proxies the private Node/SQLite admin service. Caddy handles Let's Encrypt certificates, renewal, and HTTP-to-HTTPS redirects for **https://pixelware.nl**. The VPS only needs Docker Engine and Docker Compose; Node runs inside the containers.
 
 See [the deployment guide](deploy/README.md) for DNS, certificate storage, verification, and updates. After deployment, `npm run test:container` checks the public HTTPS endpoint.
 

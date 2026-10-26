@@ -25,6 +25,9 @@ services:
     build:
       context: .
     image: pixelware-portfolio:local
+    depends_on:
+      admin:
+        condition: service_healthy
     restart: unless-stopped
     expose:
       - "8080"
@@ -41,6 +44,39 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  admin:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.admin
+    image: pixelware-admin:local
+    restart: unless-stopped
+    environment:
+      APP_ORIGIN: https://pixelware.nl
+      ADMIN_PASSWORD_HASH_FILE: /run/secrets/admin_password_hash
+    secrets:
+      - admin_password_hash
+    volumes:
+      - admin_data:/data
+    expose:
+      - "3031"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+secrets:
+  admin_password_hash:
+    file: ./.deploy-secrets/admin_password_hash
+
 volumes:
+  admin_data:
   caddy_data:
   caddy_config:

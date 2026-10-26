@@ -1,6 +1,6 @@
 # Run Pixelware on your VPS
 
-The Docker stack serves **https://pixelware.nl**. NGINX serves the static portfolio on the private Docker network; Caddy handles public HTTPS, Let's Encrypt certificate issuance and renewal, and HTTP-to-HTTPS redirects. Only Docker Engine and the Docker Compose plugin are needed on the VPS.
+The Docker stack serves **https://pixelware.nl**. NGINX serves the static portfolio on the private Docker network; Caddy handles public HTTPS, Let's Encrypt certificate issuance and renewal, and HTTP-to-HTTPS redirects. Only Docker Engine and the Docker Compose plugin are needed on the VPS. A Node/SQLite sidecar handles the private link studio and redirects. **Before startup, configure its runtime hash using [ADMIN.md](ADMIN.md)**, which also covers GitHub Actions secret delivery.
 
 ## DNS and firewall
 
@@ -59,6 +59,12 @@ Compression and cache behavior have been checked with the static export served t
 
 ## Updating and stopping
 
+Pushes to `master` can now perform these updates automatically through the
+configured GitHub Actions workflow. See [ADMIN.md](ADMIN.md) for secrets,
+`VPS_COMPOSE_PROJECT`, branch restrictions, and the database-preservation check.
+The workflow reuses named database and certificate volumes when replacing
+containers; it does not remove volumes or overwrite the server database.
+
 If a build appears stuck during dependency installation, use plain build output:
 
 ```sh
@@ -88,7 +94,7 @@ To stop the stack while preserving certificate volumes:
 docker compose down
 ```
 
-Both services restart automatically unless explicitly stopped. NGINX runs as a non-root user with a read-only root filesystem and an ephemeral `/tmp` mount.
+All three services restart automatically unless explicitly stopped. NGINX and the admin service run as non-root users with read-only root filesystems. The admin database persists on its dedicated volume.
 
 ## Build without Docker
 
@@ -98,7 +104,7 @@ npm run build:static
 npm run test:static
 ```
 
-The export is in `dist/client/`. Serve only that directory; `dist/server/` is an intermediate build artifact. Node is used only during the image build. `build:static` uses the prerender runner from the pinned vinext version; rerun export tests when upgrading it.
+The export is in `dist/client/`. Serve only that directory; `dist/server/` is an intermediate build artifact. Node is also used by the admin sidecar at runtime. `build:static` uses the prerender runner from the pinned vinext version; rerun export tests when upgrading it.
 
 Hashed `/assets/` files receive `Cache-Control: public, max-age=31536000, immutable`, allowing browsers to reuse them without another request. HTML, RSC and unversioned files revalidate using ETag/Last-Modified so updates appear promptly. Unknown routes and missing scripts return 404 without immutable caching.
 
@@ -106,7 +112,7 @@ The build writes `.gz` versions of compressible files at gzip level 9. NGINX neg
 
 Visible graphics share a timer and animation frame. Candles redraw at 3 fps, preserving their four-second period; latency and instruction graphics use 10 and 12 fps. Other graphics use 20 or 24 fps according to canvas width. Offscreen graphics, hidden tabs, and paused animations stop scheduling work. Terrain vertices are reused within each draw and black hole disk paths are reused until resize. These changes reduce drawing work; gzip reduces transfer size, not the amount of JavaScript the browser parses.
 
-The existing Google Fonts stylesheet still loads from Google; the runtime otherwise requires no server API or database. New server actions, authentication or dynamic API routes would need a server-backed deployment instead of this static container.
+The public portfolio remains static and loads its Google Fonts stylesheet from Google. The admin and tracked redirects use the separate Node/SQLite service described in [ADMIN.md](ADMIN.md).
 
 References: [Caddy automatic HTTPS](https://caddyserver.com/docs/automatic-https), [Caddy Docker image and persistent storage](https://hub.docker.com/_/caddy), [NGINX Docker documentation](https://docs.nginx.com/nginx/admin-guide/installing-nginx/installing-nginx-docker/).
 

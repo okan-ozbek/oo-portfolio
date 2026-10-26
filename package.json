@@ -6,11 +6,16 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "admin:password": "node scripts/admin-password.mjs",
+    "admin:setup": "node scripts/admin-password.mjs --local",
+    "test:admin": "node --test tests/admin.test.mjs",
+    "test:admin:container": "node scripts/smoke-admin-container.mjs",
+    "test:deploy": "node scripts/smoke-deploy.mjs",
     "build": "node scripts/build-static.mjs",
     "build:static": "npm run build",
     "start": "vite preview --host 127.0.0.1 --outDir dist/client",
-    "test": "npm run build && npm run test:static",
+    "test": "npm run build && npm run test:static && npm run test:admin",
     "test:static": "node --experimental-strip-types --test tests/static-export.test.mjs tests/animation-clock.test.mjs",
     "test:container": "node scripts/smoke-container.mjs",
     "typecheck": "tsc --noEmit",
