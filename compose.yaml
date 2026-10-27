@@ -53,6 +53,10 @@ services:
     environment:
       APP_ORIGIN: https://pixelware.nl
       ADMIN_PASSWORD_HASH_FILE: /run/secrets/admin_password_hash
+      RESUME_COMPILER_URL: http://compiler:3032
+    networks:
+      - default
+      - compilation
     secrets:
       - admin_password_hash
     volumes:
@@ -71,6 +75,36 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  compiler:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.compiler
+    image: pixelware-resume-compiler:local
+    restart: unless-stopped
+    networks:
+      - compilation
+    expose:
+      - "3032"
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 64
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  compilation:
+    internal: true
 
 secrets:
   admin_password_hash:

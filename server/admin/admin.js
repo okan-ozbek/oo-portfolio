@@ -1,4 +1,5 @@
 /* The dashboard receives no password hash or secret configuration. */
+import { initResumes } from './resumes.js';
 const $ = id => document.getElementById(id);
 const number = new Intl.NumberFormat();
 let csrf = "";
@@ -41,6 +42,8 @@ function openRangeMenu() {
 }
 
 function showLogin() {
+  resumeWorkspace.reset();
+  selectSection('links');
   closeRangeMenu();
   $("loading").hidden = true;
   $("dashboard").hidden = true;
@@ -489,6 +492,22 @@ $("link-form").addEventListener("submit", async event => {
   } catch (error) { $("form-error").textContent = error.message; }
   finally { $("save-link").disabled = false; }
 });
+
+const resumeWorkspace = initResumes({ api, toast, refreshLinks: refresh });
+async function selectSection(section) {
+  const resumes = section === 'resumes';
+  $('links-view').hidden = resumes;
+  $('resumes-view').hidden = !resumes;
+  for (const name of ['links', 'resumes']) {
+    if (name === section) $(`nav-${name}`).setAttribute('aria-current', 'page');
+    else $(`nav-${name}`).removeAttribute('aria-current');
+  }
+  if (resumes) {
+    try { await resumeWorkspace.refresh(); } catch (error) { $('resume-error').textContent = error.message; }
+  }
+}
+$('nav-links').addEventListener('click', () => selectSection('links'));
+$('nav-resumes').addEventListener('click', () => selectSection('resumes'));
 
 (async () => {
   try {

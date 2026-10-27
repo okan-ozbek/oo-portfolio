@@ -5,6 +5,8 @@ import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { validatePasswordHash, verifyPassword } from "./security.mjs";
+import { HttpError, readJson } from "./http.mjs";
+import { createResumes } from "./resumes.mjs";
 
 const sha256 = value => createHash("sha256").update(value).digest("hex");
 const SESSION_SECONDS = 12 * 60 * 60;
@@ -15,11 +17,8 @@ const assets = new Map([
   ["/admin/", ["index.html", "text/html; charset=utf-8"]],
   ["/admin/assets/admin.js", ["admin.js", "text/javascript; charset=utf-8"]],
   ["/admin/assets/admin.css", ["admin.css", "text/css; charset=utf-8"]],
+  ["/admin/assets/resumes.js", ["resumes.js", "text/javascript; charset=utf-8"]],
 ]);
-
-class HttpError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
-}
 
 function activityWindow(range, timestamp) {
   if (!["7d", "30d", "quarter", "year"].includes(range)) throw new HttpError(400, "Choose 7d, 30d, quarter, or year.");
@@ -37,23 +36,7 @@ function activityWindow(range, timestamp) {
   return { startDay: start.toISOString().slice(0, 10), endDay: end.toISOString().slice(0, 10) };
 }
 
-async function readJson(req) {
-  if (!/^application\/json(?:;|$)/i.test(req.headers["content-type"] ?? "")) throw new HttpError(415, "Send JSON.");
-  let size = 0;
-  const chunks = [];
-  for await (const chunk of req) {
-    size += chunk.length;
-    if (size > 8192) throw new HttpError(413, "Request is too large.");
-    chunks.push(chunk);
-  }
-  try {
-    const value = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
-    return value;
-  } catch { throw new HttpError(400, "Invalid JSON."); }
-}
-
-export function createAdminServer({ passwordHash, origin, databasePath, secureCookies = true, now = Date.now }) {
+export function createAdminServer({ passwordHash, origin, databasePath, secureCookies = true, now = Date.now, compileResume }) {
   validatePasswordHash(passwordHash);
   const publicUrl = new URL(origin);
   if (publicUrl.origin !== origin || !["http:", "https:"].includes(publicUrl.protocol)) throw new Error("APP_ORIGIN must be an origin without a trailing slash.");
@@ -108,6 +91,13 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
     res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
     res.end(JSON.stringify(body));
   };
+  const visitor = (req, res) => {
+    const existing = readCookie(req, visitorCookieName);
+    const token = /^[a-f0-9]{64}$/.test(existing ?? "") ? existing : randomBytes(32).toString("hex");
+    res.setHeader("Set-Cookie", `${visitorCookieName}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=3600${secureCookies ? "; Secure" : ""}`);
+    return token;
+  };
+  const resumes = createResumes({ db, origin, now, send, visitor, compile: compileResume });
   function validateLink(body) {
     const { label, slug, destination, source = "", enabled = true } = body;
     if (typeof label !== "string" || !label.trim() || label.length > 100) throw new HttpError(400, "Enter a label of 1–100 characters.");
@@ -153,6 +143,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
         res.writeHead(200, { "Content-Type": type });
         return res.end(req.method === "HEAD" ? undefined : body);
       }
+      if (await resumes.publicRoute(req, res, requestUrl)) return;
       if (path.startsWith("/r/")) {
         if (!["GET", "HEAD"].includes(req.method)) throw new HttpError(405, "Method not allowed.");
         const slug = path.slice(3);
@@ -228,6 +219,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
         res.setHeader("Set-Cookie", cookie("", 0));
         return send(res, 200, { ok: true });
       }
+      if (await resumes.adminRoute(req, res, requestUrl)) return;
       if (path === "/api/admin/links" && req.method === "GET") {
         const range = requestUrl.searchParams.get("range") ?? "30d";
         const { startDay, endDay } = activityWindow(range, now());
@@ -283,7 +275,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
   server.requestTimeout = 10000;
   server.headersTimeout = 10000;
   const cleanup = setInterval(() => {
-    try { pruneCooldowns.run(now()); }
+    try { pruneCooldowns.run(now()); resumes.prune(); }
     catch (error) { console.error("Click cooldown cleanup failed:", error.message); }
   }, 60000);
   cleanup.unref();
