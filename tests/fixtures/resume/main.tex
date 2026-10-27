@@ -1,0 +1,31 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=24mm]{geometry}
+\usepackage{fontspec}
+\setmainfont{TeX Gyre Heros}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage[colorlinks=true,urlcolor=accent]{hyperref}
+\usepackage{styles/resume}
+\pagestyle{empty}
+\begin{document}
+{\Huge\bfseries Alex Morgan}\par\vspace{5mm}
+{\large Software Engineer}\par\vspace{7mm}
+\profilelink{https://github.com/example}{GitHub}\quad
+\profilelink{https://www.linkedin.com/in/example}{LinkedIn}\quad
+\href{mailto:alex@example.com}{alex@example.com}
+\section*{Profile}
+I build thoughtful software, reliable systems, and useful tools. This sample
+project checks that resume typography, supporting files, and hyperlinks survive
+compilation and tracking.
+\section*{Experience}
+\textbf{Software Engineer}\hfill 2023--2026\par
+Designed services and interfaces with a focus on clarity and reliability.
+\begin{itemize}
+\item Built and maintained production applications.
+\item Improved delivery workflows and observability.
+\end{itemize}
+\section*{Selected work}
+See the \profilelink{https://github.com/example}{project collection on GitHub}.
+\section*{Skills}
+TypeScript, Node.js, Python, SQL, Docker, and systems design.
+\end{document}
