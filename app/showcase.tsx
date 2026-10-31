@@ -32,7 +32,7 @@ export function Showcase() {
     <div className="site-frame" id="top" data-motion={playing ? "on" : "off"}>
       <a className="skip-link" href="#projects">Skip to projects</a>
       <header className="site-header">
-        <a className="wordmark" href="#top" aria-label="Pixelware, home">
+        <a className="wordmark site-wordmark" href="#top" aria-label="Pixelware, home">
           <span className="brand-icon" aria-hidden="true" />Pixelware<span className="brand-period">.</span>
         </a>
         <nav aria-label="Main navigation">

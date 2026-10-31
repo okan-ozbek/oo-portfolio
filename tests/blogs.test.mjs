@@ -131,6 +131,13 @@ test('ten technical scenes and all six project visuals render in banners and pre
     const preview=await (await app.request(`/admin/blog-preview/${post.id}`)).text();assert.match(preview,new RegExp(`data-art-preset="${preset.id}"`));assert.ok(preview.indexOf('blog-site-header')<preview.indexOf('blog-hero-banner')&&preview.indexOf('blog-hero-banner')<preview.indexOf('blog-article-layout'),'The navigation must precede the full-width banner and article');
   }
   post=await app.action(post,'publish');const page=await (await app.request('/api/public/blogs',{anonymous:true})).json();assert.equal(page.posts[0].thumbnailPreset,'project-latency');assert.match(page.html,/data-art-preset="project-latency"/);
+  for(const path of ['/blog',`/blog/${post.slug}`]){
+    const html=await (await app.request(path,{anonymous:true})).text();
+    assert.match(html,/class="site-wordmark"[^>]*aria-label="Pixelware, home"/);
+    assert.match(html,/class="brand-icon"/);assert.match(html,/<nav aria-label="Website"><a href="\/blog">All posts<\/a><\/nav>/);
+    assert.doesNotMatch(html,/blog-back|href="\/#about"/);
+  }
+  const theme=await app.request('/blog/assets/theme.css',{anonymous:true});assert.equal(theme.status,200);assert.match(theme.headers.get('content-type'),/text\/css/);
   assert.equal((await app.request('/blog/art/unknown.svg')).status,404);
 });
 

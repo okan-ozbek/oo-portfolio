@@ -160,6 +160,7 @@ export function createBlogs({db,origin,now=Date.now,send,isAuthenticated}) {
     const bytes=(body,type,privatePage=false)=>{res.setHeader('Content-Security-Policy',blogCsp);if(!privatePage)res.removeHeader('X-Robots-Tag');res.writeHead(200,{'Content-Type':type,'Content-Length':Buffer.byteLength(body)});res.end(req.method==='HEAD'?undefined:body);return true;};
     const asset=/^\/blog\/assets\/([\w.-]+)$/.exec(path);
     if(asset){
+      if(asset[1]==='theme.css')return bytes(readFileSync(new URL('./blog/theme.css',import.meta.url)),'text/css; charset=utf-8');
       if(asset[1]==='blog.css')return bytes(readFileSync(new URL('./blog/blog.css',import.meta.url)),'text/css; charset=utf-8');
       if(asset[1]==='reader.js')return bytes(readFileSync(new URL('./blog/reader.js',import.meta.url)),'text/javascript; charset=utf-8');
       if(/^[\w-]+\.js$/.test(asset[1])){try{return bytes(readFileSync(new URL(`./blog/vendor/${asset[1]}`,import.meta.url)),'text/javascript; charset=utf-8');}catch{throw new HttpError(404,'Asset not found.');}}

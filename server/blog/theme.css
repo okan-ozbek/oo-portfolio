@@ -1,0 +1,32 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+/* Shared by the homepage and server-rendered blog pages. */
+:root {
+  --site-background: #111113;
+  --site-surface: #19191c;
+  --site-foreground: #e6e6eb;
+  --site-muted: #8e8e98;
+  --site-line: #2b2b30;
+  --site-red: #ff0000;
+  --site-sans: "Space Grotesk", "Arial", sans-serif;
+  --site-mono: "IBM Plex Mono", "Courier New", monospace;
+  --site-art-background: linear-gradient(145deg, #202024, #161619);
+}
+
+.site-frame { width: min(100% - 112px, 1328px); margin-inline: auto; }
+.site-header { display: flex; align-items: center; justify-content: space-between; height: 100px; border-bottom: 1px solid var(--site-line); }
+.site-wordmark { display: inline-flex; align-items: center; gap: 10px; font-family: var(--site-sans); font-size: 22px; font-weight: 600; line-height: 1.5; letter-spacing: -.9px; }
+.site-wordmark .brand-period { color: var(--site-red); margin-left: -9px; }
+.site-wordmark .brand-icon { width: 30px; height: 29px; display: block; flex: none; background: var(--site-red); mask: url('/pixelware-logo.svg') center / contain no-repeat; margin-right: 2px; }
+.site-header nav { display: flex; align-items: center; gap: 42px; font-size: 14px; }
+.site-header nav a { display: flex; align-items: center; gap: 10px; transition: color 180ms ease; }
+.site-header nav a:hover { color: #fff; }
+
+@media (max-width: 1100px) { .site-frame { width: calc(100% - 64px); } }
+@media (max-width: 760px) {
+  .site-frame { width: calc(100% - 40px); }
+  .site-header { height: 80px; }
+  .site-wordmark { font-size: 20px; }
+  .site-wordmark .brand-icon { width: 25px; height: 25px; }
+  .site-header nav { gap: 22px; font-size: 12px; }
+}

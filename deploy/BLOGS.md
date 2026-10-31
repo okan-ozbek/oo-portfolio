@@ -69,6 +69,9 @@ Animations use the shared project rendering code and animation clock, pause
 offscreen or in hidden tabs, and respect reduced-motion preferences. On the
 homepage they also follow the existing Motion control. Static SVG/JPEG fallbacks
 remain available for loading, disabled JavaScript, and social previews.
+The homepage and blog share `server/blog/theme.css` for page colors, fonts,
+the Pixelware wordmark, header spacing, and the project-thumbnail gradient.
+Animated blog canvases are transparent over that shared gradient.
 
 ## Embedded content
 

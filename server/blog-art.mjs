@@ -46,7 +46,8 @@ export function artwork(preset, seed = '', wide = false) {
     for(let i=0;i<6;i++)shapes+=line(70,80+i*(h-140)/5,1130,80+i*(h-140)/5);
     for(let n=0;n<3;n++){let d='';for(let i=0;i<70;i++){const x=70+i*15,y=h*.7-n*50-Math.sin(i*.12)*35-random()*(n===2?100:25);d+=`${i?'L':'M'}${x},${y}`;}shapes+=`<path d="${d}" fill="none" stroke="${n===2?'#ff3939':n===1?'#8b8b8b':'#535353'}" stroke-width="2"/>`;}
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><radialGradient id="g"><stop stop-color="#181818"/><stop offset="1" stop-color="#0c0c0c"/></radialGradient></defs><rect width="1200" height="${h}" fill="url(#g)"/>${shapes}<g fill="#888888" font-family="monospace" font-size="12" letter-spacing="2"><text x="30" y="35">${descriptor.code}</text></g><path d="M1170 25h-25m25 0v25M30 ${h-25}v-15" stroke="#ff3939" fill="none"/></svg>`;
+  const angle=145*Math.PI/180,dx=Math.sin(angle),dy=-Math.cos(angle),length=w*dx+h*dy;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="${(w-dx*length)/2}" y1="${(h-dy*length)/2}" x2="${(w+dx*length)/2}" y2="${(h+dy*length)/2}"><stop stop-color="#202024"/><stop offset="1" stop-color="#161619"/></linearGradient></defs><rect width="1200" height="${h}" fill="url(#g)"/>${shapes}<g fill="#888888" font-family="monospace" font-size="12" letter-spacing="2"><text x="30" y="35">${descriptor.code}</text></g><path d="M1170 25h-25m25 0v25M30 ${h-25}v-15" stroke="#ff3939" fill="none"/></svg>`;
 }
 export function artHtml(spec,seed,{wide=false,className='',priority=false}={}){
   const animated=!spec?.assetId,preset=presets.includes(spec?.preset)?spec.preset:'terrain';

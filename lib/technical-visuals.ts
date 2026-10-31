@@ -8,7 +8,6 @@ const noise=(n:number)=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Mat
 function line(ctx:CanvasRenderingContext2D,points:number[][],color:string,width=1){ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.stroke();}
 function dot(ctx:CanvasRenderingContext2D,x:number,y:number,r:number,color=red,glow=0){ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=glow;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();ctx.shadowBlur=0;}
 function label(ctx:CanvasRenderingContext2D,text:string,x:number,y:number,color='#939393',size=10){ctx.fillStyle=color;ctx.font=`${size}px Consolas,monospace`;ctx.textAlign='center';ctx.fillText(text,x,y);}
-function grid(ctx:CanvasRenderingContext2D,w:number,h:number){for(let x=30;x<w;x+=35)line(ctx,[[x,48],[x,h-34]],'#8a8a8a0a');for(let y=55;y<h-30;y+=35)line(ctx,[[25,y],[w-25,y]],'#8a8a8a0a');}
 function fluid(ctx:CanvasRenderingContext2D,w:number,h:number,t:number,pointer:number){
   const centers=[[w*.36+pointer*30,h*.48],[w*.65-pointer*20,h*.57]];
   for(let row=0;row<19;row++){
@@ -116,7 +115,7 @@ export function mountTechnicalArt(host:HTMLElement,preset:string,seed='',playing
   const draw=()=>{
     if(!w||!h)return;const logicalH=390,logicalW=Math.max(520,w/h*logicalH),scale=h/logicalH;
     ctx.save();ctx.scale(scale,scale);ctx.clearRect(0,0,logicalW,logicalH);
-    const bg=ctx.createRadialGradient(logicalW*.5,logicalH*.45,10,logicalW*.5,logicalH*.5,Math.max(logicalW*.55,260));bg.addColorStop(0,'#181818');bg.addColorStop(1,'#0c0c0c');ctx.fillStyle=bg;ctx.fillRect(0,0,logicalW,logicalH);grid(ctx,logicalW,logicalH);
+    // Keep the canvas transparent: the shared CSS supplies the project thumbnail background.
     const t=time+offset;
     if(projectKind)drawProjectVisual(ctx,logicalW,logicalH,t,pointer,projectKind,feed?.(t));
     else if(preset==='terrain')drawProjectVisual(ctx,logicalW,logicalH,t,pointer,'terrain');
