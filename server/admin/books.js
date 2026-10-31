@@ -15,8 +15,10 @@ const format = new Intl.NumberFormat();
 
 export function initBooks({ api, toast }) {
   let books = [], allTags = [], activeTag = '', editing = null, deleting = null, version = 0;
+  let editSession = null, authVersion = 0;
+  const editSessions = new Map();
   const pending = new Set();
-  function tagEditor(prefix) {
+  function tagEditor(prefix, onChange = () => {}) {
     const root = $(`book-${prefix}-tags`);
     let tags = [];
     const chips = el('div', 'book-tag-chips');
@@ -24,12 +26,14 @@ export function initBooks({ api, toast }) {
     input.autocomplete = 'off';
     const suggestions = el('div', 'book-tag-suggestions');
     root.append(chips, input, suggestions);
+    function changed() { render(); onChange([...tags]); }
     function add(value) {
       const tag = value.trim();
       if (!tag) return;
       if (!tags.some(item => item.toLowerCase() === tag.toLowerCase())) {
         if (tags.length >= 20) { input.setCustomValidity('Use up to 20 tags.'); input.reportValidity(); return; }
         tags.push(allTags.find(item => item.toLowerCase() === tag.toLowerCase()) ?? tag);
+        onChange([...tags]);
       }
       input.value = ''; input.setCustomValidity(''); render(); input.focus();
     }
@@ -44,7 +48,7 @@ export function initBooks({ api, toast }) {
       chips.replaceChildren();
       for (const tag of tags) {
         const chip = el('span', tagClass(tag));
-        const remove = button('×', () => { tags = tags.filter(item => item !== tag); render(); }, 'book-tag-remove');
+        const remove = button('×', () => { tags = tags.filter(item => item !== tag); changed(); }, 'book-tag-remove');
         remove.setAttribute('aria-label', `Remove tag ${tag}`);
         chip.append(el('span', '', tag), remove); chips.append(chip);
       }
@@ -53,11 +57,60 @@ export function initBooks({ api, toast }) {
     input.addEventListener('input', () => { input.setCustomValidity(''); renderSuggestions(); });
     input.addEventListener('keydown', event => {
       if (event.key === 'Enter') { event.preventDefault(); add(input.value); }
-      if (event.key === 'Backspace' && !input.value) { tags.pop(); render(); }
+      if (event.key === 'Backspace' && !input.value && tags.length) { tags.pop(); changed(); }
     });
     return { set(value) { tags = [...value]; input.value = ''; input.setCustomValidity(''); render(); }, get() { add(input.value); return input.checkValidity() ? [...tags] : null; } };
   }
-  const uploadTags = tagEditor('upload'), editTags = tagEditor('edit');
+  const uploadTags = tagEditor('upload'), editTags = tagEditor('edit', tags => {
+    if (!editSession) return;
+    editSession.tags = tags; editSession.revision++; void saveEdit(editSession);
+  });
+  function editStatus(session, text, failed = false) {
+    if (editSession !== session) return;
+    $('book-edit-status').textContent = text;
+    $('book-edit-retry').hidden = !failed;
+  }
+  async function saveEdit(session) {
+    if (session.saving || session.authVersion !== authVersion) return;
+    session.saving = true;
+    try {
+      // Serialize requests and always send the latest selection after an in-flight
+      // save. A slower response must not overwrite a newer tag selection.
+      while (session.savedRevision < session.revision && session.authVersion === authVersion) {
+        const revision = session.revision;
+        editStatus(session, 'Saving changes…');
+        if (editSession === session) $('book-edit-error').textContent = '';
+        try {
+          const { book } = await api(`books/${session.id}`, { method: 'PATCH', body: { name: session.name, tags: [...session.tags] } });
+          if (session.authVersion !== authVersion) return;
+          session.savedRevision = revision;
+          books = books.map(item => item.id === book.id ? book : item);
+          allTags = [...new Set(books.flatMap(item => item.tags))].sort((a, b) => a.localeCompare(b));
+          if (!allTags.includes(activeTag)) activeTag = '';
+          render();
+        } catch (error) {
+          if (session.authVersion !== authVersion) return;
+          editStatus(session, 'Changes could not be saved.', true);
+          session.error = error.message;
+          if (editSession === session) $('book-edit-error').textContent = error.message;
+          if (!$('book-edit-dialog').open || editSession !== session) toast(`Book changes were not saved: ${error.message}`);
+          return;
+        }
+      }
+      editStatus(session, 'All changes saved.');
+      session.error = '';
+    } finally { session.saving = false; }
+  }
+  function commitName() {
+    if (!editSession || editSession.authVersion !== authVersion) return;
+    const input = $('book-edit-name');
+    if (!input.checkValidity() || !input.value.trim()) {
+      $('book-edit-error').textContent = 'Enter a book name of 1–200 characters.';
+      return;
+    }
+    const name = input.value.trim();
+    if (name !== editSession.name) { editSession.name = name; editSession.revision++; void saveEdit(editSession); }
+  }
   function render() {
     const filters = $('book-filters'); filters.replaceChildren();
     const filter = (label, value) => {
@@ -71,9 +124,10 @@ export function initBooks({ api, toast }) {
     $('book-count').textContent = activeTag || query ? `${visible.length} / ${books.length}` : books.length;
     $('book-empty').hidden = books.length !== 0;
     $('book-no-results').hidden = books.length === 0 || visible.length !== 0;
+    $('book-table-wrap').hidden = visible.length === 0;
     const rows = $('book-rows'); rows.replaceChildren();
     for (const book of visible) {
-      const row = el('article', 'book-row'); row.setAttribute('aria-label', book.name);
+      const row = el('tr', 'book-entry'); row.setAttribute('aria-label', book.name);
       const base = `/api/admin/books/${book.id}`;
       const cover = el('a', 'book-cover'); cover.href = `${base}/pdf`; cover.target = '_blank'; cover.rel = 'noopener'; cover.setAttribute('aria-label', `Read ${book.name}`);
       const image = el('img'); image.src = `${base}/thumbnail`; image.alt = `First page of ${book.name}`; image.loading = 'lazy'; image.width = 48; image.height = 66; cover.append(image);
@@ -87,7 +141,11 @@ export function initBooks({ api, toast }) {
       const read = el('a', 'text-button', 'Read ↗'); read.href = `${base}/pdf`; read.target = '_blank'; read.rel = 'noopener';
       const download = el('a', 'secondary link-button', 'Download ↓'); download.href = `${base}/pdf?download=1`; download.download = `${book.name}.pdf`;
       const remove = button('Delete', () => { deleting = book; $('book-delete-name').textContent = book.name; $('book-delete-error').textContent = ''; $('book-delete-dialog').showModal(); }, 'book-delete-button');
-      actions.append(read, download, remove); row.append(cover, title, pages, tags, actions); rows.append(row);
+      actions.append(read, download, remove);
+      for (const [className, node] of [['book-cover-cell', cover], ['book-title-cell', title], ['book-pages-cell', pages], ['book-tags-cell', tags], ['book-actions-cell', actions]]) {
+        const cell = el('td', className); cell.append(node); row.append(cell);
+      }
+      rows.append(row);
     }
   }
   async function refresh() {
@@ -107,7 +165,13 @@ export function initBooks({ api, toast }) {
     $('book-upload-dialog').showModal();
   }
   function openEdit(book) {
-    editing = book; $('book-edit-name').value = book.name; editTags.set(book.tags); $('book-edit-error').textContent = ''; $('book-edit-dialog').showModal();
+    editing = book;
+    const previous = editSessions.get(book.id);
+    editSession = previous && previous.savedRevision < previous.revision ? previous : { id: book.id, name: book.name, tags: [...book.tags], revision: 0, savedRevision: 0, saving: false, authVersion };
+    editSessions.set(book.id, editSession);
+    $('book-edit-name').value = editSession.name; editTags.set(editSession.tags); $('book-edit-error').textContent = editSession.error ?? '';
+    editStatus(editSession, editSession.error ? 'Changes could not be saved.' : editSession.saving ? 'Saving changes…' : 'Changes save automatically.', Boolean(editSession.error));
+    $('book-edit-dialog').showModal();
   }
   function busy(prefix, value) {
     if (value) pending.add(prefix); else pending.delete(prefix);
@@ -153,14 +217,12 @@ export function initBooks({ api, toast }) {
     finally { busy('upload', false); $('book-upload-name').disabled = $('book-files').files.length !== 1; }
   });
   $('book-edit-form').addEventListener('submit', async event => {
-    event.preventDefault(); if (!editing || pending.has('edit')) return;
-    const tags = editTags.get(); if (!tags) return;
-    const body = { name: $('book-edit-name').value, tags };
-    busy('edit', true); $('book-edit-error').textContent = '';
-    try { await api(`books/${editing.id}`, { method: 'PATCH', body }); $('book-edit-dialog').close(); await refresh(); toast('Book updated.'); }
-    catch (error) { $('book-edit-error').textContent = error.message; }
-    finally { busy('edit', false); }
+    event.preventDefault(); if (!editing) return;
+    editTags.get(); commitName();
   });
+  $('book-edit-name').addEventListener('change', commitName);
+  $('book-edit-dialog').addEventListener('close', commitName);
+  $('book-edit-retry').addEventListener('click', () => { if (editSession) void saveEdit(editSession); });
   $('book-delete-form').addEventListener('submit', async event => {
     event.preventDefault(); if (!deleting || pending.has('delete')) return;
     busy('delete', true); $('book-delete-error').textContent = '';
@@ -169,6 +231,7 @@ export function initBooks({ api, toast }) {
     finally { busy('delete', false); }
   });
   return { refresh, reset() {
+    authVersion++; editSession = null; editSessions.clear();
     version++; books = []; allTags = []; activeTag = ''; editing = null; deleting = null;
     $('book-search').value = ''; $('book-rows').replaceChildren(); $('book-filters').replaceChildren();
     for (const prefix of ['upload', 'edit', 'delete']) $(`book-${prefix}-dialog`).close();

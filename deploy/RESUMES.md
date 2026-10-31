@@ -1,9 +1,14 @@
 # Resume workspace
 
-The admin sidebar has **Link analytics** and **Resumes**. No AI or external
+The admin sidebar has **Link analytics**, **Resumes**, and **Books**. No AI or external
 document service is used. XeLaTeX compiles the source; pypdf discovers and
 replaces URI annotations in the resulting PDF. This includes hyperlinks emitted
 by custom LaTeX macros, without rewriting the original source or its visible text.
+
+Resume cards show a private first-page PDF thumbnail. Poppler renders it on
+first request; SQLite caches it against the PDF contents and regenerates it
+after a PDF update. Preview requests do not count as downloads. Thumbnails
+require an admin session and are deleted with the associated resume.
 
 ## Local use
 
