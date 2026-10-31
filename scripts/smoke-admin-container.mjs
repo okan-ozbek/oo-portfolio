@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 import { hashPassword } from "../server/security.mjs";
+import { bookPdf } from '../tests/fixtures/book.mjs';
 
 // Isolated resources only; no production Compose project, ports, or volumes.
 const id = `pixelware-smoke-${randomBytes(6).toString("hex")}`;
@@ -51,7 +52,7 @@ try {
   assert.equal((await fetch(`${base}/`)).status, 200);
   const page = await fetch(`${base}/admin`);
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /<title>Analytics · Pixelware<\/title>/);
+  assert.match(await page.text(), /<title>Admin · Pixelware<\/title>/);
   assert.equal((await fetch(`${base}/admin/assets/admin.js`)).status, 200);
   assert.equal((await fetch(`${base}/admin/assets/resumes.js`)).status, 200);
   assert.equal((await fetch(`${base}/api/admin/links`)).status, 401);
@@ -61,6 +62,17 @@ try {
   assert.match(login.headers.get("set-cookie"), /Secure/);
   headers.Cookie = login.headers.get("set-cookie").split(";")[0];
   headers["X-CSRF-Token"] = (await login.json()).csrf;
+  assert.equal((await fetch(`${base}/admin/assets/books.js`)).status, 200);
+  const libraryPdf = bookPdf('Container book ' + 'x'.repeat(9000));
+  const bookUpload = await fetch(`${base}/api/admin/books?name=Container%20book&tags=%5B%22C%2B%2B%22%5D`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/pdf' }, body: libraryPdf });
+  assert.equal(bookUpload.status, 201, await bookUpload.clone().text());
+  const libraryBook = (await bookUpload.json()).book;
+  assert.equal(libraryBook.pages, 2);
+  const bookBase = `${base}/api/admin/books/${libraryBook.id}`;
+  assert.equal((await fetch(`${bookBase}/pdf`)).status, 401);
+  assert.equal((await fetch(`${bookBase}/thumbnail`, { headers })).headers.get('content-type'), 'image/png');
+  const bookDownload = await fetch(`${bookBase}/pdf?download=1`, { headers });
+  assert.deepEqual(Buffer.from(await bookDownload.arrayBuffer()), libraryPdf);
   const response = await fetch(`${base}/api/admin/links`, {
     method: "POST", headers,
     body: JSON.stringify({ label: "Container smoke test", slug: "container-smoke", destination: "https://github.com/okan-ozbek", source: "Disposable container test" }),
@@ -103,6 +115,8 @@ try {
     await setTimeout(200);
   }
   assert.ok(ready, "Sessions and counts must survive a container restart");
+  assert.equal((await (await fetch(`${base}/api/admin/books?tag=C%2B%2B`, { headers })).json()).books[0].id, libraryBook.id);
+  assert.deepEqual(Buffer.from(await (await fetch(`${bookBase}/pdf`, { headers })).arrayBuffer()), libraryPdf);
   assert.deepEqual(Buffer.from(await (await fetch(`${base}/resume.pdf`, { headers })).arrayBuffer()), publishedBytes);
   assert.equal((await (await fetch(`${base}${resumePath}`, { headers })).json()).resume.downloads, 1, 'PDF and download cooldown survive restart');
   console.log("Container smoke passed: NGINX + admin + real compiler, large project upload, immediate PDF updates/downloads, auth, redirects, and restart persistence.");
