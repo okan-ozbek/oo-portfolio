@@ -92,7 +92,7 @@ export function Showcase() {
           <div className="about-copy">{about.map(paragraph => <p key={paragraph}>{paragraph}</p>)}</div>
         </section>
 
-        <BlogFeed />
+        <BlogFeed playing={playing} />
 
         <section className="contact-strip" id="contact" aria-labelledby="contact-title">
           <div><span className="eyebrow">AN OPEN CHANNEL</span><h2 id="contact-title">Have something in mind?</h2></div>

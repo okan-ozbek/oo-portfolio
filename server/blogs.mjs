@@ -11,7 +11,7 @@ const UUID=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const SLUG=/^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const positions=['center','top','bottom','left','right'];
 const fields=['title','slug','summary','tags','markdown','thumbnail','banner','relatedIds'];
-const fresh = () => ({title:'Untitled draft',slug:`post-${randomUUID().slice(0,8)}`,summary:'',tags:[],markdown:'',thumbnail:{preset:'network',assetId:null,position:'center'},banner:{preset:'network',assetId:null,position:'center'},relatedIds:[]});
+const fresh = () => ({title:'Untitled draft',slug:`post-${randomUUID().slice(0,8)}`,summary:'',tags:[],markdown:'',thumbnail:{preset:'terrain',assetId:null,position:'center'},banner:{preset:'terrain',assetId:null,position:'center'},relatedIds:[]});
 export function createBlogs({db,origin,now=Date.now,send,isAuthenticated}) {
   db.exec(`CREATE TABLE IF NOT EXISTS blog_posts (
     id TEXT PRIMARY KEY, draft_json TEXT NOT NULL, published_json TEXT, published_slug TEXT UNIQUE,
@@ -37,7 +37,7 @@ export function createBlogs({db,origin,now=Date.now,send,isAuthenticated}) {
   const rowFor=id=>{const row=db.prepare('SELECT * FROM blog_posts WHERE id=?').get(id);if(!row)throw new HttpError(404,'Post not found.');return row;};
   const profilePublic=()=>{const {name,linkedinUrl,avatarId}=author();return {name,linkedinUrl,avatarId};};
   const entry=row=>({id:row.id,...JSON.parse(row.draft_json),version:row.version,createdAt:row.created_at,updatedAt:row.updated_at,publishedAt:row.published_at,status:row.published_json?'published':'draft',hasUnpublishedChanges:Boolean(row.published_json&&row.draft_json!==row.published_json),publicUrl:row.published_json?`/blog/${row.published_slug}`:null});
-  const summary=row=>{const post=JSON.parse(row.published_json);return {id:row.id,title:post.title,slug:row.published_slug,summary:post.summary,tags:post.tags,thumbnailUrl:artUrl(post.thumbnail,row.id),thumbnailPosition:post.thumbnail.position,publishedAt:row.published_at,updatedAt:row.live_updated_at,author:profilePublic()};};
+  const summary=row=>{const post=JSON.parse(row.published_json);return {id:row.id,title:post.title,slug:row.published_slug,summary:post.summary,tags:post.tags,thumbnailUrl:artUrl(post.thumbnail,row.id),thumbnailPosition:post.thumbnail.position,thumbnailPreset:post.thumbnail.assetId?null:post.thumbnail.preset,publishedAt:row.published_at,updatedAt:row.live_updated_at,author:profilePublic()};};
   function transaction(action) {db.exec('BEGIN IMMEDIATE');try{const result=action();db.exec('COMMIT');return result;}catch(error){db.exec('ROLLBACK');throw error;}}
   function listPublic(cursor=null,limit=5) {
     let values=[],where='published_json IS NOT NULL';
@@ -165,8 +165,8 @@ export function createBlogs({db,origin,now=Date.now,send,isAuthenticated}) {
       if(/^[\w-]+\.js$/.test(asset[1])){try{return bytes(readFileSync(new URL(`./blog/vendor/${asset[1]}`,import.meta.url)),'text/javascript; charset=utf-8');}catch{throw new HttpError(404,'Asset not found.');}}
       throw new HttpError(404,'Asset not found.');
     }
-    const art=/^\/blog\/art\/(network|binary|stack|terrain|latency)\.svg$/.exec(path);
-    if(art)return bytes(artwork(art[1],(url.searchParams.get('seed')??'').slice(0,100),url.searchParams.get('wide')==='1'),'image/svg+xml');
+    const art=/^\/blog\/art\/([a-z-]+)\.svg$/.exec(path);
+    if(art&&presets.includes(art[1]))return bytes(artwork(art[1],(url.searchParams.get('seed')??'').slice(0,100),url.searchParams.get('wide')==='1'),'image/svg+xml');
     const media=/^\/blog\/media\/([a-f0-9-]{36})$/.exec(path);
     if(media){
       const item=db.prepare('SELECT * FROM blog_media WHERE id=?').get(media[1]);if(!item)throw new HttpError(404,'Image not found.');

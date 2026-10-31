@@ -7,6 +7,7 @@ import sharp from 'sharp';
 import { createAdminServer } from '../server/admin-server.mjs';
 import { hashPassword } from '../server/security.mjs';
 import { renderMarkdown } from '../server/blog-markdown.mjs';
+import {technicalPresets,projectPresets} from '../lib/art-catalog.mjs';
 
 const origin='https://pixelware.test',password='Blog integration test password!';
 const passwordHash=await hashPassword(password);
@@ -101,6 +102,20 @@ test('feed pagination handles equal dates without duplicates; suggestions exclud
 test('Markdown escapes executable content and supports code, Mermaid, safe embeds, and image sizing',()=>{
   const html=renderMarkdown('<script>alert(1)</script>\n\n[Bad](javascript:alert(1))\n\n```cpp\nint n = 42;\n```\n\n```mermaid\nflowchart LR\n A --> B\n```\n\n```embed\nhttps://youtu.be/dQw4w9WgXcQ\n```\n\n```embed\nhttps://evil.test/embed\n```\n\n![No](https://evil.test/x.png)');
   assert.doesNotMatch(html,/<script|href="javascript:|src="https:\/\/evil/);assert.match(html,/&lt;script&gt;/);assert.match(html,/hljs-type/);assert.match(html,/data-copy-code/);assert.match(html,/data-mermaid/);assert.match(html,/www.youtube-nocookie.com\/embed\/dQw4w9WgXcQ/);assert.match(html,/sandbox=/);assert.match(html,/Unsupported embed/);
+});
+
+test('ten technical scenes and all six project visuals render in banners and preserve published selections',async t=>{
+  const app=await fixture(t);await app.login();let post=await app.create('Visual collection');
+  assert.equal(technicalPresets.length,10);assert.equal(projectPresets.length,6);
+  const catalog=[...technicalPresets,...projectPresets];assert.equal(new Set(catalog.map(item=>item.id)).size,16);
+  for(const preset of catalog){
+    const spec={preset:preset.id,assetId:null,position:'center'};
+    post=await app.save(post,{thumbnail:spec,banner:spec});
+    const art=await app.request(`/blog/art/${preset.id}.svg?seed=${post.id}`,{anonymous:true});assert.equal(art.status,200);assert.equal(art.headers.get('content-type'),'image/svg+xml');assert.match(await art.text(),/<svg/);
+    const preview=await (await app.request(`/admin/blog-preview/${post.id}`)).text();assert.match(preview,new RegExp(`data-art-preset="${preset.id}"`));assert.ok(preview.indexOf('blog-hero-banner')<preview.indexOf('blog-site-header'),'The banner must precede the navigation and article');
+  }
+  post=await app.action(post,'publish');const page=await (await app.request('/api/public/blogs',{anonymous:true})).json();assert.equal(page.posts[0].thumbnailPreset,'project-latency');assert.match(page.html,/data-art-preset="project-latency"/);
+  assert.equal((await app.request('/blog/art/unknown.svg')).status,404);
 });
 
 test('posts, live revisions, author photos, and original assets persist across restarts',async t=>{

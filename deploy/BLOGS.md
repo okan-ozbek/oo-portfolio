@@ -50,9 +50,17 @@ The Markdown sizing extension is:
 
 Images must be uploaded to the current post; arbitrary external image URLs are
 shown as an upload prompt. **Artwork & images** holds the post's media library,
-custom thumbnail/banner uploads, crop positions, and the paired presets:
-**network, binary, stack, terrain, latency**. A preset applies both images. Either
-image can then be overridden independently.
+custom thumbnail/banner uploads, crop positions, and ten animated technical
+presets: **Contour atlas, Fluid currents, Gravity playground, Inside the
+processor, Learning graph, Orbital mechanics, Reaction garden, Particle
+accelerator, Light laboratory, and Signal paths**. A second collection reuses
+the six original project animations: network, market, binary, stack, black hole,
+and latency. A preset applies both images; either can be overridden independently.
+
+Animations use the shared project rendering code and animation clock, pause
+offscreen or in hidden tabs, and respect reduced-motion preferences. On the
+homepage they also follow the existing Motion control. Static SVG/JPEG fallbacks
+remain available for loading, disabled JavaScript, and social previews.
 
 ## Embedded content
 
@@ -71,8 +79,9 @@ URLs show a message instead of executing arbitrary markup.
 
 ## Publishing and history
 
-**Publish** or **Publish changes** opens a confirmation with an optional revision
-note. A title, summary, and article body are required. Publishing updates the
+**Publish** opens a confirmation without a revision-note field for first
+publication. **Publish changes** offers an optional revision note for subsequent
+updates. A title, summary, and article body are required. Publishing updates the
 article and reading lists immediately; it does not require a frontend rebuild.
 
 Editing a published article changes only its draft. Its previous live revision
@@ -133,12 +142,15 @@ application once configured.
 ## Public routes and storage
 
 - `/blog`: public reading list, with five posts per page.
-- `/blog/<slug>`: article HTML with canonical URL and sharing metadata.
+- `/blog/<slug>`: article HTML with a full-width banner above the navigation,
+  canonical URL, and sharing metadata.
 - `/blog/share/<slug>.jpg`: a 1200×630 JPEG preview from the published thumbnail.
 - `/api/public/blogs`: published summaries and cursor pagination.
 - `/blog/sitemap.xml`: current published articles; referenced by `robots.txt`.
-- Homepage: the first five articles after About me, with **Read more** appending
-  the next five. The fade and button disappear when all articles are visible.
+- Homepage: a **Blog** section after About me with larger artwork and compact
+  bylines. It stays hidden when no articles are published. The first five posts
+  appear initially; **Read more** appends the next five. The fade and button
+  disappear when all articles are visible.
 
 Posts, original uploads, WebP variants, revision snapshots, author settings, and
 temporary OAuth state live in the existing `admin.sqlite` database and persistent
