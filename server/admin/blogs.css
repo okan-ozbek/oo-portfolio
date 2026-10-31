@@ -42,3 +42,17 @@
 #blog-history .blog-revision button{padding:7px 10px;font-size:10px}
 #blog-slug:disabled{cursor:not-allowed}
 @media(max-width:700px){#blog-history .blog-revision>div{grid-template-columns:minmax(0,1fr);gap:4px}}
+
+/* Match the project thumbnail workspace while retaining uploads and cropping. */
+#blog-panel-artwork .blog-settings-intro{max-width:none;margin:28px 0 20px}
+#blog-panel-artwork .blog-settings-intro h2{font-size:22px;margin-bottom:8px}
+#blog-panel-artwork .blog-artwork-custom{padding:0;margin:0 0 28px;border:0;background:transparent;border-radius:0}
+#blog-panel-artwork .blog-cover-heading,#blog-panel-artwork .blog-cover-slot-heading{display:none}
+#blog-panel-artwork .blog-cover-pair{max-width:420px}
+#blog-panel-artwork .blog-art-preview{margin:0 0 16px}
+#blog-panel-artwork .blog-preset{background:var(--panel);border-color:var(--line)}
+#blog-panel-artwork .blog-preset[aria-pressed=true]{border-color:var(--red)}
+
+@media(max-width:700px){.blog-table td.unique-views{grid-column:2;grid-row:auto}.blog-table td.unique-views::before{content:"Views · ";color:var(--muted)}.blog-table td:last-child{grid-column:1;grid-row:4}}
+
+.blog-table th:nth-child(3){width:120px}.blog-table th:nth-child(4){width:160px}.blog-table th:nth-child(5){width:150px}

@@ -1,6 +1,8 @@
-import {enhanceArtwork} from './visuals.js';
+
 export async function enhanceContent(root=document) {
-  enhanceArtwork(root);
+  if(root.querySelector('[data-art-preset]')){try{const {enhanceArtwork}=await import('./visuals.js');enhanceArtwork(root);}catch{/* Static images remain visible if animation tools cannot load. */}}
+
+
   for(const button of root.querySelectorAll('[data-copy-code]:not([data-ready]),[data-copy-diagram]:not([data-ready])')) {
     const original=button.textContent;
     button.dataset.ready='true';button.addEventListener('click',async()=>{try{const block=button.closest('.blog-code,.blog-diagram');await navigator.clipboard.writeText(block.dataset.source??block.querySelector('code,pre').textContent);button.textContent='Copied';}catch{button.textContent='Select and copy the source';}setTimeout(()=>{button.textContent=original;},2000);});
@@ -11,13 +13,6 @@ export async function enhanceContent(root=document) {
   }
 }
 void enhanceContent();
-const more=document.querySelector('[data-blog-more]');
-more?.addEventListener('click',async()=>{
-  const status=document.getElementById('blog-load-status');more.disabled=true;status.textContent='Loading more writing…';
-  try{const response=await fetch(`/api/public/blogs?cursor=${encodeURIComponent(more.dataset.cursor)}`);if(!response.ok)throw new Error();const page=await response.json();document.getElementById('blog-feed').insertAdjacentHTML('beforeend',page.html);enhanceArtwork(document.getElementById('blog-feed'));more.dataset.cursor=page.nextCursor??'';more.parentElement.hidden=!page.nextCursor;status.textContent=`${page.posts.length} more posts loaded.`;}
-  catch{status.textContent='Could not load more posts. Please try again.';}finally{more.disabled=false;}
-});
-
 const readingProgress=document.querySelector('.blog-reading-progress');
 const article=document.querySelector('.blog-article');
 if(readingProgress&&article){
@@ -36,3 +31,6 @@ if(readingProgress&&article){
   new ResizeObserver(schedule).observe(article);
   updateProgress();
 }
+
+const projectCount=document.querySelector('[data-project-count]');
+if(projectCount)fetch('/api/public/projects',{cache:'no-store'}).then(response=>response.ok?response.json():null).then(data=>{if(data)projectCount.textContent=String(data.projects.length).padStart(2,'0');}).catch(()=>{});

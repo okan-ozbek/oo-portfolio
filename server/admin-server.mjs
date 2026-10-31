@@ -1,3 +1,6 @@
+import { createHome } from './home.mjs';
+import { createSeo } from './seo.mjs';
+import { activityWindow } from './activity-window.mjs';
 import { createServer } from "node:http";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { readFileSync, mkdirSync } from "node:fs";
@@ -8,6 +11,8 @@ import { validatePasswordHash, verifyPassword } from "./security.mjs";
 import { HttpError, readJson } from "./http.mjs";
 import { createResumes } from "./resumes.mjs";
 import { createBooks } from "./books.mjs";
+import { createViewAnalytics } from './view-analytics.mjs';
+import { createProjects } from './projects.mjs';
 import { createBlogs } from "./blogs.mjs";
 
 const sha256 = value => createHash("sha256").update(value).digest("hex");
@@ -17,6 +22,11 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 const loopbackAddress = address => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(address);
 const assets = new Map([
+  ["/admin/assets/activity-chart.js", ["activity-chart.js", "text/javascript; charset=utf-8"]],
+  ["/admin/assets/content-chart.js", ["content-chart.js", "text/javascript; charset=utf-8"]],
+  ["/admin/assets/filter-picker.js", ["filter-picker.js", "text/javascript; charset=utf-8"]],
+  ["/admin/assets/projects.js", ["projects.js", "text/javascript; charset=utf-8"]],
+  ["/admin/assets/projects.css", ["projects.css", "text/css; charset=utf-8"]],
   ["/admin", ["index.html", "text/html; charset=utf-8"]],
   ["/admin/", ["index.html", "text/html; charset=utf-8"]],
   ["/admin/assets/admin.js", ["admin.js", "text/javascript; charset=utf-8"]],
@@ -29,21 +39,6 @@ const assets = new Map([
   ["/admin/assets/icons.js", ["icons.js", "text/javascript; charset=utf-8"]],
 ]);
 
-function activityWindow(range, timestamp) {
-  if (!["7d", "30d", "quarter", "year"].includes(range)) throw new HttpError(400, "Choose 7d, 30d, quarter, or year.");
-  const end = new Date(timestamp);
-  end.setUTCHours(0, 0, 0, 0);
-  let start;
-  if (range === "7d" || range === "30d") start = new Date(end.getTime() - (range === "7d" ? 6 : 29) * 86400000);
-  else {
-    start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - (range === "quarter" ? 3 : 12), 1));
-    const lastDay = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)).getUTCDate();
-    start.setUTCDate(Math.min(end.getUTCDate(), lastDay));
-    // Include today and exclude the same date three/twelve calendar months ago.
-    start.setUTCDate(start.getUTCDate() + 1);
-  }
-  return { startDay: start.toISOString().slice(0, 10), endDay: end.toISOString().slice(0, 10) };
-}
 
 export function createAdminServer({ passwordHash, origin, databasePath, secureCookies = true, localNoLogin = false, now = Date.now, compileResume }) {
   validatePasswordHash(passwordHash);
@@ -117,11 +112,15 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
     res.setHeader("Set-Cookie", `${visitorCookieName}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=3600${secureCookies ? "; Secure" : ""}`);
     return token;
   };
-  const resumes = createResumes({ db, origin, now, send, visitor, compile: compileResume });
+  const seo = createSeo({db,origin,now});
+  const resumes = createResumes({onPublicChange:()=>{seo.touch('resume');seo.touch('home');}, db, origin, now, send, visitor, compile: compileResume });
   const books = createBooks({ db, now, send });
-  const blogs = createBlogs({ db, origin, now, send, isAuthenticated: session });
+  const analytics = createViewAnalytics({ db, now, secureCookies });
+  const projects = createProjects({ db, now, send, analytics, origin, acceptOrigin:value=>allowedOrigins.has(value), onPublicChange:()=>seo.touch('home') });
+  const blogs = createBlogs({ db, origin, now, send, isAuthenticated: session, analytics, onPublicChange:()=>{seo.touch('blogs');seo.touch('home');} });
+  const home = createHome({origin,projects,blogs,resumes,development:localNoLogin});
   function validateLink(body) {
-    const { label, slug, destination, source = "", enabled = true } = body;
+    const { slug, label = `/r/${slug}`, destination, source = "", enabled = true } = body;
     if (typeof label !== "string" || !label.trim() || label.length > 100) throw new HttpError(400, "Enter a label of 1–100 characters.");
     if (typeof slug !== "string" || !SLUG.test(slug) || slug.length > 80) throw new HttpError(400, "Use a slug of 1–80 lowercase letters, numbers, or single hyphens.");
     if (typeof source !== "string" || source.length > 100) throw new HttpError(400, "Source must be 100 characters or fewer.");
@@ -170,7 +169,10 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
         res.writeHead(200, { "Content-Type": type });
         return res.end(req.method === "HEAD" ? undefined : body);
       }
+      if (await home(req,res,requestUrl)) return;
+      if (seo.publicRoute(req,res,requestUrl)) return;
       if (await resumes.publicRoute(req, res, requestUrl)) return;
+      if (await projects.publicRoute(req, res, requestUrl)) return;
       if (await blogs.publicRoute(req, res, requestUrl)) return;
       if (path.startsWith("/r/")) {
         if (!["GET", "HEAD"].includes(req.method)) throw new HttpError(405, "Method not allowed.");
@@ -250,6 +252,14 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
         return send(res, 200, { ok: true });
       }
       if (await resumes.adminRoute(req, res, requestUrl)) return;
+      if (path === '/api/admin/view-activity' && req.method === 'GET') {
+        const kind=requestUrl.searchParams.get('kind');
+        if (!['blog','project'].includes(kind)) throw new HttpError(400,'Choose blog or project analytics.');
+        const range=requestUrl.searchParams.get('range') ?? '30d';
+        const {startDay,endDay}=activityWindow(range,now());
+        return send(res,200,{...analytics.activity(kind,startDay,endDay),range,chartStartDay:startDay,chartEndDay:endDay});
+      }
+      if (await projects.adminRoute(req, res, requestUrl)) return;
       if (await books.adminRoute(req, res, requestUrl)) return;
       if (await blogs.adminRoute(req, res, requestUrl, current)) return;
       if (path === "/api/admin/links" && req.method === "GET") {

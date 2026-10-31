@@ -385,3 +385,13 @@ main{padding:28px 18px}
 .wordmark{align-items:center;gap:10px;font-family:"Space Grotesk",Arial,sans-serif;font-size:22px;font-weight:600;letter-spacing:-.9px}.wordmark .brand-period{margin-left:-9px}.wordmark .brand-icon{width:30px;height:29px;flex:none;background:var(--red);mask:url(/pixelware-logo.svg) center/contain no-repeat}
 
 .sidebar-logout{align-self:flex-start;margin:16px 10px 0;font-size:11px}
+
+/* Status filters share the analytics range picker. */
+#blog-library>.library-panel,#project-library>.library-panel{overflow:visible}
+.library-filter-picker .range-trigger{padding:6px 10px 6px 6px;font-size:11px;min-height:34px}
+.library-filter-picker .range-menu{width:210px}
+.library-filter-picker .range-menu [role=option]{padding:11px 12px;font-size:12px}
+
+.unique-views{font:11px var(--mono);color:var(--text);font-variant-numeric:tabular-nums}.views-heading{width:85px}
+
+.content-activity{overflow:visible}.content-activity .chart-wrap{overflow:visible}.content-activity .panel-heading .muted{max-width:none}.content-activity .chart-tooltip{max-height:260px;overflow:auto}

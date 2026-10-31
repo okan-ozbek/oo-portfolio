@@ -1,6 +1,9 @@
+import { renderActivityChart } from './activity-chart.js';
 /* The dashboard receives no password hash or secret configuration. */
 import { initResumes } from './resumes.js';
 import { initBooks } from './books.js';
+import { initFilterPicker } from './filter-picker.js';
+import { initProjects } from './projects.js';
 import { initBlogs } from './blogs.js';
 import { icon as actionIcon } from './icons.js';
 const $ = id => document.getElementById(id);
@@ -69,6 +72,7 @@ function showLogin() {
   resumeWorkspace.reset();
   bookWorkspace.reset();
   blogWorkspace.reset();
+  projectWorkspace.reset();
   selectSection('links');
   closeRangeMenu();
   closeLinkMenu();
@@ -128,7 +132,7 @@ function element(tag, className, content) {
 
 function filteredLinks() {
   const query = $("search").value.toLowerCase();
-  return links.filter(link => [link.label, link.slug, link.destination, link.source].join(" ").toLowerCase().includes(query));
+  return links.filter(link => [('/r/' + link.slug), link.slug, link.destination, link.source].join(" ").toLowerCase().includes(query));
 }
 
 function updateSelection() {
@@ -162,10 +166,10 @@ function closeLinkMenu(returnFocus = false) {
 
 function openDeleteLinks(items) {
   closeLinkMenu();
-  deleting = items.map(link => ({ id: link.id, label: link.label, slug: link.slug }));
+  deleting = items.map(link => ({ id: link.id, label: ('/r/' + link.slug), slug: link.slug }));
   const plural = items.length > 1;
   $("delete-title").textContent = plural ? 'Delete ' + items.length + ' links?' : 'Delete this link?';
-  $("delete-link-name").textContent = plural ? items.length + ' selected links' : items[0].label;
+  $("delete-link-name").textContent = plural ? items.length + ' selected links' : ('/r/' + items[0].slug);
   $("delete-link-url").textContent = items.map(link => '/r/' + link.slug).join('\n');
   $("delete-warning").textContent = plural ? 'This permanently removes all selected links, their click history, and cooldown records. Their shared URLs will stop working. This cannot be undone.' : 'This permanently removes the link, its click history, and cooldown records. Shared URLs will stop working. This cannot be undone.';
   $("delete-error").textContent = '';
@@ -216,7 +220,7 @@ function renderRows() {
   for (const link of filtered) {
     const row = element('tr');
     const selection = element('td', 'link-select-cell');
-    const checkbox = element('input'); checkbox.type = 'checkbox'; checkbox.dataset.selectLink = link.id; checkbox.setAttribute('aria-label', 'Select ' + link.label);
+    const checkbox = element('input'); checkbox.type = 'checkbox'; checkbox.dataset.selectLink = link.id; checkbox.setAttribute('aria-label', 'Select ' + ('/r/' + link.slug));
     checkbox.addEventListener('change', () => {
       if (checkbox.checked && selectedLinks.size >= 100) { checkbox.checked = false; return toast('Select up to 100 links at a time.'); }
       if (checkbox.checked) selectedLinks.add(link.id); else selectedLinks.delete(link.id);
@@ -224,7 +228,7 @@ function renderRows() {
     });
     selection.append(checkbox);
     const identity = element('td', 'link-identity-cell'); identity.dataset.label = 'Link / destination';
-    identity.append(element('div', 'link-name', link.label), element('span', 'short-url', '/r/' + link.slug));
+    identity.append(element('div', 'link-name', '/r/' + link.slug));
     const destination = element('a', 'destination', link.destination);
     destination.href = link.destination; destination.target = '_blank'; destination.rel = 'noopener noreferrer'; destination.title = 'Preview destination without counting a click'; identity.append(destination);
     const source = element('td'); source.dataset.label = 'Source';
@@ -236,7 +240,7 @@ function renderRows() {
     const lastClick = element('td', 'last-click', time); lastClick.dataset.label = 'Last counted';
     const actions = element('td', 'link-action-cell');
     const trigger = element('button', 'action-button link-menu-trigger'); trigger.type = 'button'; trigger.append(actionIcon('ellipsis'));
-    trigger.setAttribute('aria-label', 'Actions for ' + link.label); trigger.title = 'Link actions'; trigger.setAttribute('aria-haspopup', 'menu'); trigger.setAttribute('aria-expanded', 'false'); trigger.setAttribute('aria-controls', 'link-action-menu'); trigger.disabled = bulkPending || pendingLinks.has(link.id);
+    trigger.setAttribute('aria-label', 'Actions for ' + ('/r/' + link.slug)); trigger.title = 'Link actions'; trigger.setAttribute('aria-haspopup', 'menu'); trigger.setAttribute('aria-expanded', 'false'); trigger.setAttribute('aria-controls', 'link-action-menu'); trigger.disabled = bulkPending || pendingLinks.has(link.id);
     trigger.addEventListener('click', () => openLinkMenu(link, trigger));
     trigger.addEventListener('keydown', event => { if (event.key === 'ArrowDown') { event.preventDefault(); openLinkMenu(link, trigger); } });
     actions.append(trigger); row.append(selection, identity, source, status, clicks, lastClick, actions); $("link-rows").append(row);
@@ -244,151 +248,7 @@ function renderRows() {
   updateSelection();
 }
 
-function renderChart(series, startDay, endDay) {
-  const svg = $("activity-chart");
-  svg.replaceChildren();
-  const tooltip = $("chart-tooltip");
-  tooltip.hidden = true;
-  svg.onpointermove = svg.onpointerdown = svg.onpointerleave = svg.onfocus = svg.onblur = svg.onkeydown = null;
-  $("chart-legend").replaceChildren();
-  $("chart-scale").replaceChildren();
-  const ns = "http://www.w3.org/2000/svg";
-  function shape(tag, attributes) {
-    const node = document.createElementNS(ns, tag);
-    for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
-    svg.append(node);
-    return node;
-  }
-  const palette = ["#ff646b", "#68c9ef", "#b59aff", "#b8dc74", "#ffca70", "#ed8dce", "#7ed8c5", "#fa9c78"];
-  const colors = new Map([...links].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
-    .map((link, index) => [link.id, palette[index] ?? `hsl(${(index * 137.508 % 360).toFixed(3)} 78% 70%)`]));
-  let peak = 0;
-  let total = 0;
-  for (const link of series) for (const day of link.daily) { peak = Math.max(peak, day.clicks); total += day.clicks; }
-  const step = Math.max(1, Math.ceil(peak / 4));
-  const max = step * 4;
-  for (let index = 0; index <= 4; index++) {
-    const y = 12 + index * 44;
-    shape("line", { x1: 8, x2: 892, y1: y, y2: y, class: "chart-grid" });
-    $("chart-scale").append(element("span", "", number.format(max - step * index)));
-  }
-  const end = Date.parse(`${endDay}T00:00:00Z`);
-  const start = Date.parse(`${startDay}T00:00:00Z`);
-  const dayCount = Math.round((end - start) / 86400000) + 1;
-  const lastIndex = dayCount - 1;
-  const xStep = 884 / lastIndex;
-  const days = Array.from({ length: dayCount }, (_, index) => new Date(start + index * 86400000).toISOString().slice(0, 10));
-  const plotted = [];
-  $("chart-start").textContent = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", ...(new Date(start).getUTCFullYear() !== new Date(end).getUTCFullYear() ? { year: "numeric" } : {}), timeZone: "UTC" }).format(new Date(start));
-  for (const link of series) {
-    const color = colors.get(link.id);
-    const legend = element("li", "legend-item");
-    const swatch = document.createElementNS(ns, "svg");
-    swatch.setAttribute("viewBox", "0 0 18 10");
-    swatch.setAttribute("aria-hidden", "true");
-    const sample = document.createElementNS(ns, "line");
-    for (const [name, value] of Object.entries({ x1: 1, x2: 17, y1: 5, y2: 5, stroke: color, "stroke-width": 3, "stroke-linecap": "round" })) sample.setAttribute(name, value);
-    swatch.append(sample);
-    legend.append(swatch, element("span", "", link.label));
-    $("chart-legend").append(legend);
-    const counts = new Map(link.daily.map(day => [day.day, day.clicks]));
-    const points = days.map((day, index) => ({ day, value: counts.get(day) ?? 0, x: 8 + index * xStep, y: 188 - (counts.get(day) ?? 0) / max * 176 }));
-    const line = shape("path", { d: points.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(" "), stroke: color, class: "chart-line", "vector-effect": "non-scaling-stroke" });
-    plotted.push({ link, color, points, line });
-    for (const point of points.filter(point => point.value > 0)) {
-      shape("ellipse", { cx: point.x, cy: point.y, rx: 3, ry: 3, fill: color, class: "chart-point" });
-    }
-  }
-  const clickLabel = `${number.format(total)} ${total === 1 ? "click" : "clicks"}`;
-  svg.setAttribute("aria-label", `Daily clicks for ${series.length} active links from ${startDay} to ${endDay}. ${clickLabel} total.`);
-  $("chart-message").textContent = !series.length ? "Create or activate a link to see its activity." : total ? `${clickLabel} across active links` : "No clicks yet. Active links start at zero.";
-  if (!plotted.length) return;
-
-  const guide = shape("line", { x1: 8, x2: 8, y1: 12, y2: 188, class: "chart-guide", visibility: "hidden" });
-  const highlights = [];
-  let keyboardIndex = lastIndex;
-  let visibleKey = "";
-  function hideTooltip() {
-    visibleKey = "";
-    tooltip.hidden = true;
-    guide.setAttribute("visibility", "hidden");
-    for (const marker of highlights.splice(0)) marker.remove();
-    for (const item of plotted) item.line.classList.remove("is-highlighted", "is-muted");
-  }
-  function showTooltip(items, index) {
-    const key = `${index}:${svg.clientWidth}:${svg.clientHeight}:${items.map(item => item.link.id).join(",")}`;
-    if (!tooltip.hidden && key === visibleKey) return;
-    hideTooltip();
-    visibleKey = key;
-    keyboardIndex = index;
-    const point = items[0].points[index];
-    $("chart-tooltip-date").textContent = `${new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${point.day}T00:00:00Z`))} · UTC`;
-    $("chart-tooltip-links").replaceChildren();
-    for (const item of items) {
-      const sample = item.points[index];
-      const row = element("div", "chart-tooltip-row");
-      const swatch = document.createElementNS(ns, "svg");
-      swatch.setAttribute("viewBox", "0 0 10 10");
-      swatch.setAttribute("aria-hidden", "true");
-      const dot = document.createElementNS(ns, "circle");
-      for (const [name, value] of Object.entries({ cx: 5, cy: 5, r: 4, fill: item.color })) dot.setAttribute(name, value);
-      swatch.append(dot);
-      const identity = element("div", "chart-tooltip-identity");
-      identity.append(element("strong", "", item.link.label), element("span", "", `/r/${item.link.slug}`));
-      row.append(swatch, identity, element("span", "chart-tooltip-count", `${number.format(sample.value)} ${sample.value === 1 ? "click" : "clicks"}`));
-      $("chart-tooltip-links").append(row);
-      highlights.push(shape("ellipse", { cx: sample.x, cy: sample.y, rx: 5, ry: 5, fill: item.color, class: "chart-hover-point" }));
-    }
-    for (const item of plotted) item.line.classList.add(items.includes(item) ? "is-highlighted" : "is-muted");
-    guide.setAttribute("x1", point.x);
-    guide.setAttribute("x2", point.x);
-    guide.setAttribute("visibility", "visible");
-    tooltip.hidden = false;
-    const plot = svg.getBoundingClientRect();
-    const wrap = svg.parentElement.getBoundingClientRect();
-    const x = plot.left - wrap.left + point.x / 900 * plot.width;
-    const y = plot.top - wrap.top + point.y / 200 * plot.height;
-    // CSSOM properties keep positioning compatible with the admin's strict CSP.
-    tooltip.style.left = `${Math.max(12, Math.min(wrap.width - tooltip.offsetWidth - 12, x + 16))}px`;
-    const above = y - tooltip.offsetHeight - 16;
-    tooltip.style.top = `${Math.max(0, Math.min(wrap.height - tooltip.offsetHeight, above >= 0 ? above : y + 16))}px`;
-  }
-  svg.onpointermove = svg.onpointerdown = event => {
-    const rect = svg.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    const scaleX = rect.width / 900;
-    const scaleY = rect.height / 200;
-    const distances = plotted.map(item => {
-      let distance = Infinity;
-      for (let index = 0; index < item.points.length - 1; index++) {
-        const a = item.points[index];
-        const b = item.points[index + 1];
-        const ax = a.x * scaleX;
-        const ay = a.y * scaleY;
-        const dx = (b.x - a.x) * scaleX;
-        const dy = (b.y - a.y) * scaleY;
-        const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)));
-        distance = Math.min(distance, Math.hypot(x - (ax + t * dx), y - (ay + t * dy)));
-      }
-      return { item, distance };
-    });
-    const closest = Math.min(...distances.map(result => result.distance));
-    if (closest > (event.pointerType === "touch" ? 24 : 12)) return hideTooltip();
-    const index = Math.max(0, Math.min(lastIndex, Math.round((x / scaleX - 8) / xStep)));
-    // Overlapping lines share one tooltip so zero-count links remain inspectable.
-    showTooltip(distances.filter(result => result.distance <= closest + 0.5).map(result => result.item), index);
-  };
-  svg.onpointerleave = svg.onblur = hideTooltip;
-  svg.onfocus = () => { if (tooltip.hidden) showTooltip(plotted, keyboardIndex); };
-  svg.onkeydown = event => {
-    if (event.key === "Escape") { event.preventDefault(); return hideTooltip(); }
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-    const index = event.key === "Home" ? 0 : event.key === "End" ? lastIndex : Math.max(0, Math.min(lastIndex, keyboardIndex + (event.key === "ArrowLeft" ? -1 : 1)));
-    showTooltip(plotted, index);
-  };
-}
+function renderChart(series,startDay,endDay){renderActivityChart(series,startDay,endDay,{links});}
 
 async function refresh() {
   const version = ++refreshVersion;
@@ -416,7 +276,7 @@ function openEditor(link = null) {
   $("form-error").textContent = "";
   $("dialog-title").textContent = link ? "Edit your link." : "Create a link.";
   $("save-link").textContent = link ? "Save changes ↗" : "Create link ↗";
-  for (const name of ["label", "slug", "destination", "source"]) $(name).value = link?.[name] ?? "";
+  for (const name of ["slug", "destination", "source"]) $(name).value = link?.[name] ?? "";
   $("slug").disabled = Boolean(link);
   $("enabled").checked = link?.enabled ?? true;
   $("slug-note").textContent = link ? "This slug stays fixed so your published links keep working." : "Lowercase letters, numbers, and hyphens. Permanent once created.";
@@ -550,16 +410,14 @@ $("refresh").addEventListener("click", async () => {
   try { await refresh(); toast("Your counts are up to date."); } catch (error) { toast(error.message); }
   finally { $("refresh").disabled = false; }
 });
-$("label").addEventListener("input", () => {
-  if (!editing && !$("slug").dataset.edited) $("slug").value = $("label").value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80).replace(/-$/, "");
-});
 $("slug").addEventListener("input", () => { $("slug").dataset.edited = "true"; });
 $("link-dialog").addEventListener("close", () => { delete $("slug").dataset.edited; });
 $("link-form").addEventListener("submit", async event => {
   event.preventDefault();
   $("save-link").disabled = true;
   $("form-error").textContent = "";
-  const body = Object.fromEntries(["label", "slug", "destination", "source"].map(name => [name, $(name).value]));
+  const body = Object.fromEntries(["slug", "destination", "source"].map(name => [name, $(name).value]));
+  body.label = '/r/' + body.slug;
   body.enabled = $("enabled").checked;
   try {
     await api(editing ? `links/${editing.id}` : "links", { method: editing ? "PUT" : "POST", body });
@@ -570,13 +428,16 @@ $("link-form").addEventListener("submit", async event => {
   finally { $("save-link").disabled = false; }
 });
 
+initFilterPicker(document.getElementById('blog-status'));
+initFilterPicker(document.getElementById('project-filter'));
 const resumeWorkspace = initResumes({ api, toast, refreshLinks: refresh });
 const bookWorkspace = initBooks({ api, toast });
 const blogWorkspace = initBlogs({ api, toast });
+const projectWorkspace = initProjects({ api, toast });
 async function selectSection(section) {
   if (!$('blogs-view').hidden && section !== 'blogs' && !(await blogWorkspace.leave())) return;
   closeLinkMenu();
-  for (const name of ['links', 'resumes', 'books', 'blogs']) {
+  for (const name of ['links', 'resumes', 'books', 'blogs', 'projects']) {
     $(`${name}-view`).hidden = name !== section;
     if (name === section) $(`nav-${name}`).setAttribute('aria-current', 'page');
     else $(`nav-${name}`).removeAttribute('aria-current');
@@ -587,6 +448,9 @@ async function selectSection(section) {
   if (section === 'books') {
     try { await bookWorkspace.refresh(); } catch (error) { $('book-error').textContent = error.message; }
   }
+  if (section === 'projects') {
+    try { await projectWorkspace.refresh(); } catch (error) { $('project-library-error').textContent = error.message; }
+  }
   if (section === 'blogs') {
     try { await blogWorkspace.refresh(); } catch (error) { $('blog-library-error').textContent = error.message; }
   }
@@ -594,6 +458,7 @@ async function selectSection(section) {
 $('nav-links').addEventListener('click', () => selectSection('links'));
 $('nav-resumes').addEventListener('click', () => selectSection('resumes'));
 $('nav-books').addEventListener('click', () => selectSection('books'));
+$('nav-projects').addEventListener('click', () => selectSection('projects'));
 $('nav-blogs').addEventListener('click', () => selectSection('blogs'));
 
 (async () => {
@@ -604,7 +469,8 @@ $('nav-blogs').addEventListener('click', () => selectSection('blogs'));
     await refresh();
     $("loading").hidden = true;
     $("dashboard").hidden = false;
-    if (new URLSearchParams(location.search).get('section') === 'blogs') await selectSection('blogs');
+    const requestedSection = new URLSearchParams(location.search).get('section');
+    if (['blogs','projects'].includes(requestedSection)) await selectSection(requestedSection);
   } catch (error) {
     showLogin();
     if (error.message !== "Sign in to continue.") $("login-error").textContent = "Cannot reach the admin service. Refresh to try again.";

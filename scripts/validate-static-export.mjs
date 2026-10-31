@@ -15,13 +15,13 @@ export async function validateStaticExport(directory) {
   assert.match(html, /Project 04/);
   assert.match(html, /Project 05/);
   assert.match(html, /Project 06/);
-  assert.equal([...html.matchAll(/<canvas\b/g)].length, 7, "The hero and six project visuals must be exported");
+  assert.equal([...html.matchAll(/<canvas\b/g)].length, 1, "Only the decorative hero uses a canvas; thumbnails are static images");
   assert.match(html, /<script[^>]*>import\("\/assets\/[^"\s]+\.js"\)<\/script>/, "Client hydration bundle is required");
   const assets = new Set(["/favicon.svg", "/pixelware-logo.svg", "/index.rsc", "/404.html", "/sitemap.xml", "/robots.txt"]);
   for (const match of html.matchAll(/(?:src|href)="(\/[^"#]+)"/g)) {
     const url = match[1].split('?')[0];
     // Blog pages are served from live SQLite content by the admin sidecar.
-    if (url !== '/blog') assets.add(url);
+    if (url !== '/blog' && !url.startsWith('/blog/art/') && !url.startsWith('/blog/media/')) assets.add(url);
   }
   for (const match of html.matchAll(/import\("(\/assets\/[^"\s]+\.js)"\)/g)) assets.add(match[1]);
   for (const url of assets) {

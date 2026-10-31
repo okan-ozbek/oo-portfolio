@@ -1,3 +1,4 @@
+import { buildHome } from './build-home.mjs';
 import { loadEnvFile } from "node:process";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -11,6 +12,7 @@ const host = values.host ?? "127.0.0.1";
 if (!["127.0.0.1", "localhost", "::1"].includes(host)) throw new Error("The draft dev server must bind to loopback. Use the HTTPS Docker deployment for remote access.");
 await setupLocalAdmin();
 await buildBlog();
+const closeHome=await buildHome({watch:true});
 loadEnvFile(new URL("../.env.admin", import.meta.url));
 const adminPort = Number(process.env.ADMIN_PORT ?? 3031);
 process.env.PIXELWARE_ADMIN_TARGET = `http://127.0.0.1:${adminPort}`;
@@ -24,11 +26,13 @@ try {
   vite.printUrls();
   console.log(`  Admin: ${origin}/admin`);
 } catch (error) {
+  await closeHome();
   await vite.close();
   if (admin?.listening) admin.close();
   throw error;
 }
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, async () => {
+  await closeHome();
   await vite.close();
   admin.close();
 });

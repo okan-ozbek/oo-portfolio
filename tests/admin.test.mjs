@@ -547,3 +547,10 @@ test("login failure limits survive restart and reset after their window", async 
   await restarted.login();
   await restarted.close();
 });
+
+test('tracked links default their label to the short path when no separate label is supplied',async t=>{
+  const app=await fixture(t);await app.login();
+  const body={slug:'short-path-name',destination:'https://example.com',source:'',enabled:true};
+  const response=await app.request('/api/admin/links',{method:'POST',body});assert.equal(response.status,201);
+  const {links}=await (await app.request('/api/admin/links')).json();assert.equal(links[0].label,'/r/short-path-name');
+});
