@@ -1,3 +1,4 @@
+import { icon } from './icons.js';
 const $ = id => document.getElementById(id);
 const el = (tag, className, text) => {
   const node = document.createElement(tag);
@@ -85,11 +86,20 @@ export function initResumes({ api, toast, refreshLinks }) {
     const { resumes } = await api('resumes');
     $('resume-library').replaceChildren();
     $('resume-empty').hidden = resumes.length > 0;
-    for (const resume of resumes) {
-      const card = el('article', `resume-card${selected?.id === resume.id ? ' selected' : ''}`); card.dataset.id = resume.id;
+    for (const resume of resumes.sort((a, b) => Number(b.isDefault) - Number(a.isDefault))) {
+      const card = el('article', `resume-card${selected?.id === resume.id ? ' selected' : ''}${resume.isDefault ? ' is-main' : ''}`); card.dataset.id = resume.id;
+      const preview = button('', () => loadDetail(resume.id).catch(error => toast(error.message)), 'resume-card-preview');
+      preview.setAttribute('aria-label', `Manage ${resume.name}, first-page preview`);
+      const image = el('img'); image.src = `/api/admin/resumes/${resume.id}/thumbnail?v=${encodeURIComponent(resume.compiledAt)}`;
+      image.alt = `First page of ${resume.name}`; image.loading = 'lazy';
+      const fallback = el('span', 'resume-preview-fallback', 'Preview unavailable'); fallback.hidden = true;
+      image.addEventListener('error', () => { image.hidden = true; fallback.hidden = false; });
+      preview.append(image, fallback); card.append(preview);
       const top = el('div', 'resume-card-top');
       top.append(button(resume.name, () => loadDetail(resume.id).catch(error => toast(error.message)), 'resume-card-title'));
-      if (resume.isDefault) top.append(el('span', 'resume-badge live', 'WEBSITE'));
+      if (resume.isDefault) {
+        const mark = el('span', 'resume-main-mark'); mark.setAttribute('role', 'img'); mark.setAttribute('aria-label', 'Main website resume'); mark.title = 'Currently shown on your website'; mark.append(icon('verified')); top.append(mark);
+      }
       card.append(top, el('p', 'field-note', `${resume.pages} ${resume.pages === 1 ? 'page' : 'pages'} · ${resume.trackedLinks} tracked links`));
       const stats = el('div', 'resume-card-stats');
       for (const [number, label] of [[resume.downloads, 'DOWNLOADS'], [resume.clicks, 'LINK CLICKS']]) { const stat = el('div'); stat.append(el('strong', '', format.format(number)), el('span', '', label)); stats.append(stat); }

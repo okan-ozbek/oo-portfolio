@@ -27,17 +27,28 @@ Create a name, permanent slug, HTTP(S) destination, and optional source label.
 Slug `resume-linkedin` produces `https://pixelware.nl/r/resume-linkedin`.
 Put this URL in the resume. Create separate slugs for other placements to compare
 performance. URLs use the configured origin, never the request Host header.
-You can change destinations and use the row's Pause/Activate button to switch a
-link on or off immediately. Pausing preserves history and browser cooldowns.
+Each row's horizontal ellipsis opens Edit, Pause/Activate, and Delete actions.
+The menu supports arrow keys and Escape. Copy is no longer a row action.
+You can change destinations and pause or activate a link immediately.
+Pausing preserves history and browser cooldowns.
 Unknown/paused links return 404. Slugs cannot be renamed.
 
-The trash icon beside Edit opens a permanent-deletion confirmation. Confirming
+Delete in the row menu opens a permanent-deletion confirmation. Confirming
 deletes the link, its daily click history, and its cooldown records together.
 Its URL then returns 404, and totals/charts exclude that link's history. Other
 links are unaffected. There is no in-app restore; existing database backups are
 not rewritten. Creating the same slug again creates a new link with fresh history.
 Edits preserve counts. Admin destination previews do not count. Use Refresh to
 fetch current totals.
+
+Select row checkboxes to show bulk Pause, Activate, and Delete controls next to
+search. The header checkbox selects or clears the visible results. Selections
+persist across searches; the toolbar states how many selected links are hidden
+by the current filter. Uncheck rows or the header checkbox to clear visible
+selections. Up to 100
+links can be changed together. Each bulk request is atomic: missing IDs reject
+the entire request without changing any selected link. Bulk deletion lists all
+selected URLs for confirmation and removes only those links and their history.
 
 Click activity plots a separate colored line for each active link. Choose Last
 7 days, Last 30 days, Last quarter (rolling three calendar months), or Last year (rolling

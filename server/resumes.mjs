@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { HttpError, readJson } from './http.mjs';
 import { MAX_REQUEST_BYTES, validateProject } from './resume-project.mjs';
+import { pdfThumbnail } from './pdf-thumbnail.mjs';
 
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -47,8 +48,13 @@ export function createResumes({ db, origin, now, send, visitor, compile = compil
       default_resume_id TEXT REFERENCES resumes(id) ON DELETE SET NULL
     ) STRICT;
     INSERT OR IGNORE INTO resume_settings(id) VALUES (1);
+    CREATE TABLE IF NOT EXISTS resume_thumbnails (
+      resume_id TEXT PRIMARY KEY REFERENCES resumes(id) ON DELETE CASCADE,
+      pdf_hash TEXT NOT NULL, thumbnail BLOB NOT NULL
+    ) STRICT;
   `);
   const busy = new Set();
+  const previews = new Map();
   const transaction = work => {
     db.exec('BEGIN IMMEDIATE');
     try { const result = work(); db.exec('COMMIT'); return result; }
@@ -139,10 +145,31 @@ export function createResumes({ db, origin, now, send, visitor, compile = compil
       const result = await compile('compile', project);
       send(res, 201, { resume: insert(body, project, result) }); return true;
     }
-    const match = url.pathname.match(/^\/api\/admin\/resumes\/([a-f0-9-]{36})(?:\/(compile|duplicate|pdf))?$/);
+    const match = url.pathname.match(/^\/api\/admin\/resumes\/([a-f0-9-]{36})(?:\/(compile|duplicate|pdf|thumbnail))?$/);
     if (!match) throw new HttpError(404, 'Not found.');
     const [, id, action] = match;
     const row = get(id);
+    if (['GET', 'HEAD'].includes(req.method) && action === 'thumbnail') {
+      const digest = hash(row.draft_pdf);
+      const cached = db.prepare('SELECT thumbnail FROM resume_thumbnails WHERE resume_id = ? AND pdf_hash = ?').get(id, digest);
+      let thumbnail = cached?.thumbnail;
+      if (!thumbnail) {
+        const key = `${id}:${digest}`;
+        if (!previews.has(key)) {
+          const task = pdfThumbnail(row.draft_pdf).then(image => {
+            // A resume can be deleted or rebuilt while its preview is rendering.
+            const current = db.prepare('SELECT draft_pdf FROM resumes WHERE id = ?').get(id);
+            if (current && hash(current.draft_pdf) === digest) db.prepare('INSERT OR REPLACE INTO resume_thumbnails VALUES (?, ?, ?)').run(id, digest, image);
+            return image;
+          }).finally(() => previews.delete(key));
+          previews.set(key, task);
+        }
+        thumbnail = await previews.get(key);
+      }
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': thumbnail.length });
+      res.end(req.method === 'HEAD' ? undefined : thumbnail);
+      return true;
+    }
     if (req.method === 'GET' && !action) { send(res, 200, { resume: detail(row) }); return true; }
     if (req.method === 'GET' && action === 'pdf') { pdfResponse(req, res, row, false); return true; }
     if (busy.has(id)) throw new HttpError(409, 'This resume is being built. Try again shortly.');

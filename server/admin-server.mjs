@@ -20,6 +20,7 @@ const assets = new Map([
   ["/admin/assets/admin.css", ["admin.css", "text/css; charset=utf-8"]],
   ["/admin/assets/resumes.js", ["resumes.js", "text/javascript; charset=utf-8"]],
   ["/admin/assets/books.js", ["books.js", "text/javascript; charset=utf-8"]],
+  ["/admin/assets/icons.js", ["icons.js", "text/javascript; charset=utf-8"]],
 ]);
 
 function activityWindow(range, timestamp) {
@@ -247,6 +248,22 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
         const id = randomUUID();
         db.prepare("INSERT INTO links (id, slug, label, destination, source, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, ...values, new Date(now()).toISOString());
         return send(res, 201, { link: linkList().find(link => link.id === id) });
+      }
+      if (path === '/api/admin/links/bulk' && req.method === 'POST') {
+        const body = await readJson(req);
+        if (!['pause', 'activate', 'delete'].includes(body.action) || !Array.isArray(body.ids) || !body.ids.length || body.ids.length > 100 ||
+          body.ids.some(id => typeof id !== 'string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(id)) || new Set(body.ids).size !== body.ids.length ||
+          Object.keys(body).some(key => !['action', 'ids'].includes(key))) throw new HttpError(400, 'Choose an action and 1–100 distinct link IDs.');
+        const placeholders = body.ids.map(() => '?').join(',');
+        db.exec('BEGIN IMMEDIATE');
+        try {
+          const found = db.prepare(`SELECT COUNT(*) AS n FROM links WHERE id IN (${placeholders})`).get(...body.ids).n;
+          if (found !== body.ids.length) throw new HttpError(404, 'One or more selected links no longer exist. Refresh and try again.');
+          if (body.action === 'delete') db.prepare(`DELETE FROM links WHERE id IN (${placeholders})`).run(...body.ids);
+          else db.prepare(`UPDATE links SET enabled = ? WHERE id IN (${placeholders})`).run(Number(body.action === 'activate'), ...body.ids);
+          db.exec('COMMIT');
+        } catch (error) { db.exec('ROLLBACK'); throw error; }
+        return send(res, 200, { ok: true, affected: body.ids.length });
       }
       const match = path.match(/^\/api\/admin\/links\/([a-f0-9-]{36})$/);
       if (match && req.method === "PATCH") {
