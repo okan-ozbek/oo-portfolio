@@ -151,3 +151,15 @@ test('failed uploads create no records and non-web or unknown hyperlink selectio
   for (const selectedKey of ['email', 'unknown']) assert.equal((await app.request(`${route(resume.id)}/compile`, 'POST', { links: [{ key: selectedKey, tracked: true, slug: 'invalid', label: 'Invalid' }] })).status, 400);
   assert.equal((await app.json('/api/admin/links')).links.length, 0);
 });
+
+test('only the selected website resume is indexable and its sitemap follows switches and deletion',async t=>{
+  const app=await fixture(t);await app.login();const xml=async()=>{const response=await app.request('/sitemaps/resumes.xml');assert.equal(response.status,200);return response.text();};
+  assert.doesNotMatch(await xml(),/<url>/);
+  const {resume:first}=await app.json('/api/admin/resumes','POST',upload);
+  assert.match((await app.request('/resumes/'+first.slug+'.pdf','HEAD')).headers.get('x-robots-tag'),/noindex/);
+  await app.json(route(first.id),'PATCH',{isDefault:true});const initial=await xml();assert.match(initial,/https:\/\/pixelware.test\/resume.pdf/);assert.doesNotMatch(initial,/\/resumes\//);
+  for(const path of ['/resume.pdf','/resumes/'+first.slug+'.pdf']){const response=await app.request(path,'HEAD');assert.equal(response.status,200);assert.equal(response.headers.get('x-robots-tag'),null);assert.equal(response.headers.get('link'),'<https://pixelware.test/resume.pdf>; rel="canonical"');}
+  const {resume:second}=await app.json('/api/admin/resumes','POST',{...upload,name:'Second resume',slug:'second-resume'});app.advance();await app.json(route(second.id),'PATCH',{isDefault:true});assert.notEqual(await xml(),initial);
+  assert.match((await app.request('/resumes/'+first.slug+'.pdf','HEAD')).headers.get('x-robots-tag'),/noindex/);
+  await app.json(route(second.id),'DELETE');assert.doesNotMatch(await xml(),/<url>/);
+});

@@ -12,7 +12,7 @@ const SLUG=/^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const positions=['center','top','bottom','left','right'];
 const fields=['title','slug','summary','tags','markdown','thumbnail','banner','relatedIds'];
 const fresh = () => ({title:'Untitled draft',slug:`post-${randomUUID().slice(0,8)}`,summary:'',tags:[],markdown:'',thumbnail:{preset:'terrain',assetId:null,position:'center'},banner:{preset:'terrain',assetId:null,position:'center'},relatedIds:[]});
-export function createBlogs({db,origin,now=Date.now,send,isAuthenticated,analytics}) {
+export function createBlogs({db,origin,now=Date.now,send,isAuthenticated,analytics,onPublicChange=()=>{}}) {
   db.exec(`CREATE TABLE IF NOT EXISTS blog_posts (
     id TEXT PRIMARY KEY, draft_json TEXT NOT NULL, published_json TEXT, published_slug TEXT UNIQUE,
     version INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
@@ -148,6 +148,7 @@ export function createBlogs({db,origin,now=Date.now,send,isAuthenticated,analyti
           const restored=JSON.parse(rev.snapshot_json);
           post=validatePost({...restored,slug:row.published_slug??restored.slug},row);revision(row,post,'restored',note||'Restored an earlier revision');db.prepare('UPDATE blog_posts SET draft_json=?,version=version+1,updated_at=? WHERE id=?').run(JSON.stringify(post),timestamp(),id);
         }
+        if(action==='publish'||(action==='unpublish'&&row.published_json))onPublicChange();
       });send(res,200,{post:entry(rowFor(id))});return true;
     }
     throw new HttpError(405,'Method not allowed.');

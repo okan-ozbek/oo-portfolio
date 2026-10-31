@@ -18,7 +18,7 @@ export function compilerClient(base = process.env.RESUME_COMPILER_URL ?? 'http:/
   };
 }
 
-export function createResumes({ db, origin, now, send, visitor, compile = compilerClient() }) {
+export function createResumes({ db, origin, now, send, visitor, onPublicChange=()=>{}, compile = compilerClient() }) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS resumes (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE,
@@ -121,6 +121,7 @@ export function createResumes({ db, origin, now, send, visitor, compile = compil
     // CSP sandbox prevents Chromium's native PDF viewer from loading.
     // The compiler strips document scripts and active actions before storage.
     res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+    if(publicDownload && row.id===defaultId()){res.removeHeader('X-Robots-Tag');res.setHeader('Link',`<${origin}/resume.pdf>; rel="canonical"`);}
     const attachment = publicDownload || new URL(req.url, 'http://internal').searchParams.get('download') === '1';
     res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Length': pdf.length, 'Content-Disposition': `${attachment ? 'attachment' : 'inline'}; filename="${row.slug}.pdf"` });
     res.end(req.method === 'HEAD' ? undefined : Buffer.from(pdf));
@@ -212,6 +213,7 @@ export function createResumes({ db, origin, now, send, visitor, compile = compil
             db.prepare('INSERT INTO resume_links VALUES(?,?,?,?,1) ON CONFLICT(resume_id,url_key) DO UPDATE SET link_id=excluded.link_id, tracked=1').run(id, link.key, link.destination, linkId);
           }
           db.prepare('UPDATE resumes SET draft_pdf = ?, compiled_at = ?, draft_version = draft_version + 1 WHERE id = ?').run(Buffer.from(result.pdf, 'base64'), new Date(now()).toISOString(), id);
+          if(defaultId()===id)onPublicChange();
         });
         send(res, 200, { resume: detail(get(id)) }); return true;
       } finally { busy.delete(id); }
@@ -219,12 +221,15 @@ export function createResumes({ db, origin, now, send, visitor, compile = compil
     if (req.method === 'PATCH' && !action) {
       const body = await readJson(req);
       if (typeof body.isDefault !== 'boolean' || Object.keys(body).length !== 1) throw new HttpError(400, 'Send only an isDefault boolean.');
+      const previousDefault=defaultId();
       if (body.isDefault) db.prepare('UPDATE resume_settings SET default_resume_id = ? WHERE id = 1').run(id);
       else db.prepare('UPDATE resume_settings SET default_resume_id = NULL WHERE default_resume_id = ?').run(id);
+      if(previousDefault!==defaultId())onPublicChange();
       send(res, 200, { resume: detail(get(id)) }); return true;
     }
     if (req.method === 'DELETE' && !action) {
       transaction(() => {
+        if(defaultId()===id)onPublicChange();
         db.prepare('DELETE FROM links WHERE id IN (SELECT link_id FROM resume_links WHERE resume_id = ?)').run(id);
         db.prepare('DELETE FROM resumes WHERE id = ?').run(id);
       });

@@ -47,7 +47,7 @@ npm start
 
 Only `dist/client/` is public website output. `dist/server/` is an intermediate prerender artifact, not a production server to deploy.
 
-Each build generates `dist/client/sitemap.xml` for `https://pixelware.nl/`. Section anchors are not listed separately. The backend maintains `/blog/sitemap.xml` for currently published articles; `public/robots.txt` advertises both sitemaps. When adding static pages, update the canonical URL list in `scripts/generate-sitemap.mjs`. The static sitemap is available in the built preview (`npm start`) and Docker deployment; `npm run dev` does not generate it. No build-time timestamp is used as a misleading content modification date.
+The live /sitemap.xml index links to /sitemaps/pages.xml, /sitemaps/blogs.xml, and /sitemaps/resumes.xml. These are generated from SQLite on request, so published content and the selected website PDF are reflected immediately. Project write-ups use ordinary published blog URLs; project cards do not create separate sitemap entries. Public project edits update the homepage modification date. Draft autosaves and analytics do not change sitemap dates. The older /blog/sitemap.xml remains available for existing crawlers. Both development and NGINX proxy live sitemaps and /robots.txt to the backend. Static previews include fallback sitemaps; live content requires the backend.
 
 ## VPS deployment
 
@@ -101,3 +101,5 @@ The admin Blog and Project tables show unique device views, starting when analyt
 A first-party HttpOnly cookie identifies an anonymous browser; SQLite stores only its hash per item and its first view date. Repeat visits never increment that item again while the cookie is retained, including across server restarts. No IP addresses, names, or browser fingerprints are collected. Another browser, clearing cookies, private browsing, or cookie expiry can count as another device. Counts cannot identify individual people and earlier traffic cannot be reconstructed.
 
 Both workspaces include daily view graphs above their tables. Each line represents a published item or an item with historical views. The graph counts each device on its first-view date; it is not a cumulative total or a repeat-visit count. The same 7-day, 30-day, rolling-quarter, and rolling-year UTC ranges as Link analytics are available, along with hover details and keyboard navigation.
+
+The selected website resume is indexable at /resume.pdf, with an HTTP canonical header shared by its named URL. Other resume variants and all admin previews retain noindex. Clearing the website selection removes the PDF from the resume sitemap. robots.txt advertises the sitemap index and excludes admin, API, and tracking routes.

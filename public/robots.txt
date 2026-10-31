@@ -1,5 +1,7 @@
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /r/
 
 Sitemap: https://pixelware.nl/sitemap.xml
-Sitemap: https://pixelware.nl/blog/sitemap.xml

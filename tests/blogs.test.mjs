@@ -160,3 +160,18 @@ test('LinkedIn OAuth state is bound to its browser and session without weakening
   assert.equal((await app.request(callback,{anonymous:true})).status,403);
   const cancelled=await app.request(callback,{anonymous:true,headers:{Cookie:proof}});assert.equal(cancelled.status,303);assert.match(cancelled.headers.get('location'),/cancelled/);assert.equal((await app.request(callback,{headers:{Cookie:proof}})).status,403);
 });
+
+test('live sitemap index follows published content and ignores draft edits and analytics',async t=>{
+  const app=await fixture(t);const xml=async path=>{const response=await app.request(path,{anonymous:true});assert.equal(response.status,200);assert.equal(response.headers.get('x-robots-tag'),null);assert.equal(response.headers.get('set-cookie'),null);return response.text();};
+  const index=await xml('/sitemap.xml');assert.match(index,/<sitemapindex/);assert.match(index,/sitemaps\/blogs.xml/);assert.doesNotMatch(index,/projects.xml/);
+  const robots=await xml('/robots.txt');assert.match(robots,/Sitemap: https:\/\/pixelware.test\/sitemap.xml/);assert.match(robots,/Disallow: \/admin/);
+  assert.equal((await app.request('/sitemap.xml',{method:'HEAD',anonymous:true})).status,200);
+  await app.login();let post=await app.create('Searchable project writeup');assert.doesNotMatch(await xml('/sitemaps/blogs.xml'),new RegExp(post.slug));
+  post=await app.action(post,'publish');const first=await xml('/sitemaps/blogs.xml');assert.match(first,new RegExp(post.slug));assert.match(first,/<lastmod>/);
+  const pages=await xml('/sitemaps/pages.xml');assert.match(pages,/https:\/\/pixelware.test\/blog<\/loc>/);
+  app.advance(60000);post=await app.save(post,{summary:'Private changes only'});assert.equal(await xml('/sitemaps/blogs.xml'),first);assert.equal(await xml('/sitemaps/pages.xml'),pages);
+  await app.request('/blog/'+post.slug,{anonymous:true});assert.equal(await xml('/sitemaps/blogs.xml'),first);
+  post=await app.action(post,'publish');assert.notEqual(await xml('/sitemaps/blogs.xml'),first);
+  app.advance(60000);await app.action(post,'unpublish');assert.doesNotMatch(await xml('/sitemaps/blogs.xml'),new RegExp(post.slug));assert.notEqual(await xml('/sitemaps/pages.xml'),pages);
+  assert.doesNotMatch(await xml('/sitemaps/blogs.xml'),/\/admin|\/api\/|\/r\//);
+});
