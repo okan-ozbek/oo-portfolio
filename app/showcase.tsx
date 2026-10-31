@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { ArrowDownRight, ArrowUpRight, Pause, Play } from "lucide-react";
 import { DataVisual } from "./data-visual";
+import { BlogFeed } from './blog-feed';
 import { about, contact, projects } from "./project-content";
 
 function subscribeMotion(callback: () => void) {
@@ -31,7 +32,7 @@ export function Showcase() {
     <div className="site-frame" id="top" data-motion={playing ? "on" : "off"}>
       <a className="skip-link" href="#projects">Skip to projects</a>
       <header className="site-header">
-        <a className="wordmark" href="#top" aria-label="Pixelware, home">
+        <a className="wordmark site-wordmark" href="#top" aria-label="Pixelware, home">
           <span className="brand-icon" aria-hidden="true" />Pixelware<span className="brand-period">.</span>
         </a>
         <nav aria-label="Main navigation">
@@ -90,6 +91,8 @@ export function Showcase() {
           <h2 id="about-title">About me</h2>
           <div className="about-copy">{about.map(paragraph => <p key={paragraph}>{paragraph}</p>)}</div>
         </section>
+
+        <BlogFeed playing={playing} />
 
         <section className="contact-strip" id="contact" aria-labelledby="contact-title">
           <div><span className="eyebrow">AN OPEN CHANNEL</span><h2 id="contact-title">Have something in mind?</h2></div>

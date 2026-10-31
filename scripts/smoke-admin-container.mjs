@@ -80,6 +80,21 @@ try {
   assert.equal((await fetch(`${bookBase}/thumbnail`, { headers })).headers.get('content-type'), 'image/png');
   const bookDownload = await fetch(`${bookBase}/pdf?download=1`, { headers });
   assert.deepEqual(Buffer.from(await bookDownload.arrayBuffer()), libraryPdf);
+  assert.equal((await fetch(`${base}/admin/assets/blogs.js`)).status, 200);
+  assert.equal((await fetch(`${base}/blog/assets/mermaid.js`)).status, 200, 'The image must include its local Mermaid bundle');
+  const newPost = await fetch(`${base}/api/admin/blogs`, { method: 'POST', headers, body: '{}' });
+  assert.equal(newPost.status, 201); let post = (await newPost.json()).post;
+  const blogPost = { title: 'Container blog', slug: 'container-blog', summary: 'A published container check', tags: ['C++'],
+    markdown: '## Runtime article\n\n' + 'Technical content beyond the normal 8 KB admin limit. '.repeat(200),
+    thumbnail: post.thumbnail, banner: post.banner, relatedIds: [] };
+  const savedPost = await fetch(`${base}/api/admin/blogs/${post.id}`, { method: 'PATCH', headers, body: JSON.stringify({ version: post.version, post: blogPost }) });
+  assert.equal(savedPost.status, 200, await savedPost.clone().text()); post = (await savedPost.json()).post;
+  assert.equal((await fetch(`${base}/blog/container-blog`)).status, 404, 'Drafts must stay private through NGINX');
+  const publishedPost = await fetch(`${base}/api/admin/blogs/${post.id}/publish`, { method: 'POST', headers, body: JSON.stringify({ version: post.version }) });
+  assert.equal(publishedPost.status, 200);
+  const blogPage = await fetch(`${base}/blog/container-blog`); assert.equal(blogPage.status, 200); assert.match(await blogPage.text(), /Runtime article/);
+  assert.equal((await fetch(`${base}/blog/share/container-blog.jpg`)).headers.get('content-type'), 'image/jpeg');
+  assert.equal((await (await fetch(`${base}/api/public/blogs`)).json()).posts[0].slug, 'container-blog');
   const response = await fetch(`${base}/api/admin/links`, {
     method: "POST", headers,
     body: JSON.stringify({ label: "Container smoke test", slug: "container-smoke", destination: "https://github.com/okan-ozbek", source: "Disposable container test" }),
@@ -124,9 +139,10 @@ try {
   assert.ok(ready, "Sessions and counts must survive a container restart");
   assert.equal((await (await fetch(`${base}/api/admin/books?tag=C%2B%2B`, { headers })).json()).books[0].id, libraryBook.id);
   assert.deepEqual(Buffer.from(await (await fetch(`${bookBase}/pdf`, { headers })).arrayBuffer()), libraryPdf);
+  assert.equal((await fetch(`${base}/blog/container-blog`)).status, 200, 'Published articles survive a container restart');
   assert.deepEqual(Buffer.from(await (await fetch(`${base}/resume.pdf`, { headers })).arrayBuffer()), publishedBytes);
   assert.equal((await (await fetch(`${base}${resumePath}`, { headers })).json()).resume.downloads, 1, 'PDF and download cooldown survive restart');
-  console.log("Container smoke passed: NGINX + admin + real compiler, large project upload, immediate PDF updates/downloads, auth, redirects, and restart persistence.");
+  console.log("Container smoke passed: NGINX + admin + real compiler, blog publishing and local diagrams, large uploads, PDF downloads, auth, redirects, and restart persistence.");
 } catch (error) {
   for (const name of created) console.error(docker("logs", "--tail", "30", name));
   throw error;

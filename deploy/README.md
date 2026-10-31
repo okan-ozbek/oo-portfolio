@@ -1,5 +1,8 @@
 # Run Pixelware on your VPS
 
+The writing workspace and its optional LinkedIn connection are documented in
+[BLOGS.md](BLOGS.md).
+
 The Docker stack serves **https://pixelware.nl**. NGINX serves the static portfolio on the private Docker network; Caddy handles public HTTPS, Let's Encrypt certificate issuance and renewal, and HTTP-to-HTTPS redirects. Only Docker Engine and the Docker Compose plugin are needed on the VPS. A Node/SQLite sidecar handles the private link studio and redirects. **Before startup, configure its runtime hash using [ADMIN.md](ADMIN.md)**, which also covers GitHub Actions secret delivery.
 
 ## DNS and firewall

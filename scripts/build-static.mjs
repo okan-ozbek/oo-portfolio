@@ -2,8 +2,10 @@ import { fileURLToPath } from "node:url";
 import { validateStaticExport } from "./validate-static-export.mjs";
 import { generateSitemap } from "./generate-sitemap.mjs";
 import { compressStatic } from "./compress-static.mjs";
+import { buildBlog } from './build-blog.mjs';
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+await buildBlog();
 process.env.PIXELWARE_STATIC_EXPORT = "1";
 // Use the same build/prerender phases as vinext's CLI, but allow Node to exit
 // naturally. Its forced process.exit() crashes libuv on Windows after prerender.

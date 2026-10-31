@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
+import { request as httpRequest } from 'node:http';
 import { createAdminServer } from "../server/admin-server.mjs";
 import { hashPassword, verifyPassword } from "../server/security.mjs";
 
@@ -47,10 +48,46 @@ async function fixture(t, options = {}) {
     csrf = (await response.json()).csrf;
     return { cookie, csrf, response };
   }
-  return { request, login, close };
+  const hostStatus = (path, host) => new Promise((resolve, reject) => {
+    const req = httpRequest(`${base}${path}`, { headers: { Host: host } }, response => { response.resume(); response.on('end', () => resolve(response.statusCode)); });
+    req.on('error', reject); req.end();
+  });
+  return { request, login, close, hostStatus };
 }
 
 const linkBody = { label: "LinkedIn on resume", slug: "resume-linkedin", source: "Resume", destination: "https://www.linkedin.com/in/example?source=resume", enabled: true };
+
+test('password-free development accepts loopback aliases while preserving origin and CSRF checks', async t => {
+  const app = await fixture(t, { origin: 'http://127.0.0.1:5173', secureCookies: false, localNoLogin: true });
+  const sessionResponse = await app.request('/api/admin/session');
+  assert.equal(sessionResponse.status, 200);
+  const session = await sessionResponse.json(); assert.equal(session.localDevelopment, true); assert.match(session.csrf, /^[a-f0-9]{64}$/);
+  assert.equal(sessionResponse.headers.get('set-cookie'), null, 'Opening the admin requires neither a login nor a cookie');
+  for (const host of ['localhost:5173', '127.0.0.1:5173', '[::1]:5173']) {
+    assert.equal(await app.hostStatus('/api/admin/books', host), 200);
+    const result = await app.request('/api/admin/links', { method: 'POST', headers: { Host: host, Origin: `http://${host}`, 'X-CSRF-Token': session.csrf }, body: { ...linkBody, slug: `local-link-${host.startsWith('localhost') ? 'name' : host.startsWith('[') ? 'ipv6' : 'ipv4'}` } });
+    assert.equal(result.status, 201);
+  }
+  for (const headers of [
+    { Origin: 'https://evil.test', 'X-CSRF-Token': session.csrf },
+    { Origin: 'http://localhost:5174', 'X-CSRF-Token': session.csrf },
+    { Origin: 'http://localhost:5173', 'X-CSRF-Token': '' },
+  ]) assert.equal((await app.request('/api/admin/links', { method: 'POST', headers, body: linkBody })).status, 403);
+  assert.equal(await app.hostStatus('/api/admin/session', 'evil.test:5173'), 403);
+  assert.equal(await app.hostStatus('/api/admin/books', 'localhost.evil.test:5173'), 403);
+});
+
+test('password-free mode is opt-in and cannot be configured for deployed origins', async t => {
+  for (const options of [
+    { origin: 'https://pixelware.test' },
+    { origin: 'http://pixelware.test', secureCookies: false },
+    { origin: 'http://192.168.1.20:5173', secureCookies: false },
+    { origin: 'https://localhost:5173', secureCookies: false },
+  ]) assert.throws(() => createAdminServer({ passwordHash, databasePath: ':memory:', localNoLogin: true, ...options }), /HTTP loopback/);
+  const app = await fixture(t, { origin: 'http://localhost:5173', secureCookies: false });
+  assert.equal((await app.request('/api/admin/session')).status, 401);
+  assert.equal((await app.request('/api/admin/books')).status, 401);
+});
 
 test('bulk pause/activate preserves history and bulk deletion removes only selected links', async t => {
   const app = await fixture(t); await app.login();

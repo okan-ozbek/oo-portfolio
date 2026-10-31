@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://pixelware.nl/sitemap.xml
+Sitemap: https://pixelware.nl/blog/sitemap.xml

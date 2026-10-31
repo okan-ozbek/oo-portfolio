@@ -11,9 +11,13 @@ It uses [Node's built-in SQLite](https://nodejs.org/download/release/latest-jod/
 ## Local draft
 
 Run `npm ci` and `npm run dev`, then open the printed `/admin` URL.
+The development server opens the dashboard without a login on `localhost`,
+`127.0.0.1`, and `::1`. This option is enabled only by the local development
+launcher, checks loopback connections and hostnames, and retains origin/CSRF
+validation. The deployed server continues to require its admin password.
 First startup creates a random password in `.admin-local-password` and its
 scrypt hash in `.env.admin`. Both are ignored by Git and Docker. The password
-is not printed in logs. Read the file locally to sign in. Data lives in
+is not printed in logs and remains available for password-based tools. Data lives in
 `data/admin.sqlite`, also ignored. Keep these local files private.
 
 Delete both credential files to generate replacements on next startup. Changing

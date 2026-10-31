@@ -1,8 +1,8 @@
 import { writeFile } from "node:fs/promises";
 
 export async function generateSitemap(outputDirectory) {
-  // This portfolio has one indexable page. Section anchors are not separate URLs.
-  // Add canonical page URLs here when the site gains additional pages.
+  // Static portfolio URLs only. Live blog pages maintain /blog/sitemap.xml.
+  // Section anchors are not separate URLs.
   const urls = ["https://pixelware.nl/"];
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">

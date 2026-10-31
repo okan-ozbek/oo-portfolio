@@ -1,6 +1,7 @@
 /* The dashboard receives no password hash or secret configuration. */
 import { initResumes } from './resumes.js';
 import { initBooks } from './books.js';
+import { initBlogs } from './blogs.js';
 import { icon as actionIcon } from './icons.js';
 const $ = id => document.getElementById(id);
 const number = new Intl.NumberFormat();
@@ -67,6 +68,7 @@ function openRangeMenu() {
 function showLogin() {
   resumeWorkspace.reset();
   bookWorkspace.reset();
+  blogWorkspace.reset();
   selectSection('links');
   closeRangeMenu();
   closeLinkMenu();
@@ -103,11 +105,11 @@ function toast(message) {
   }, () => {});
 }
 
-async function api(path, { method = "GET", body, pdf = false } = {}) {
+async function api(path, { method = "GET", body, pdf = false, file } = {}) {
   const response = await fetch(`/api/admin/${path}`, {
     method, credentials: "same-origin", cache: "no-store",
-    headers: { ...(method !== "GET" ? { "Content-Type": pdf ? "application/pdf" : "application/json", "X-CSRF-Token": csrf } : {}) },
-    body: body === undefined ? undefined : pdf ? body : JSON.stringify(body),
+    headers: { ...(method !== "GET" ? { "Content-Type": file ? file.type : pdf ? "application/pdf" : "application/json", "X-CSRF-Token": csrf } : {}) },
+    body: file ?? (body === undefined ? undefined : pdf ? body : JSON.stringify(body)),
   });
   const data = await response.json();
   if (!response.ok) {
@@ -570,9 +572,11 @@ $("link-form").addEventListener("submit", async event => {
 
 const resumeWorkspace = initResumes({ api, toast, refreshLinks: refresh });
 const bookWorkspace = initBooks({ api, toast });
+const blogWorkspace = initBlogs({ api, toast });
 async function selectSection(section) {
+  if (!$('blogs-view').hidden && section !== 'blogs' && !(await blogWorkspace.leave())) return;
   closeLinkMenu();
-  for (const name of ['links', 'resumes', 'books']) {
+  for (const name of ['links', 'resumes', 'books', 'blogs']) {
     $(`${name}-view`).hidden = name !== section;
     if (name === section) $(`nav-${name}`).setAttribute('aria-current', 'page');
     else $(`nav-${name}`).removeAttribute('aria-current');
@@ -583,17 +587,24 @@ async function selectSection(section) {
   if (section === 'books') {
     try { await bookWorkspace.refresh(); } catch (error) { $('book-error').textContent = error.message; }
   }
+  if (section === 'blogs') {
+    try { await blogWorkspace.refresh(); } catch (error) { $('blog-library-error').textContent = error.message; }
+  }
 }
 $('nav-links').addEventListener('click', () => selectSection('links'));
 $('nav-resumes').addEventListener('click', () => selectSection('resumes'));
 $('nav-books').addEventListener('click', () => selectSection('books'));
+$('nav-blogs').addEventListener('click', () => selectSection('blogs'));
 
 (async () => {
   try {
-    csrf = (await api("session")).csrf;
+    const session = await api("session");
+    csrf = session.csrf;
+    $("logout").hidden = session.localDevelopment === true;
     await refresh();
     $("loading").hidden = true;
     $("dashboard").hidden = false;
+    if (new URLSearchParams(location.search).get('section') === 'blogs') await selectSection('blogs');
   } catch (error) {
     showLogin();
     if (error.message !== "Sign in to continue.") $("login-error").textContent = "Cannot reach the admin service. Refresh to try again.";
