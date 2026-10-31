@@ -126,7 +126,6 @@ function updateSelection() {
   $("bulk-pause-links").disabled = bulkPending || !selected.some(link => link.enabled);
   $("bulk-activate-links").disabled = bulkPending || !selected.some(link => !link.enabled);
   $("bulk-delete-links").disabled = bulkPending;
-  $("clear-link-selection").disabled = bulkPending;
   for (const checkbox of $("link-rows").querySelectorAll('[data-select-link]')) {
     checkbox.checked = selectedLinks.has(checkbox.dataset.selectLink);
     checkbox.disabled = bulkPending;
@@ -208,7 +207,9 @@ function renderRows() {
     identity.append(element('div', 'link-name', link.label), element('span', 'short-url', '/r/' + link.slug));
     const destination = element('a', 'destination', link.destination);
     destination.href = link.destination; destination.target = '_blank'; destination.rel = 'noopener noreferrer'; destination.title = 'Preview destination without counting a click'; identity.append(destination);
-    const source = element('td'); source.dataset.label = 'Source'; source.append(element('span', 'source-tag', link.source || '—'));
+    const source = element('td'); source.dataset.label = 'Source';
+    const sourceTag = element('span', 'source-tag', link.source || '—');
+    sourceTag.title = link.source || 'No source'; source.append(sourceTag);
     const status = element('td'); status.dataset.label = 'Status'; status.append(element('span', 'link-status' + (link.enabled ? '' : ' paused'), link.enabled ? 'Active' : 'Paused'));
     const clicks = element('td', 'number click-value', number.format(link.clicks)); clicks.dataset.label = 'Clicks';
     const time = link.lastClickedAt ? new Intl.DateTimeFormat(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(link.lastClickedAt)) : 'No clicks yet';
@@ -470,7 +471,6 @@ $("select-all-links").addEventListener('change', event => {
   for (const link of visible) { if (event.target.checked) selectedLinks.add(link.id); else selectedLinks.delete(link.id); }
   updateSelection();
 });
-$("clear-link-selection").addEventListener('click', () => { selectedLinks.clear(); updateSelection(); });
 $("bulk-pause-links").addEventListener('click', () => setLinksEnabled(links.filter(link => selectedLinks.has(link.id)), false));
 $("bulk-activate-links").addEventListener('click', () => setLinksEnabled(links.filter(link => selectedLinks.has(link.id)), true));
 $("bulk-delete-links").addEventListener('click', () => openDeleteLinks(links.filter(link => selectedLinks.has(link.id))));

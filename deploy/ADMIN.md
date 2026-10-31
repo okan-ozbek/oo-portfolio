@@ -44,7 +44,8 @@ fetch current totals.
 Select row checkboxes to show bulk Pause, Activate, and Delete controls next to
 search. The header checkbox selects or clears the visible results. Selections
 persist across searches; the toolbar states how many selected links are hidden
-by the current filter. Clear selection removes every selection. Up to 100
+by the current filter. Uncheck rows or the header checkbox to clear visible
+selections. Up to 100
 links can be changed together. Each bulk request is atomic: missing IDs reject
 the entire request without changing any selected link. Bulk deletion lists all
 selected URLs for confirmation and removes only those links and their history.
