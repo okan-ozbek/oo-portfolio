@@ -134,7 +134,7 @@ test('ten technical scenes and all six project visuals preserve published thumbn
   for(const path of ['/blog',`/blog/${post.slug}`]){
     const html=await (await app.request(path,{anonymous:true})).text();
     assert.match(html,/class="site-wordmark"[^>]*aria-label="Pixelware, home"/);
-    assert.match(html,/class="brand-icon"/);assert.match(html,/<nav aria-label="Website"><a href="\/blog">All posts<\/a><\/nav>/);
+    assert.match(html,/class="brand-icon"/);assert.match(html,/<nav aria-label="Main navigation">/);assert.match(html,/href="\/#projects"/);assert.match(html,/<a href="\/blog">Blog<\/a>/);assert.match(html,/id="contact"/);if(path!=='/blog')assert.match(html,/aria-label="Article changelog"/);
     assert.doesNotMatch(html,/blog-back|blog-hero-banner|href="\/#about"/);
   }
   const theme=await app.request('/blog/assets/theme.css',{anonymous:true});assert.equal(theme.status,200);assert.match(theme.headers.get('content-type'),/text\/css/);

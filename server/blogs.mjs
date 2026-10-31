@@ -199,7 +199,7 @@ export function createBlogs({db,origin,now=Date.now,send,isAuthenticated}) {
     const preview=/^\/admin\/blog-preview\/([a-f0-9-]{36})$/.exec(path);
     if(preview){if(!isAuthenticated(req))throw new HttpError(401,'Sign in to preview this draft.');const row=rowFor(preview[1]),post={...JSON.parse(row.draft_json),id:row.id};return bytes(articlePage(post,profilePublic(),suggestions(post),origin,{preview:true,publishedAt:row.published_at,updatedAt:row.updated_at}),'text/html; charset=utf-8',true);}
     const slug=/^\/blog\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(path);
-    if(slug){const row=db.prepare('SELECT * FROM blog_posts WHERE published_slug=? AND published_json IS NOT NULL').get(slug[1]);if(!row)throw new HttpError(404,'Article not found.');const post={...JSON.parse(row.published_json),id:row.id};return bytes(articlePage(post,profilePublic(),suggestions(post),origin,{publishedAt:row.published_at,updatedAt:row.live_updated_at}),'text/html; charset=utf-8');}
+    if(slug){const row=db.prepare('SELECT * FROM blog_posts WHERE published_slug=? AND published_json IS NOT NULL').get(slug[1]);if(!row)throw new HttpError(404,'Article not found.');const post={...JSON.parse(row.published_json),id:row.id};return bytes(articlePage(post,profilePublic(),suggestions(post),origin,{publishedAt:row.published_at,updatedAt:row.live_updated_at,changelog:db.prepare("SELECT note,created_at FROM blog_revisions WHERE post_id=? AND kind='published' ORDER BY rowid DESC").all(row.id).map(rev=>({note:rev.note,createdAt:rev.created_at}))}),'text/html; charset=utf-8');}
     throw new HttpError(404,'Not found.');
   }
   return {adminRoute,publicRoute};
