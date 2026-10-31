@@ -8,6 +8,7 @@ import { validatePasswordHash, verifyPassword } from "./security.mjs";
 import { HttpError, readJson } from "./http.mjs";
 import { createResumes } from "./resumes.mjs";
 import { createBooks } from "./books.mjs";
+import { createProjects } from './projects.mjs';
 import { createBlogs } from "./blogs.mjs";
 
 const sha256 = value => createHash("sha256").update(value).digest("hex");
@@ -17,6 +18,9 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 const loopbackAddress = address => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(address);
 const assets = new Map([
+  ["/admin/assets/filter-picker.js", ["filter-picker.js", "text/javascript; charset=utf-8"]],
+  ["/admin/assets/projects.js", ["projects.js", "text/javascript; charset=utf-8"]],
+  ["/admin/assets/projects.css", ["projects.css", "text/css; charset=utf-8"]],
   ["/admin", ["index.html", "text/html; charset=utf-8"]],
   ["/admin/", ["index.html", "text/html; charset=utf-8"]],
   ["/admin/assets/admin.js", ["admin.js", "text/javascript; charset=utf-8"]],
@@ -119,9 +123,10 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
   };
   const resumes = createResumes({ db, origin, now, send, visitor, compile: compileResume });
   const books = createBooks({ db, now, send });
+  const projects = createProjects({ db, now, send });
   const blogs = createBlogs({ db, origin, now, send, isAuthenticated: session });
   function validateLink(body) {
-    const { label, slug, destination, source = "", enabled = true } = body;
+    const { slug, label = `/r/${slug}`, destination, source = "", enabled = true } = body;
     if (typeof label !== "string" || !label.trim() || label.length > 100) throw new HttpError(400, "Enter a label of 1–100 characters.");
     if (typeof slug !== "string" || !SLUG.test(slug) || slug.length > 80) throw new HttpError(400, "Use a slug of 1–80 lowercase letters, numbers, or single hyphens.");
     if (typeof source !== "string" || source.length > 100) throw new HttpError(400, "Source must be 100 characters or fewer.");
@@ -171,6 +176,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
         return res.end(req.method === "HEAD" ? undefined : body);
       }
       if (await resumes.publicRoute(req, res, requestUrl)) return;
+      if (await projects.publicRoute(req, res, requestUrl)) return;
       if (await blogs.publicRoute(req, res, requestUrl)) return;
       if (path.startsWith("/r/")) {
         if (!["GET", "HEAD"].includes(req.method)) throw new HttpError(405, "Method not allowed.");
@@ -250,6 +256,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
         return send(res, 200, { ok: true });
       }
       if (await resumes.adminRoute(req, res, requestUrl)) return;
+      if (await projects.adminRoute(req, res, requestUrl)) return;
       if (await books.adminRoute(req, res, requestUrl)) return;
       if (await blogs.adminRoute(req, res, requestUrl, current)) return;
       if (path === "/api/admin/links" && req.method === "GET") {

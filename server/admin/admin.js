@@ -1,6 +1,8 @@
 /* The dashboard receives no password hash or secret configuration. */
 import { initResumes } from './resumes.js';
 import { initBooks } from './books.js';
+import { initFilterPicker } from './filter-picker.js';
+import { initProjects } from './projects.js';
 import { initBlogs } from './blogs.js';
 import { icon as actionIcon } from './icons.js';
 const $ = id => document.getElementById(id);
@@ -69,6 +71,7 @@ function showLogin() {
   resumeWorkspace.reset();
   bookWorkspace.reset();
   blogWorkspace.reset();
+  projectWorkspace.reset();
   selectSection('links');
   closeRangeMenu();
   closeLinkMenu();
@@ -128,7 +131,7 @@ function element(tag, className, content) {
 
 function filteredLinks() {
   const query = $("search").value.toLowerCase();
-  return links.filter(link => [link.label, link.slug, link.destination, link.source].join(" ").toLowerCase().includes(query));
+  return links.filter(link => [('/r/' + link.slug), link.slug, link.destination, link.source].join(" ").toLowerCase().includes(query));
 }
 
 function updateSelection() {
@@ -162,10 +165,10 @@ function closeLinkMenu(returnFocus = false) {
 
 function openDeleteLinks(items) {
   closeLinkMenu();
-  deleting = items.map(link => ({ id: link.id, label: link.label, slug: link.slug }));
+  deleting = items.map(link => ({ id: link.id, label: ('/r/' + link.slug), slug: link.slug }));
   const plural = items.length > 1;
   $("delete-title").textContent = plural ? 'Delete ' + items.length + ' links?' : 'Delete this link?';
-  $("delete-link-name").textContent = plural ? items.length + ' selected links' : items[0].label;
+  $("delete-link-name").textContent = plural ? items.length + ' selected links' : ('/r/' + items[0].slug);
   $("delete-link-url").textContent = items.map(link => '/r/' + link.slug).join('\n');
   $("delete-warning").textContent = plural ? 'This permanently removes all selected links, their click history, and cooldown records. Their shared URLs will stop working. This cannot be undone.' : 'This permanently removes the link, its click history, and cooldown records. Shared URLs will stop working. This cannot be undone.';
   $("delete-error").textContent = '';
@@ -216,7 +219,7 @@ function renderRows() {
   for (const link of filtered) {
     const row = element('tr');
     const selection = element('td', 'link-select-cell');
-    const checkbox = element('input'); checkbox.type = 'checkbox'; checkbox.dataset.selectLink = link.id; checkbox.setAttribute('aria-label', 'Select ' + link.label);
+    const checkbox = element('input'); checkbox.type = 'checkbox'; checkbox.dataset.selectLink = link.id; checkbox.setAttribute('aria-label', 'Select ' + ('/r/' + link.slug));
     checkbox.addEventListener('change', () => {
       if (checkbox.checked && selectedLinks.size >= 100) { checkbox.checked = false; return toast('Select up to 100 links at a time.'); }
       if (checkbox.checked) selectedLinks.add(link.id); else selectedLinks.delete(link.id);
@@ -224,7 +227,7 @@ function renderRows() {
     });
     selection.append(checkbox);
     const identity = element('td', 'link-identity-cell'); identity.dataset.label = 'Link / destination';
-    identity.append(element('div', 'link-name', link.label), element('span', 'short-url', '/r/' + link.slug));
+    identity.append(element('div', 'link-name', '/r/' + link.slug));
     const destination = element('a', 'destination', link.destination);
     destination.href = link.destination; destination.target = '_blank'; destination.rel = 'noopener noreferrer'; destination.title = 'Preview destination without counting a click'; identity.append(destination);
     const source = element('td'); source.dataset.label = 'Source';
@@ -236,7 +239,7 @@ function renderRows() {
     const lastClick = element('td', 'last-click', time); lastClick.dataset.label = 'Last counted';
     const actions = element('td', 'link-action-cell');
     const trigger = element('button', 'action-button link-menu-trigger'); trigger.type = 'button'; trigger.append(actionIcon('ellipsis'));
-    trigger.setAttribute('aria-label', 'Actions for ' + link.label); trigger.title = 'Link actions'; trigger.setAttribute('aria-haspopup', 'menu'); trigger.setAttribute('aria-expanded', 'false'); trigger.setAttribute('aria-controls', 'link-action-menu'); trigger.disabled = bulkPending || pendingLinks.has(link.id);
+    trigger.setAttribute('aria-label', 'Actions for ' + ('/r/' + link.slug)); trigger.title = 'Link actions'; trigger.setAttribute('aria-haspopup', 'menu'); trigger.setAttribute('aria-expanded', 'false'); trigger.setAttribute('aria-controls', 'link-action-menu'); trigger.disabled = bulkPending || pendingLinks.has(link.id);
     trigger.addEventListener('click', () => openLinkMenu(link, trigger));
     trigger.addEventListener('keydown', event => { if (event.key === 'ArrowDown') { event.preventDefault(); openLinkMenu(link, trigger); } });
     actions.append(trigger); row.append(selection, identity, source, status, clicks, lastClick, actions); $("link-rows").append(row);
@@ -289,7 +292,7 @@ function renderChart(series, startDay, endDay) {
     const sample = document.createElementNS(ns, "line");
     for (const [name, value] of Object.entries({ x1: 1, x2: 17, y1: 5, y2: 5, stroke: color, "stroke-width": 3, "stroke-linecap": "round" })) sample.setAttribute(name, value);
     swatch.append(sample);
-    legend.append(swatch, element("span", "", link.label));
+    legend.append(swatch, element("span", "", ('/r/' + link.slug)));
     $("chart-legend").append(legend);
     const counts = new Map(link.daily.map(day => [day.day, day.clicks]));
     const points = days.map((day, index) => ({ day, value: counts.get(day) ?? 0, x: 8 + index * xStep, y: 188 - (counts.get(day) ?? 0) / max * 176 }));
@@ -334,7 +337,7 @@ function renderChart(series, startDay, endDay) {
       for (const [name, value] of Object.entries({ cx: 5, cy: 5, r: 4, fill: item.color })) dot.setAttribute(name, value);
       swatch.append(dot);
       const identity = element("div", "chart-tooltip-identity");
-      identity.append(element("strong", "", item.link.label), element("span", "", `/r/${item.link.slug}`));
+      identity.append(element("strong", "", `/r/${item.link.slug}`));
       row.append(swatch, identity, element("span", "chart-tooltip-count", `${number.format(sample.value)} ${sample.value === 1 ? "click" : "clicks"}`));
       $("chart-tooltip-links").append(row);
       highlights.push(shape("ellipse", { cx: sample.x, cy: sample.y, rx: 5, ry: 5, fill: item.color, class: "chart-hover-point" }));
@@ -416,7 +419,7 @@ function openEditor(link = null) {
   $("form-error").textContent = "";
   $("dialog-title").textContent = link ? "Edit your link." : "Create a link.";
   $("save-link").textContent = link ? "Save changes ↗" : "Create link ↗";
-  for (const name of ["label", "slug", "destination", "source"]) $(name).value = link?.[name] ?? "";
+  for (const name of ["slug", "destination", "source"]) $(name).value = link?.[name] ?? "";
   $("slug").disabled = Boolean(link);
   $("enabled").checked = link?.enabled ?? true;
   $("slug-note").textContent = link ? "This slug stays fixed so your published links keep working." : "Lowercase letters, numbers, and hyphens. Permanent once created.";
@@ -550,16 +553,14 @@ $("refresh").addEventListener("click", async () => {
   try { await refresh(); toast("Your counts are up to date."); } catch (error) { toast(error.message); }
   finally { $("refresh").disabled = false; }
 });
-$("label").addEventListener("input", () => {
-  if (!editing && !$("slug").dataset.edited) $("slug").value = $("label").value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80).replace(/-$/, "");
-});
 $("slug").addEventListener("input", () => { $("slug").dataset.edited = "true"; });
 $("link-dialog").addEventListener("close", () => { delete $("slug").dataset.edited; });
 $("link-form").addEventListener("submit", async event => {
   event.preventDefault();
   $("save-link").disabled = true;
   $("form-error").textContent = "";
-  const body = Object.fromEntries(["label", "slug", "destination", "source"].map(name => [name, $(name).value]));
+  const body = Object.fromEntries(["slug", "destination", "source"].map(name => [name, $(name).value]));
+  body.label = '/r/' + body.slug;
   body.enabled = $("enabled").checked;
   try {
     await api(editing ? `links/${editing.id}` : "links", { method: editing ? "PUT" : "POST", body });
@@ -570,13 +571,16 @@ $("link-form").addEventListener("submit", async event => {
   finally { $("save-link").disabled = false; }
 });
 
+initFilterPicker(document.getElementById('blog-status'));
+initFilterPicker(document.getElementById('project-filter'));
 const resumeWorkspace = initResumes({ api, toast, refreshLinks: refresh });
 const bookWorkspace = initBooks({ api, toast });
 const blogWorkspace = initBlogs({ api, toast });
+const projectWorkspace = initProjects({ api, toast });
 async function selectSection(section) {
   if (!$('blogs-view').hidden && section !== 'blogs' && !(await blogWorkspace.leave())) return;
   closeLinkMenu();
-  for (const name of ['links', 'resumes', 'books', 'blogs']) {
+  for (const name of ['links', 'resumes', 'books', 'blogs', 'projects']) {
     $(`${name}-view`).hidden = name !== section;
     if (name === section) $(`nav-${name}`).setAttribute('aria-current', 'page');
     else $(`nav-${name}`).removeAttribute('aria-current');
@@ -587,6 +591,9 @@ async function selectSection(section) {
   if (section === 'books') {
     try { await bookWorkspace.refresh(); } catch (error) { $('book-error').textContent = error.message; }
   }
+  if (section === 'projects') {
+    try { await projectWorkspace.refresh(); } catch (error) { $('project-library-error').textContent = error.message; }
+  }
   if (section === 'blogs') {
     try { await blogWorkspace.refresh(); } catch (error) { $('blog-library-error').textContent = error.message; }
   }
@@ -594,6 +601,7 @@ async function selectSection(section) {
 $('nav-links').addEventListener('click', () => selectSection('links'));
 $('nav-resumes').addEventListener('click', () => selectSection('resumes'));
 $('nav-books').addEventListener('click', () => selectSection('books'));
+$('nav-projects').addEventListener('click', () => selectSection('projects'));
 $('nav-blogs').addEventListener('click', () => selectSection('blogs'));
 
 (async () => {
@@ -604,7 +612,8 @@ $('nav-blogs').addEventListener('click', () => selectSection('blogs'));
     await refresh();
     $("loading").hidden = true;
     $("dashboard").hidden = false;
-    if (new URLSearchParams(location.search).get('section') === 'blogs') await selectSection('blogs');
+    const requestedSection = new URLSearchParams(location.search).get('section');
+    if (['blogs','projects'].includes(requestedSection)) await selectSection(requestedSection);
   } catch (error) {
     showLogin();
     if (error.message !== "Sign in to continue.") $("login-error").textContent = "Cannot reach the admin service. Refresh to try again.";

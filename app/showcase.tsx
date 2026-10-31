@@ -3,8 +3,9 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { ArrowDownRight, ArrowUpRight, Pause, Play } from "lucide-react";
 import { DataVisual } from "./data-visual";
+import { BlogArtwork } from './blog-artwork';
 import { BlogFeed } from './blog-feed';
-import { about, contact, projects } from "./project-content";
+import { about, contact, projects as initialProjects } from "./project-content";
 
 function subscribeMotion(callback: () => void) {
   const query = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -13,7 +14,21 @@ function subscribeMotion(callback: () => void) {
 }
 const getReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+type ProjectCard = {id:string;name:string;category:string;description:string;href?:string;visual?:typeof initialProjects[number]['visual'];code:string;thumbnail:string};
+const fallbackProjects:ProjectCard[] = initialProjects.map(project=>({...project,thumbnail:'project-'+project.visual}));
 export function Showcase() {
+  const [projects,setProjects]=useState<ProjectCard[]>(fallbackProjects);
+  useEffect(()=>{
+    const controller=new AbortController();
+    fetch('/api/public/projects',{signal:controller.signal,cache:'no-store'}).then(response=>{if(!response.ok)throw new Error();return response.json();}).then(data=>{
+      if(controller.signal.aborted)return;
+      setProjects(data.projects.map((project:{id:string;title:string;caption:string;description:string;url:string;state:string;thumbnail:string})=>{
+        const original=initialProjects.find(item=>'project-'+item.visual===project.thumbnail);
+        return {id:project.id,name:project.title,category:project.caption,description:project.description,href:project.state==='published'?project.url:undefined,visual:original?.visual,code:original?.code??'PXW / PROJECT',thumbnail:project.thumbnail};
+      }));
+    }).catch(()=>{/* Preserve the static showcase if the service is unavailable. */});
+    return()=>controller.abort();
+  },[]);
   const reducedMotion = useSyncExternalStore(subscribeMotion, getReducedMotion, () => false);
   const [motionOverride, setMotionOverride] = useState<boolean | null>(null);
   const [resumeAvailable, setResumeAvailable] = useState(false);
@@ -67,7 +82,7 @@ export function Showcase() {
               <article className={`project-card project-card--${project.visual}`} key={project.id} aria-labelledby={`project-${project.id}`}>
                 <div className="project-visual" aria-hidden="true">
                   <div className="project-visual-top mono"><span>{project.code}</span><span className="visual-index">{project.id}</span></div>
-                  <DataVisual kind={project.visual} playing={playing} />
+                  {project.visual ? <DataVisual kind={project.visual} playing={playing} /> : <BlogArtwork preset={project.thumbnail} seed={project.id} src={`/blog/art/${project.thumbnail}.svg?seed=${encodeURIComponent(project.id)}`} playing={playing}/>}
                   {project.visual === "network" && <div className="network-readout mono"><span>NODE / 008</span><span>CONNECTED</span></div>}
                   {project.visual === "latency" && <div className="metrics-legend mono"><span><i />P50</span><span><i />P99</span><span>SIMULATED · ms</span></div>}
                   <div className="visual-bottom-line" />
