@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { HttpError, readJson } from './http.mjs';
 import { presets } from '../lib/art-catalog.mjs';
 
-export function createProjects({ db, send, now = Date.now }) {
+export function createProjects({ db, send, analytics, now = Date.now }) {
   // A migration marker prevents deleted seed projects reappearing on restart.
   db.exec(`CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, data_json TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, position INTEGER NOT NULL, updated_at TEXT NOT NULL) STRICT;
     CREATE TABLE IF NOT EXISTS project_migrations (name TEXT PRIMARY KEY) STRICT;`);
@@ -16,7 +16,7 @@ export function createProjects({ db, send, now = Date.now }) {
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
   }
-  const entry = row => ({ id: row.id, ...JSON.parse(row.data_json), version: row.version, position: row.position, updatedAt: row.updated_at });
+  const entry = row => ({ id: row.id, uniqueViews: analytics?.count('project', row.id) ?? 0, ...JSON.parse(row.data_json), version: row.version, position: row.position, updatedAt: row.updated_at });
   const list = () => db.prepare('SELECT * FROM projects ORDER BY position,id').all().map(entry);
   function validate(value) {
     if (!value || typeof value !== 'object') throw new HttpError(400, 'Enter project details.');
@@ -38,9 +38,18 @@ export function createProjects({ db, send, now = Date.now }) {
   }
   return {
     async publicRoute(req, res, url) {
+      const visit = /^\/api\/public\/projects\/([a-zA-Z0-9-]+)\/visit$/.exec(url.pathname);
+      if (visit) {
+        if (!['GET','HEAD'].includes(req.method)) throw new HttpError(405, 'Method not allowed.');
+        const row=db.prepare('SELECT * FROM projects WHERE id=?').get(visit[1]);
+        const project=row ? entry(row) : null;
+        if (!project || project.state !== 'published') throw new HttpError(404, 'Project not found.');
+        analytics?.record(req,res,'project',project.id);
+        res.writeHead(302, { Location: project.url });res.end();return true;
+      }
       if (url.pathname !== '/api/public/projects') return false;
       if (!['GET', 'HEAD'].includes(req.method)) throw new HttpError(405, 'Method not allowed.');
-      const projects = list().filter(project => project.state !== 'draft').map(project => ({ ...project, url: project.state === 'published' ? project.url : '' }));
+      const projects = list().filter(project => project.state !== 'draft').map(project => ({id:project.id,title:project.title,caption:project.caption,description:project.description,state:project.state,thumbnail:project.thumbnail,url:project.state === 'published' ? project.url : ''}));
       send(res, 200, { projects }); return true;
     },
     async adminRoute(req, res, url) {
@@ -62,7 +71,7 @@ export function createProjects({ db, send, now = Date.now }) {
       if (!['PUT', 'DELETE'].includes(req.method)) throw new HttpError(405, 'Method not allowed.');
       const body = await readJson(req);
       if (body.version !== row.version) throw new HttpError(409, 'This project changed in another window. Reopen it before saving.');
-      if (req.method === 'DELETE') { db.prepare('DELETE FROM projects WHERE id=?').run(row.id); send(res, 200, { ok: true }); return true; }
+      if (req.method === 'DELETE') { analytics?.remove('project', row.id); db.prepare('DELETE FROM projects WHERE id=?').run(row.id); send(res, 200, { ok: true }); return true; }
       const data = validate(body.project);
       db.prepare('UPDATE projects SET data_json=?,version=version+1,updated_at=? WHERE id=?').run(JSON.stringify(data), new Date(now()).toISOString(), row.id);
       send(res, 200, { project: entry(db.prepare('SELECT * FROM projects WHERE id=?').get(row.id)) }); return true;

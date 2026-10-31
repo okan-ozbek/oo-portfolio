@@ -27,7 +27,7 @@ export function initProjects({ api, toast }) {
       if (project.state === 'published' && project.url) { const link = node('a', 'project-destination', `(${project.url})`); link.href = project.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; titleLine.append(link); }
       const state = node('span', `blog-status ${project.state}`, { draft: 'Draft', teaser: 'Coming soon', published: 'Published' }[project.state]);
       const edit = node('button', 'action-button');edit.append(icon('edit'));edit.title='Edit project'; edit.type = 'button'; edit.setAttribute('aria-label', `Edit ${project.title}`); edit.addEventListener('click', () => open(project));
-      const identity=node('td','project-identity'),status=node('td','project-status-cell'),actions=node('td','project-actions-cell');const inner=node('div','project-identity-inner');inner.append(artwork,copy);identity.append(inner);status.append(state);actions.append(edit);row.append(identity,status,actions);$('project-rows').append(row);
+      const identity=node('td','project-identity'),status=node('td','project-status-cell'),actions=node('td','project-actions-cell');const inner=node('div','project-identity-inner');inner.append(artwork,copy);identity.append(inner);status.append(state);actions.append(edit);const views=node('td','unique-views',new Intl.NumberFormat().format(project.uniqueViews??0));views.setAttribute('aria-label',`${project.uniqueViews??0} unique device views`);row.append(identity,status,views,actions);$('project-rows').append(row);
     }
     enhanceArtwork($('project-rows'));
   }

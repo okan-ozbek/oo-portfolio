@@ -52,3 +52,7 @@
 #blog-panel-artwork .blog-art-preview{margin:0 0 16px}
 #blog-panel-artwork .blog-preset{background:var(--panel);border-color:var(--line)}
 #blog-panel-artwork .blog-preset[aria-pressed=true]{border-color:var(--red)}
+
+@media(max-width:700px){.blog-table td.unique-views{grid-column:2;grid-row:auto}.blog-table td.unique-views::before{content:"Views · ";color:var(--muted)}.blog-table td:last-child{grid-column:1;grid-row:4}}
+
+.blog-table th:nth-child(3){width:120px}.blog-table th:nth-child(4){width:160px}.blog-table th:nth-child(5){width:150px}

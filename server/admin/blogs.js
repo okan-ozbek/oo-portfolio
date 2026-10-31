@@ -57,7 +57,7 @@ export function initBlogs({api,toast}) {
       const identity=node('td');identity.append(node('span','blog-table-title',post.title||'Untitled draft'),node('span','blog-table-summary',post.summary||'A thought waiting to take shape.'));
       const state=node('td');state.append(node('span',`blog-status ${post.status}`,post.status==='published'?'Published':'Draft'));if(post.hasUnpublishedChanges)state.append(node('span','blog-status-note','Unpublished changes'));
       const byline=node('td','blog-table-author');byline.append(rowAuthor());const date=node('td','blog-table-date',formatDate(post.updatedAt));
-      const actions=node('td');const edit=button('',()=>void openPost(post.id),'action-button');edit.append(icon('edit'));edit.setAttribute('aria-label',`Edit ${post.title}`);edit.title='Edit post';actions.append(edit);row.append(cover,identity,state,byline,date,actions);$('blog-rows').append(row);
+      const actions=node('td');const edit=button('',()=>void openPost(post.id),'action-button');edit.append(icon('edit'));edit.setAttribute('aria-label',`Edit ${post.title}`);edit.title='Edit post';actions.append(edit);const views=node('td','unique-views',new Intl.NumberFormat().format(post.uniqueViews??0));views.setAttribute('aria-label',`${post.uniqueViews??0} unique device views`);row.append(cover,identity,state,byline,date,views,actions);$('blog-rows').append(row);
     }
     enhanceArtwork($('blog-rows'));
   }
