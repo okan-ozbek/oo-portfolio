@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -13,6 +14,11 @@ import {technicalPresets,projectPresets} from '../lib/art-catalog.mjs';
 const origin='https://pixelware.test',password='Blog integration test password!';
 const passwordHash=await hashPassword(password);
 const image=await sharp({create:{width:40,height:30,channels:3,background:'#ff3939'}}).png().toBuffer();
+const articleMetadata = html => {
+  const matches=[...html.matchAll(/<script type="application\/ld\+json">([^]*?)<\/script>/g)];
+  assert.equal(matches.length,1,'Published articles have exactly one JSON-LD block');
+  return {data:JSON.parse(matches[0][1]),raw:matches[0][1]};
+};
 async function fixture(t,databasePath=':memory:'){
   let time=Date.parse('2026-10-31T10:00:00Z');
   const server=createAdminServer({origin,passwordHash,databasePath,now:()=>time});
@@ -159,6 +165,36 @@ test('LinkedIn OAuth state is bound to its browser and session without weakening
   const callback=`/api/public/blogs/linkedin/callback?state=${target.searchParams.get('state')}&error=access_denied`;
   assert.equal((await app.request(callback,{anonymous:true})).status,403);
   const cancelled=await app.request(callback,{anonymous:true,headers:{Cookie:proof}});assert.equal(cancelled.status,303);assert.match(cancelled.headers.get('location'),/cancelled/);assert.equal((await app.request(callback,{headers:{Cookie:proof}})).status,403);
+});
+
+test('BlogPosting metadata matches the live article, safely serializes text, and retains publication dates',async t=>{
+  const app=await fixture(t);await app.login();
+  const title='Cache <&> "hit" </script><script>alert(1)</script>\u2028 safe';
+  let post=await app.create(title);
+  const preview=await (await app.request(`/admin/blog-preview/${post.id}`)).text();
+  assert.doesNotMatch(preview,/application\/ld\+json/);
+  post=await app.action(post,'publish');
+  const response=await app.request(`/blog/${post.slug}`,{anonymous:true});assert.equal(response.status,200);assert.equal(response.headers.get('x-robots-tag'),null);
+  const {data,raw}=articleMetadata(await response.text());
+  const canonical=`${origin}/blog/${post.slug}`;
+  assert.equal(data['@context'],'https://schema.org');assert.equal(data['@type'],'BlogPosting');
+  assert.equal(data.headline,title);assert.equal(data.description,post.summary);assert.equal(data.url,canonical);assert.equal(data.mainEntityOfPage['@id'],canonical);
+  assert.equal(data.author['@type'],'Person');assert.equal(data.author.name,'Okan Can Özbek');assert.equal(data.author.url,origin+'/#about');
+  assert.deepEqual(data.image,[`${origin}/blog/share/${post.slug}.jpg`]);
+  assert.equal(data.datePublished,post.publishedAt);assert.equal(data.dateModified,post.publishedAt);
+  assert.doesNotMatch(raw,/[<>&\u2028\u2029]/);assert.match(raw,/\\u003c/);
+  const hash=createHash('sha256').update(raw).digest('base64');assert.ok(response.headers.get('content-security-policy').includes(`'sha256-${hash}'`));
+  assert.doesNotMatch(response.headers.get('content-security-policy').split(';').find(value=>value.includes('script-src')),/unsafe-inline/);
+  const artwork=await app.request(`/blog/share/${post.slug}.jpg`,{anonymous:true});assert.equal(artwork.status,200);assert.equal(artwork.headers.get('content-type'),'image/jpeg');assert.equal(artwork.headers.get('x-robots-tag'),null);
+  app.advance(60000);post=await app.save(post,{title:'Private draft changes',summary:'Private draft summary'});
+  assert.deepEqual(articleMetadata(await (await app.request(`/blog/${post.slug}`,{anonymous:true})).text()).data,data);
+  assert.doesNotMatch(await (await app.request(`/admin/blog-preview/${post.id}`)).text(),/application\/ld\+json/);
+  post=await app.action(post,'publish');
+  const updated=articleMetadata(await (await app.request(`/blog/${post.slug}`,{anonymous:true})).text()).data;
+  assert.equal(updated.headline,'Private draft changes');assert.equal(updated.datePublished,data.datePublished);assert.ok(updated.dateModified>data.dateModified);
+  const profile=await app.admin('/author',{method:'PUT',body:{name:'Okan Can Özbek',linkedinUrl:'https://www.linkedin.com/in/oo-dev/',avatarId:null}});assert.equal(profile.status,200);
+  assert.equal(articleMetadata(await (await app.request(`/blog/${post.slug}`,{anonymous:true})).text()).data.author.url,'https://www.linkedin.com/in/oo-dev/');
+  assert.doesNotMatch(await (await app.request('/blog',{anonymous:true})).text(),/application\/ld\+json/);
 });
 
 test('live sitemap index follows published content and ignores draft edits and analytics',async t=>{

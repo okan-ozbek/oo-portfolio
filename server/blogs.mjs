@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import { HttpError, readJson } from './http.mjs';
 import { artwork, artUrl, presets } from './blog-art.mjs';
 import { renderMarkdown, referencedImages, escapeHtml } from './blog-markdown.mjs';
-import { articlePage, indexPage, feedRow, blogCsp } from './blog-pages.mjs';
+import { articlePage, indexPage, feedRow, blogCsp, blogPageCsp } from './blog-pages.mjs';
 import { createLinkedIn } from './blog-linkedin.mjs';
 
 const UUID=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
@@ -158,7 +158,7 @@ export function createBlogs({db,origin,now=Date.now,send,isAuthenticated,analyti
     const path=url.pathname;
     if(!path.startsWith('/blog')&&!path.startsWith('/api/public/blogs')&&!path.startsWith('/admin/blog-preview/'))return false;
     if(!['GET','HEAD'].includes(req.method))throw new HttpError(405,'Method not allowed.');
-    const bytes=(body,type,privatePage=false)=>{res.setHeader('Content-Security-Policy',blogCsp);if(!privatePage)res.removeHeader('X-Robots-Tag');res.writeHead(200,{'Content-Type':type,'Content-Length':Buffer.byteLength(body)});res.end(req.method==='HEAD'?undefined:body);return true;};
+    const bytes=(body,type,privatePage=false)=>{res.setHeader('Content-Security-Policy',type.startsWith('text/html')?blogPageCsp(body):blogCsp);if(!privatePage)res.removeHeader('X-Robots-Tag');res.writeHead(200,{'Content-Type':type,'Content-Length':Buffer.byteLength(body)});res.end(req.method==='HEAD'?undefined:body);return true;};
     const asset=/^\/blog\/assets\/([\w.-]+)$/.exec(path);
     if(asset){
       if(asset[1]==='theme.css')return bytes(readFileSync(new URL('./blog/theme.css',import.meta.url)),'text/css; charset=utf-8');
