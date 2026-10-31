@@ -5,7 +5,7 @@ const cleanup=new MutationObserver(()=>{for(const [host,controller]of controller
 cleanup.observe(document.documentElement,{childList:true,subtree:true});
 export function enhanceArtwork(root:ParentNode=document){
   const hosts=[...(root instanceof HTMLElement&&root.matches('[data-art-preset]')?[root]:[]),...root.querySelectorAll<HTMLElement>('[data-art-preset]')];
-  for(const host of hosts)if(!controllers.has(host))controllers.set(host,mountTechnicalArt(host,host.dataset.artPreset!,host.dataset.artSeed??''));
+  for(const host of hosts)if(!controllers.has(host)){if(!host.querySelector('canvas')){const canvas=document.createElement('canvas');canvas.setAttribute('aria-hidden','true');host.append(canvas);}controllers.set(host,mountTechnicalArt(host,host.dataset.artPreset!,host.dataset.artSeed??''));}
 }
 export function artworkNode(spec:{preset:string;assetId?:string|null;position?:string},seed:string,wide=false,className=''){
   const host=document.createElement('span');host.className=`blog-art ${className}`;

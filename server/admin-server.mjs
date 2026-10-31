@@ -1,3 +1,4 @@
+import { createHome } from './home.mjs';
 import { createSeo } from './seo.mjs';
 import { activityWindow } from './activity-window.mjs';
 import { createServer } from "node:http";
@@ -115,8 +116,9 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
   const resumes = createResumes({onPublicChange:()=>{seo.touch('resume');seo.touch('home');}, db, origin, now, send, visitor, compile: compileResume });
   const books = createBooks({ db, now, send });
   const analytics = createViewAnalytics({ db, now, secureCookies });
-  const projects = createProjects({ db, now, send, analytics, onPublicChange:()=>seo.touch('home') });
+  const projects = createProjects({ db, now, send, analytics, origin, acceptOrigin:value=>allowedOrigins.has(value), onPublicChange:()=>seo.touch('home') });
   const blogs = createBlogs({ db, origin, now, send, isAuthenticated: session, analytics, onPublicChange:()=>{seo.touch('blogs');seo.touch('home');} });
+  const home = createHome({origin,projects,blogs,resumes,development:localNoLogin});
   function validateLink(body) {
     const { slug, label = `/r/${slug}`, destination, source = "", enabled = true } = body;
     if (typeof label !== "string" || !label.trim() || label.length > 100) throw new HttpError(400, "Enter a label of 1–100 characters.");
@@ -167,6 +169,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
         res.writeHead(200, { "Content-Type": type });
         return res.end(req.method === "HEAD" ? undefined : body);
       }
+      if (await home(req,res,requestUrl)) return;
       if (seo.publicRoute(req,res,requestUrl)) return;
       if (await resumes.publicRoute(req, res, requestUrl)) return;
       if (await projects.publicRoute(req, res, requestUrl)) return;

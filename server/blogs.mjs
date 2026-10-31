@@ -35,18 +35,19 @@ export function createBlogs({db,origin,now=Date.now,send,isAuthenticated,analyti
   const timestamp=()=>new Date(now()).toISOString();
   const author=()=>JSON.parse(db.prepare('SELECT profile_json FROM blog_author WHERE id=1').get().profile_json);
   const rowFor=id=>{const row=db.prepare('SELECT * FROM blog_posts WHERE id=?').get(id);if(!row)throw new HttpError(404,'Post not found.');return row;};
+  const artCache=new Map();
   const profilePublic=()=>{const {name,linkedinUrl,avatarId}=author();return {name,linkedinUrl,avatarId};};
   const entry=row=>({id:row.id,uniqueViews:analytics?.count('blog',row.id)??0,...JSON.parse(row.draft_json),version:row.version,createdAt:row.created_at,updatedAt:row.updated_at,publishedAt:row.published_at,status:row.published_json?'published':'draft',hasUnpublishedChanges:Boolean(row.published_json&&row.draft_json!==row.published_json),publicUrl:row.published_json?`/blog/${row.published_slug}`:null});
   const summary=row=>{const post=JSON.parse(row.published_json);return {id:row.id,title:post.title,slug:row.published_slug,summary:post.summary,tags:post.tags,thumbnailUrl:artUrl(post.thumbnail,row.id),thumbnailPosition:post.thumbnail.position,thumbnailPreset:post.thumbnail.assetId?null:post.thumbnail.preset,publishedAt:row.published_at,updatedAt:row.live_updated_at,author:profilePublic()};};
   function transaction(action) {db.exec('BEGIN IMMEDIATE');try{const result=action();db.exec('COMMIT');return result;}catch(error){db.exec('ROLLBACK');throw error;}}
-  function listPublic(cursor=null,limit=5) {
+  function listPublic(cursor=null,limit=5,offset=0) {
     let values=[],where='published_json IS NOT NULL';
     if(cursor){
       let parsed;try{if(cursor.length>300)throw new Error();parsed=JSON.parse(Buffer.from(cursor,'base64url').toString());}catch{throw new HttpError(400,'Invalid page cursor.');}
       if(!Array.isArray(parsed)||parsed.length!==2||typeof parsed[0]!=='string'||!/^\d{4}-\d\d-\d\dT/.test(parsed[0])||!UUID.test(parsed[1]))throw new HttpError(400,'Invalid page cursor.');
       where+=' AND (published_at < ? OR (published_at = ? AND id < ?))';values=[parsed[0],parsed[0],parsed[1]];
     }
-    const rows=db.prepare(`SELECT * FROM blog_posts WHERE ${where} ORDER BY published_at DESC,id DESC LIMIT ?`).all(...values,limit+1);
+    const rows=db.prepare(`SELECT * FROM blog_posts WHERE ${where} ORDER BY published_at DESC,id DESC LIMIT ? OFFSET ?`).all(...values,limit+1,offset);
     const hasMore=rows.length>limit,selected=rows.slice(0,limit),last=selected.at(-1);
     return {posts:selected.map(summary),nextCursor:hasMore?Buffer.from(JSON.stringify([last.published_at,last.id])).toString('base64url'):null};
   }
@@ -168,7 +169,11 @@ export function createBlogs({db,origin,now=Date.now,send,isAuthenticated,analyti
       throw new HttpError(404,'Asset not found.');
     }
     const art=/^\/blog\/art\/([a-z-]+)\.svg$/.exec(path);
-    if(art&&presets.includes(art[1]))return bytes(artwork(art[1],(url.searchParams.get('seed')??'').slice(0,100),url.searchParams.get('wide')==='1'),'image/svg+xml');
+    if(art&&presets.includes(art[1])){
+      const seed=(url.searchParams.get('seed')??'').slice(0,100),wide=url.searchParams.get('wide')==='1',key=JSON.stringify([art[1],seed,wide]);
+      if(!artCache.has(key)){if(artCache.size>=256)artCache.delete(artCache.keys().next().value);artCache.set(key,artwork(art[1],seed,wide));}
+      res.setHeader('Cache-Control','public, max-age=3600');return bytes(artCache.get(key),'image/svg+xml');
+    }
     const media=/^\/blog\/media\/([a-f0-9-]{36})$/.exec(path);
     if(media){
       const item=db.prepare('SELECT * FROM blog_media WHERE id=?').get(media[1]);if(!item)throw new HttpError(404,'Image not found.');
@@ -192,7 +197,12 @@ export function createBlogs({db,origin,now=Date.now,send,isAuthenticated,analyti
       return bytes(await sharp(source).resize(1200,630,{fit:'cover',position}).flatten({background:'#111113'}).jpeg({quality:85}).toBuffer(),'image/jpeg');
     }
     if(path==='/api/public/blogs'){const page=listPublic(url.searchParams.get('cursor'));res.removeHeader('X-Robots-Tag');send(res,200,{...page,html:page.posts.map(feedRow).join('')});return true;}
-    if(path==='/blog'||path==='/blog/'){const page=listPublic();return bytes(indexPage(page.posts,page.nextCursor,origin),'text/html; charset=utf-8');}
+    if(path==='/blog'||path==='/blog/'){
+      const raw=url.searchParams.get('page')??'1';if(!/^[1-9][0-9]{0,5}$/.test(raw))throw new HttpError(400,'Choose a valid page number.');
+      const number=Number(raw),total=Number(db.prepare('SELECT COUNT(*) AS total FROM blog_posts WHERE published_json IS NOT NULL').get().total),pages=Math.max(1,Math.ceil(total/5));
+      if(number>pages)throw new HttpError(404,'Page not found.');
+      const page=listPublic(null,5,(number-1)*5);return bytes(indexPage(page.posts,page.nextCursor,origin,{page:number,totalPages:pages}),'text/html; charset=utf-8');
+    }
     if(path==='/blog/sitemap.xml'){
       const posts=db.prepare('SELECT published_slug,live_updated_at FROM blog_posts WHERE published_json IS NOT NULL ORDER BY published_at DESC,id DESC').all();
       return bytes(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${escapeHtml(origin)}/blog</loc></url>${posts.map(row=>`<url><loc>${escapeHtml(origin)}/blog/${row.published_slug}</loc><lastmod>${row.live_updated_at}</lastmod></url>`).join('')}</urlset>`,'application/xml; charset=utf-8');
@@ -203,5 +213,5 @@ export function createBlogs({db,origin,now=Date.now,send,isAuthenticated,analyti
     if(slug){const row=db.prepare('SELECT * FROM blog_posts WHERE published_slug=? AND published_json IS NOT NULL').get(slug[1]);if(!row)throw new HttpError(404,'Article not found.');const post={...JSON.parse(row.published_json),id:row.id};analytics?.record(req,res,'blog',row.id);return bytes(articlePage(post,profilePublic(),suggestions(post),origin,{publishedAt:row.published_at,updatedAt:row.live_updated_at,changelog:db.prepare("SELECT note,created_at FROM blog_revisions WHERE post_id=? AND kind='published' ORDER BY rowid DESC").all(row.id).map(rev=>({note:rev.note,createdAt:rev.created_at}))}),'text/html; charset=utf-8');}
     throw new HttpError(404,'Not found.');
   }
-  return {adminRoute,publicRoute};
+  return {adminRoute,publicRoute,listPublic};
 }

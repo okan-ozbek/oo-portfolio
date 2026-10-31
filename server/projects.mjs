@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { HttpError, readJson } from './http.mjs';
 import { presets } from '../lib/art-catalog.mjs';
 
-export function createProjects({ db, send, analytics, onPublicChange=()=>{}, now = Date.now }) {
+export function createProjects({ db, send, analytics, origin, acceptOrigin=value=>value===origin, onPublicChange=()=>{}, now = Date.now }) {
   // A migration marker prevents deleted seed projects reappearing on restart.
   db.exec(`CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, data_json TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, position INTEGER NOT NULL, updated_at TEXT NOT NULL) STRICT;
     CREATE TABLE IF NOT EXISTS project_migrations (name TEXT PRIMARY KEY) STRICT;`);
@@ -37,7 +37,16 @@ export function createProjects({ db, send, analytics, onPublicChange=()=>{}, now
     return { ...result, state: value.state, thumbnail: value.thumbnail };
   }
   return {
+    visible:()=>list().filter(project=>project.state!=='draft'),
     async publicRoute(req, res, url) {
+      const impression=/^\/api\/public\/projects\/([a-zA-Z0-9-]+)\/view$/.exec(url.pathname);
+      if(impression){
+        if(req.method!=='POST')throw new HttpError(405,'Method not allowed.');
+        if(!acceptOrigin(req.headers.origin))throw new HttpError(403,'Invalid origin.');
+        const row=db.prepare('SELECT * FROM projects WHERE id=?').get(impression[1]);
+        if(!row||entry(row).state!=='published')throw new HttpError(404,'Project not found.');
+        analytics?.record({method:'GET',headers:req.headers},res,'project',row.id);res.writeHead(204);res.end();return true;
+      }
       const visit = /^\/api\/public\/projects\/([a-zA-Z0-9-]+)\/visit$/.exec(url.pathname);
       if (visit) {
         if (!['GET','HEAD'].includes(req.method)) throw new HttpError(405, 'Method not allowed.');

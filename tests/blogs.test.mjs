@@ -136,7 +136,7 @@ test('ten technical scenes and all six project visuals preserve published thumbn
     const art=await app.request(`/blog/art/${preset.id}.svg?seed=${post.id}`,{anonymous:true});assert.equal(art.status,200);assert.equal(art.headers.get('content-type'),'image/svg+xml');assert.match(await art.text(),/<svg/);
     const preview=await (await app.request(`/admin/blog-preview/${post.id}`)).text();assert.doesNotMatch(preview,/blog-hero-banner/);assert.ok(preview.indexOf('blog-site-header')<preview.indexOf('blog-article-layout'),'Navigation must precede the article');
   }
-  post=await app.action(post,'publish');const page=await (await app.request('/api/public/blogs',{anonymous:true})).json();assert.equal(page.posts[0].thumbnailPreset,'project-latency');assert.match(page.html,/data-art-preset="project-latency"/);
+  post=await app.action(post,'publish');const page=await (await app.request('/api/public/blogs',{anonymous:true})).json();assert.equal(page.posts[0].thumbnailPreset,'project-latency');assert.match(page.html,/\/blog\/art\/project-latency\.svg/);assert.doesNotMatch(page.html,/<canvas/);assert.match(page.html,/data-art-preset="project-latency"/);
   for(const path of ['/blog',`/blog/${post.slug}`]){
     const html=await (await app.request(path,{anonymous:true})).text();
     assert.match(html,/class="site-wordmark"[^>]*aria-label="Pixelware, home"/);
@@ -165,6 +165,29 @@ test('LinkedIn OAuth state is bound to its browser and session without weakening
   const callback=`/api/public/blogs/linkedin/callback?state=${target.searchParams.get('state')}&error=access_denied`;
   assert.equal((await app.request(callback,{anonymous:true})).status,403);
   const cancelled=await app.request(callback,{anonymous:true,headers:{Cookie:proof}});assert.equal(cancelled.status,303);assert.match(cancelled.headers.get('location'),/cancelled/);assert.equal((await app.request(callback,{headers:{Cookie:proof}})).status,403);
+});
+
+test('homepage serves current projects and articles in HTML and blog pagination works without JavaScript',async t=>{
+  const app=await fixture(t);await app.login();
+  const markup=html=>html.replace(/<script\b[^]*?<\/script>/g,'');
+  let html=await (await app.request('/',{anonymous:true})).text();assert.match(markup(html),/Visual Hardware IDE/);assert.equal((html.match(/<canvas\b/g)??[]).length,1);
+  const projects=(await (await app.request('/api/admin/projects')).json()).projects;
+  let project=projects[0];
+  const response=await app.request('/api/admin/projects/'+project.id,{method:'PUT',body:{version:project.version,project:{...project,title:'Server rendered project',url:'/blog/project-writeup'}}});assert.equal(response.status,200);project=(await response.json()).project;
+  let article=await app.create('Server rendered article');article=await app.action(article,'publish');
+  const draft=await app.create('PRIVATE DRAFT NOT FOR HOMEPAGE');
+  html=await (await app.request('/',{anonymous:true})).text();
+  assert.match(markup(html),/Server rendered project/);assert.match(markup(html),/href="\/blog\/project-writeup"/);assert.match(markup(html),new RegExp(`href="/blog/${article.slug}"`));assert.doesNotMatch(html,/PRIVATE DRAFT NOT FOR HOMEPAGE/);
+  assert.match(html,/id="home-data"/);assert.match(html,/home-client\.js/);
+  await app.request('/api/admin/projects/'+project.id,{method:'PUT',body:{version:project.version,project:{...project,state:'draft'}}});
+  html=await (await app.request('/',{anonymous:true})).text();assert.doesNotMatch(html,/Server rendered project/);
+  for(let i=0;i<6;i++){app.advance(1000);const post=await app.create('Pagination entry '+i);await app.action(post,'publish');}
+  const first=await (await app.request('/blog',{anonymous:true})).text(),second=await (await app.request('/blog?page=2',{anonymous:true})).text();
+  assert.match(first,/rel="next"[^>]*href="\/blog\?page=2"/);assert.match(second,/rel="prev" href="\/blog"/);assert.match(second,/<link rel="canonical" href="https:\/\/pixelware.test\/blog\?page=2"/);
+  const links=page=>[...page.matchAll(/class="blog-feed-image" href="([^"]+)"/g)].map(match=>match[1]);
+  assert.match(await (await app.request('/sitemaps/pages.xml',{anonymous:true})).text(),/\/blog\?page=2/);
+  assert.equal(links(first).length,5);assert.equal(links(second).length,2);assert.ok(links(first).every(link=>!links(second).includes(link)));assert.doesNotMatch(first,/<canvas/);
+  assert.equal((await app.request('/blog?page=0',{anonymous:true})).status,400);assert.equal((await app.request('/blog?page=3',{anonymous:true})).status,404);assert.doesNotMatch(first+second,new RegExp(draft.slug));
 });
 
 test('BlogPosting metadata matches the live article, safely serializes text, and retains publication dates',async t=>{

@@ -14,24 +14,25 @@ function subscribeMotion(callback: () => void) {
 }
 const getReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-type ProjectCard = {id:string;name:string;category:string;description:string;href?:string;visual?:typeof initialProjects[number]['visual'];code:string;thumbnail:string};
+export type ProjectCard = {id:string;name:string;category:string;description:string;href?:string;visual?:typeof initialProjects[number]['visual'];code:string;thumbnail:string};
 const fallbackProjects:ProjectCard[] = initialProjects.map(project=>({...project,thumbnail:'project-'+project.visual}));
-export function Showcase() {
-  const [projects,setProjects]=useState<ProjectCard[]>(fallbackProjects);
+export type HomeData={projects:ProjectCard[];blogPage:import('./blog-feed').BlogPage;resumeAvailable:boolean};
+export function Showcase({initialData}:{initialData?:HomeData}={}) {
+  const [projects,setProjects]=useState<ProjectCard[]>(initialData?.projects??fallbackProjects);
   useEffect(()=>{
     const controller=new AbortController();
     fetch('/api/public/projects',{signal:controller.signal,cache:'no-store'}).then(response=>{if(!response.ok)throw new Error();return response.json();}).then(data=>{
       if(controller.signal.aborted)return;
       setProjects(data.projects.map((project:{id:string;title:string;caption:string;description:string;url:string;state:string;thumbnail:string})=>{
         const original=initialProjects.find(item=>'project-'+item.visual===project.thumbnail);
-        return {id:project.id,name:project.title,category:project.caption,description:project.description,href:project.state==='published'?`/api/public/projects/${project.id}/visit`:undefined,visual:original?.visual,code:original?.code??'PXW / PROJECT',thumbnail:project.thumbnail};
+        return {id:project.id,name:project.title,category:project.caption,description:project.description,href:project.state==='published'?project.url:undefined,visual:original?.visual,code:original?.code??'PXW / PROJECT',thumbnail:project.thumbnail};
       }));
     }).catch(()=>{/* Preserve the static showcase if the service is unavailable. */});
     return()=>controller.abort();
-  },[]);
+  },[initialData]);
   const reducedMotion = useSyncExternalStore(subscribeMotion, getReducedMotion, () => false);
   const [motionOverride, setMotionOverride] = useState<boolean | null>(null);
-  const [resumeAvailable, setResumeAvailable] = useState(false);
+  const [resumeAvailable, setResumeAvailable] = useState(initialData?.resumeAvailable??false);
   useEffect(() => {
     const controller = new AbortController();
     fetch('/api/public/resume', { signal: controller.signal, cache: 'no-store' })
@@ -39,7 +40,7 @@ export function Showcase() {
       .then(data => { if (!controller.signal.aborted) setResumeAvailable(data?.available === true); })
       .catch(() => { /* The portfolio remains usable when no resume is published. */ });
     return () => controller.abort();
-  }, []);
+  }, [initialData]);
   const playing = motionOverride ?? !reducedMotion;
   const projectCount = String(projects.length).padStart(2, "0");
 
@@ -79,19 +80,15 @@ export function Showcase() {
           </div>
           <div className="project-grid">
             {projects.map(project => (
-              <article className={`project-card project-card--${project.visual}`} key={project.id} aria-labelledby={`project-${project.id}`}>
+              <article className={`project-card project-card--${project.visual??'static'}`} key={project.id} aria-labelledby={`project-${project.id}`}>
                 <div className="project-visual" aria-hidden="true">
-                  <div className="project-visual-top mono"><span>{project.code}</span><span className="visual-index">{project.id}</span></div>
-                  {project.visual ? <DataVisual kind={project.visual} playing={playing} /> : <BlogArtwork preset={project.thumbnail} seed={project.id} src={`/blog/art/${project.thumbnail}.svg?seed=${encodeURIComponent(project.id)}`} playing={playing}/>}
-                  {project.visual === "network" && <div className="network-readout mono"><span>NODE / 008</span><span>CONNECTED</span></div>}
-                  {project.visual === "latency" && <div className="metrics-legend mono"><span><i />P50</span><span><i />P99</span><span>SIMULATED · ms</span></div>}
-                  <div className="visual-bottom-line" />
+                  <BlogArtwork preset={project.thumbnail} seed={project.id} src={`/blog/art/${project.thumbnail}.svg?seed=${encodeURIComponent(project.id)}`} playing={playing}/>
                 </div>
                 <div className="project-info">
                   <div className="project-category mono">{project.category}</div>
                   <div className="project-title-row">
                     <h3 id={`project-${project.id}`}>
-                      {project.href ? <a className="project-link" href={project.href} target="_blank" rel="noopener noreferrer" aria-label={`View ${project.name} (opens in a new tab)`}>{project.name}</a> : project.name}
+                      {project.href ? <a className="project-link" href={project.href} onClick={()=>{navigator.sendBeacon?.(`/api/public/projects/${project.id}/view`);}} onAuxClick={event=>{if(event.button===1)navigator.sendBeacon?.(`/api/public/projects/${project.id}/view`);}} target="_blank" rel="noopener noreferrer" aria-label={`View ${project.name} (opens in a new tab)`}>{project.name}</a> : project.name}
                     </h3>
                     <span className="project-status">{project.href ? <>View project <ArrowUpRight size={11} aria-hidden="true" /></> : "Coming soon"}</span>
                   </div>
@@ -108,7 +105,7 @@ export function Showcase() {
           <div className="about-copy">{about.map(paragraph => <p key={paragraph}>{paragraph}</p>)}</div>
         </section>
 
-        <BlogFeed playing={playing} />
+        <BlogFeed initialPage={initialData?.blogPage} playing={playing} />
 
         <section className="contact-strip" id="contact" aria-labelledby="contact-title">
           <div><span className="eyebrow">AN OPEN CHANNEL</span><h2 id="contact-title">Have something in mind?</h2></div>

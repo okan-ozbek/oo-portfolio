@@ -37,6 +37,9 @@ test('device views deduplicate forever per item, ignore previews and prefetches,
   for(const kind of ['blog','project']){const response=await admin('view-activity?kind='+kind+'&range=30d');assert.equal(response.status,200);const chart=await response.json();assert.equal(chart.range,'30d');assert.ok(chart.chartStartDay<chart.chartEndDay);if(kind==='blog')assert.equal(chart.series[0].daily.reduce((sum,day)=>sum+day.views,0),1);}
   const opened=await request(project,{headers:{Cookie:device}});assert.equal(opened.status,302);assert.equal(opened.headers.get('location'),'https://systems.pixelware.nl/');
   await request(project,{headers:{Cookie:device}});
+  assert.equal((await request('/api/public/projects/01/view',{method:'POST',headers:{Origin:origin,Cookie:device}})).status,204);
+  assert.equal((await request('/api/public/projects/01/view',{method:'POST',headers:{Origin:'https://evil.test',Cookie:device}})).status,403);
+  assert.equal((await request('/api/public/projects/02/view',{method:'POST',headers:{Origin:origin,Cookie:device}})).status,404);
   time+=365*86400000;await login();await request(article,{headers:{Cookie:device}});await request(project,{headers:{Cookie:device}});
   let data=await counts();assert.equal(data.posts[0].uniqueViews,1);assert.equal(data.projects[0].uniqueViews,1);
   await request(article);await request(project);data=await counts();assert.equal(data.posts[0].uniqueViews,2);assert.equal(data.projects[0].uniqueViews,2);

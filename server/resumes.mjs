@@ -237,5 +237,5 @@ export function createResumes({ db, origin, now, send, visitor, onPublicChange=(
     }
     throw new HttpError(405, 'Method not allowed.');
   }
-  return { publicRoute, adminRoute, prune };
+  return { publicRoute, adminRoute, prune, websiteAvailable:()=>Boolean(defaultId()) };
 }

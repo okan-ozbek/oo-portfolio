@@ -20,7 +20,8 @@ export function createSeo({db,origin,now=Date.now}) {
       else if (url.pathname==='/sitemap.xml') body=sitemapIndex(origin);
       else if (url.pathname==='/sitemaps/pages.xml') {
         const blogModified=db.prepare('SELECT MAX(live_updated_at) AS value FROM blog_posts WHERE published_json IS NOT NULL').get().value;
-        body=sitemapUrls([{loc:origin+'/',lastmod:stamp('home')},{loc:origin+'/blog',lastmod:newest(stamp('blogs'),blogModified)}]);
+        const count=Number(db.prepare('SELECT COUNT(*) AS total FROM blog_posts WHERE published_json IS NOT NULL').get().total);
+        body=sitemapUrls([{loc:origin+'/',lastmod:stamp('home')},...Array.from({length:Math.max(1,Math.ceil(count/5))},(_,index)=>({loc:origin+'/blog'+(index?'?page='+(index+1):''),lastmod:newest(stamp('blogs'),blogModified)}))]);
       } else if (url.pathname==='/sitemaps/resumes.xml') {
         const resume=db.prepare('SELECT compiled_at FROM resumes WHERE id=(SELECT default_resume_id FROM resume_settings WHERE id=1)').get();
         body=sitemapUrls(resume?[{loc:origin+'/resume.pdf',lastmod:newest(resume.compiled_at,stamp('resume'))}]:[]);
