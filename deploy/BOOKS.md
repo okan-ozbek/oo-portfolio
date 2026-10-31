@@ -5,8 +5,10 @@ admin service, not the public static website. PDFs, covers, and downloads all
 require the existing admin session. Nothing is copied into `public/` or Git.
 
 Each list row contains the first-page thumbnail, book name, actual PDF page
-count, tags, and Read / Download / Delete actions. Click the name or the `+`
-beside its tags to rename the book or edit its tags. Type a tag and press Enter,
+count, tags, and Download / Delete actions. Click the cover or title to open
+the PDF preview. Click elsewhere on a row, or the `+` beside its tags, to
+rename the book or edit its tags. A focused row also opens with Enter or Space.
+Type a tag and press Enter,
 choose an existing suggestion, or remove a chip with `×`. Changes save
 automatically; no Save button is needed. Book names save when you leave the
 name field. The editor shows saving/saved status and offers a retry if a save

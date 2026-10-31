@@ -19,6 +19,24 @@ let activityRange = "30d";
 const rangeLabels = { "7d": "Last 7 days", "30d": "Last 30 days", quarter: "Last quarter", year: "Last year" };
 const rangeOptions = [...$("activity-range-menu").querySelectorAll("[role=option]")];
 
+for (const dialog of document.querySelectorAll('dialog')) {
+  let startedOnBackdrop = false;
+  const onBackdrop = event => {
+    const bounds = dialog.getBoundingClientRect();
+    return event.target === dialog && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom);
+  };
+  dialog.addEventListener('pointerdown', event => { startedOnBackdrop = event.button === 0 && onBackdrop(event); });
+  dialog.addEventListener('pointercancel', () => { startedOnBackdrop = false; });
+  dialog.addEventListener('click', event => {
+    const dismiss = startedOnBackdrop && onBackdrop(event);
+    startedOnBackdrop = false;
+    // Match Escape so existing upload/build/delete guards still apply. Requiring
+    // both ends outside also keeps a drag from an input from closing the editor.
+    if (dismiss && dialog.dispatchEvent(new Event('cancel', { cancelable: true }))) dialog.close();
+  });
+  dialog.addEventListener('close', () => { startedOnBackdrop = false; });
+}
+
 function setActivityRange(value) {
   activityRange = value;
   $("activity-range-label").textContent = rangeLabels[value];

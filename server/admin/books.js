@@ -128,22 +128,28 @@ export function initBooks({ api, toast }) {
     $('book-table-wrap').hidden = visible.length === 0;
     const rows = $('book-rows'); rows.replaceChildren();
     for (const book of visible) {
-      const row = el('tr', 'book-entry'); row.setAttribute('aria-label', book.name);
+      const row = el('tr', 'book-entry'); row.setAttribute('aria-label', `${book.name}, edit details`); row.tabIndex = 0;
+      row.addEventListener('click', event => {
+        if (!event.target.closest('a, button, input')) openEdit(book);
+      });
+      row.addEventListener('keydown', event => {
+        if (event.target === row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); openEdit(book); }
+      });
       const base = `/api/admin/books/${book.id}`;
       const cover = el('a', 'book-cover'); cover.href = `${base}/pdf`; cover.target = '_blank'; cover.rel = 'noopener'; cover.setAttribute('aria-label', `Read ${book.name}`);
       const image = el('img'); image.src = `${base}/thumbnail`; image.alt = `First page of ${book.name}`; image.loading = 'lazy'; image.width = 48; image.height = 66; cover.append(image);
       const title = el('div', 'book-title');
-      title.append(button(book.name, () => openEdit(book), 'book-name'), el('span', 'book-file-meta', `PDF · ${(book.size / 1024 / 1024).toFixed(1)} MB`));
+      const preview = el('a', 'book-name', book.name); preview.href = `${base}/pdf`; preview.target = '_blank'; preview.rel = 'noopener';
+      title.append(preview, el('span', 'book-file-meta', `PDF · ${(book.size / 1024 / 1024).toFixed(1)} MB`));
       const pages = el('span', 'book-pages', format.format(book.pages)); pages.setAttribute('aria-label', `${book.pages} pages`);
       const tags = el('div', 'book-row-tags');
       for (const tag of book.tags) tags.append(button(tag, () => { activeTag = tag; render(); }, tagClass(tag)));
       const edit = button(book.tags.length ? '＋' : '＋ Add tags', () => openEdit(book), 'book-add-tags'); edit.setAttribute('aria-label', `Edit tags for ${book.name}`); tags.append(edit);
       const actions = el('div', 'book-actions');
-      const read = el('a', 'action-button'); read.href = `${base}/pdf`; read.target = '_blank'; read.rel = 'noopener'; read.title = 'Read book'; read.setAttribute('aria-label', `Read ${book.name}`); read.append(icon('eye'));
       const download = el('a', 'action-button'); download.href = `${base}/pdf?download=1`; download.download = `${book.name}.pdf`; download.title = 'Download PDF'; download.setAttribute('aria-label', `Download ${book.name}`); download.append(icon('download'));
       const remove = button('', () => { deleting = book; $('book-delete-name').textContent = book.name; $('book-delete-error').textContent = ''; $('book-delete-dialog').showModal(); }, 'action-button destructive');
       remove.title = 'Delete book'; remove.setAttribute('aria-label', `Delete ${book.name}`); remove.append(icon('trash'));
-      actions.append(read, download, remove);
+      actions.append(download, remove);
       for (const [className, node] of [['book-cover-cell', cover], ['book-title-cell', title], ['book-pages-cell', pages], ['book-tags-cell', tags], ['book-actions-cell', actions]]) {
         const cell = el('td', className); cell.append(node); row.append(cell);
       }
