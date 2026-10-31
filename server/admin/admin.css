@@ -66,6 +66,7 @@ button.primary,button.secondary{display:inline-flex;align-items:center;justify-c
 .nav-item:hover{background:#242428}
 .nav-item small{margin-left:auto;font:8px var(--mono);color:#b4868b;border:1px solid #5b343b;padding:3px;border-radius:3px}
 .sidebar-note{margin-top:auto;padding:20px 10px 0;color:#686875;font-size:9px}
+
 .app-shell>.workspace{min-width:0;flex:1}
 .app-shell .topbar-brand{visibility:hidden}
 .resume-page-heading h1{font-size:26px}
@@ -377,3 +378,5 @@ main{padding:28px 18px}
 #delete-link-url{white-space:pre-line;max-height:200px;overflow:auto}
 @media(max-width:980px){.table-wrap .links-table tr{grid-template-columns:24px minmax(0,1fr) minmax(0,1fr)}.table-wrap .links-table .link-select-cell{grid-column:1;grid-row:1;align-self:center}.table-wrap .links-table .link-identity-cell{grid-column:2/-1;grid-row:1}.table-wrap .links-table .link-identity-cell::before{display:none}.links-table td:nth-child(3),.links-table td:nth-child(5){grid-column:2}.links-table td:nth-child(4),.links-table td:nth-child(6){grid-column:3}.table-wrap .links-table td:last-child{grid-column:3;justify-self:end}.link-table-tools{justify-content:flex-start}.link-bulk-actions{width:100%;order:2}}
 
+
+@media(max-width:500px){.sidebar nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.sidebar .nav-item{min-width:0;font-size:11px;gap:8px;padding:11px 8px}}

@@ -24,6 +24,7 @@ const assets = new Map([
   ["/admin/assets/resumes.js", ["resumes.js", "text/javascript; charset=utf-8"]],
   ["/admin/assets/books.js", ["books.js", "text/javascript; charset=utf-8"]],
   ["/admin/assets/blogs.js", ["blogs.js", "text/javascript; charset=utf-8"]],
+  ["/admin/assets/blog-format.js", ["blog-format.js", "text/javascript; charset=utf-8"]],
   ["/admin/assets/blogs.css", ["blogs.css", "text/css; charset=utf-8"]],
   ["/admin/assets/icons.js", ["icons.js", "text/javascript; charset=utf-8"]],
 ]);

@@ -7,6 +7,7 @@ import sharp from 'sharp';
 import { createAdminServer } from '../server/admin-server.mjs';
 import { hashPassword } from '../server/security.mjs';
 import { renderMarkdown } from '../server/blog-markdown.mjs';
+import { formatMarkdown } from '../server/admin/blog-format.js';
 import {technicalPresets,projectPresets} from '../lib/art-catalog.mjs';
 
 const origin='https://pixelware.test',password='Blog integration test password!';
@@ -104,6 +105,21 @@ test('Markdown escapes executable content and supports code, Mermaid, safe embed
   assert.doesNotMatch(html,/<script|href="javascript:|src="https:\/\/evil/);assert.match(html,/&lt;script&gt;/);assert.match(html,/hljs-type/);assert.match(html,/data-copy-code/);assert.match(html,/data-mermaid/);assert.match(html,/www.youtube-nocookie.com\/embed\/dQw4w9WgXcQ/);assert.match(html,/sandbox=/);assert.match(html,/Unsupported embed/);
 });
 
+test('editor formatting renders headings, subtext, inline styles, and task lists safely',()=>{
+  const formatted=(source,kind,start=0,end=source.length)=>{const edit=formatMarkdown(source,start,end,kind);return source.slice(0,edit.start)+edit.text+source.slice(edit.end);};
+  for(const [kind,tag]of [['h1','h1'],['heading','h2'],['h3','h3'],['strike','s'],['underline','u'],['bold','strong'],['italic','em']])assert.match(renderMarkdown(formatted('Selected text',kind)),new RegExp(`<${tag}>Selected text</${tag}>`));
+  assert.match(renderMarkdown(formatted('A quiet aside','subtext')),/<p class="blog-subtext">A quiet aside<\/p>/);
+  assert.equal(formatted('one\ntwo','bullet'),'- one\n- two');
+  assert.equal(formatted('one\ntwo','ordered'),'1. one\n2. two');
+  assert.equal(formatted('- one\n- two','bullet'),'one\ntwo');
+  assert.equal(formatted('before\nalpha\nbeta\nafter','ordered',8,17),'before\n1. alpha\n2. beta\nafter');
+  assert.equal(formatted('\nparagraph','h1',0,0),'# Your text\nparagraph');
+  const todo=renderMarkdown(formatted('Open\nDone','todo').replace('[ ] Done','[x] Done'));
+  assert.equal((todo.match(/class="blog-task-item"/g)??[]).length,2);assert.match(todo,/type="checkbox" disabled checked/);
+  const malicious=renderMarkdown('++<img src=x onerror=alert(1)>++\n\n-# <script>bad()</script>\n\n- [x] <img src=x onerror=alert(1)>\n\n```text\n++literal++\n- [x] literal\n```');
+  assert.doesNotMatch(malicious,/<script|<img/);assert.match(malicious,/&lt;img/);assert.match(malicious,/\+\+literal\+\+/);
+});
+
 test('ten technical scenes and all six project visuals render in banners and preserve published selections',async t=>{
   const app=await fixture(t);await app.login();let post=await app.create('Visual collection');
   assert.equal(technicalPresets.length,10);assert.equal(projectPresets.length,6);
@@ -112,7 +128,7 @@ test('ten technical scenes and all six project visuals render in banners and pre
     const spec={preset:preset.id,assetId:null,position:'center'};
     post=await app.save(post,{thumbnail:spec,banner:spec});
     const art=await app.request(`/blog/art/${preset.id}.svg?seed=${post.id}`,{anonymous:true});assert.equal(art.status,200);assert.equal(art.headers.get('content-type'),'image/svg+xml');assert.match(await art.text(),/<svg/);
-    const preview=await (await app.request(`/admin/blog-preview/${post.id}`)).text();assert.match(preview,new RegExp(`data-art-preset="${preset.id}"`));assert.ok(preview.indexOf('blog-hero-banner')<preview.indexOf('blog-site-header'),'The banner must precede the navigation and article');
+    const preview=await (await app.request(`/admin/blog-preview/${post.id}`)).text();assert.match(preview,new RegExp(`data-art-preset="${preset.id}"`));assert.ok(preview.indexOf('blog-site-header')<preview.indexOf('blog-hero-banner')&&preview.indexOf('blog-hero-banner')<preview.indexOf('blog-article-layout'),'The navigation must precede the full-width banner and article');
   }
   post=await app.action(post,'publish');const page=await (await app.request('/api/public/blogs',{anonymous:true})).json();assert.equal(page.posts[0].thumbnailPreset,'project-latency');assert.match(page.html,/data-art-preset="project-latency"/);
   assert.equal((await app.request('/blog/art/unknown.svg')).status,404);

@@ -1,4 +1,5 @@
 import { icon } from './icons.js';
+import { formatMarkdown } from './blog-format.js';
 import { enhanceContent } from '/blog/assets/reader.js';
 import {technicalPresets,projectPresets,artworkNode,replaceArtwork,enhanceArtwork} from '/blog/assets/visuals.js';
 const $=id=>document.getElementById(id);
@@ -13,6 +14,34 @@ const imagePattern=/!\[((?:\\.|[^\]])*)\]\((\/blog\/media\/[a-f0-9-]{36})(?: "((
 
 export function initBlogs({api,toast}) {
   let posts=[],author=null,editor=null,epoch=0,loading=0,uploadTarget=null,imageEditing=null,publishAction='publish',authorBusy=false;
+  const tagTone=tag=>`book-tag tone-${[...tag.toLowerCase()].reduce((sum,char)=>sum+char.codePointAt(0),0)%6}`;
+  const tagChips=node('div','book-tag-chips'),tagInput=node('input'),tagSuggestions=node('div','book-tag-suggestions');
+  tagInput.id='blog-tag-input';tagInput.maxLength=60;tagInput.placeholder='Add a tag…';tagInput.autocomplete='off';
+  $('blog-tags').append(tagChips,tagInput,tagSuggestions);
+  const knownTags=()=>[...new Set(posts.flatMap(post=>post.tags))].sort((a,b)=>a.localeCompare(b));
+  function addTag(value,focus=true){
+    if(!editor)return;const tag=value.trim();if(!tag)return;
+    if(!editor.post.tags.some(item=>item.toLowerCase()===tag.toLowerCase())){
+      if(editor.post.tags.length>=20){tagInput.setCustomValidity('Use up to 20 tags.');tagInput.reportValidity();return;}
+      editor.post.tags.push(knownTags().find(item=>item.toLowerCase()===tag.toLowerCase())??tag);changed(false);
+    }
+    tagInput.value='';tagInput.setCustomValidity('');renderTags();if(focus)tagInput.focus();
+  }
+  function renderTagSuggestions(){
+    tagSuggestions.replaceChildren();if(!editor)return;
+    const query=tagInput.value.trim().toLowerCase(),selected=editor.post.tags.map(tag=>tag.toLowerCase());
+    for(const tag of knownTags().filter(tag=>!selected.includes(tag.toLowerCase())&&tag.toLowerCase().includes(query)))tagSuggestions.append(button(tag,()=>addTag(tag),`${tagTone(tag)} tag-suggestion`));
+    if(query&&!knownTags().some(tag=>tag.toLowerCase()===query)&&!selected.includes(query))tagSuggestions.append(button(`＋ Create “${tagInput.value.trim()}”`,()=>addTag(tagInput.value),'book-create-tag'));
+  }
+  function renderTags(){
+    tagChips.replaceChildren();if(!editor)return;
+    for(const tag of editor.post.tags){const chip=node('span',tagTone(tag)),remove=button('×',()=>{editor.post.tags=editor.post.tags.filter(item=>item!==tag);tagInput.setCustomValidity('');changed(false);renderTags();},'book-tag-remove');remove.setAttribute('aria-label',`Remove tag ${tag}`);chip.append(node('span','',tag),remove);tagChips.append(chip);}
+    renderTagSuggestions();
+  }
+  tagInput.addEventListener('input',()=>{tagInput.setCustomValidity('');renderTagSuggestions();});
+  tagInput.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();addTag(tagInput.value);}else if(event.key==='Backspace'&&!tagInput.value&&editor?.post.tags.length){editor.post.tags.pop();changed(false);renderTags();}});
+  // Preserve a typed tag when leaving the field without requiring a Save button.
+  tagInput.addEventListener('blur',event=>{if(!$('blog-tags').contains(event.relatedTarget)&&tagInput.value.trim())addTag(tagInput.value,false);});
   function setError(error){$('blog-edit-error').textContent=error?.message??error??'';}
   function status(text,error=false){$('blog-save-status').textContent=text;$('blog-save-status').classList.toggle('is-error',error);$('blog-save-retry').hidden=!error;}
   function dirty(){return editor&&editor.sequence!==editor.savedSequence;}
@@ -61,15 +90,15 @@ export function initBlogs({api,toast}) {
     try{const {post}=await api(`blogs/${id}`);if(currentEpoch!==epoch)return;
       if(editor){clearTimeout(editor.timer);clearTimeout(editor.previewTimer);}
       editor={post,sequence:0,savedSequence:0,saving:null,sessionId:crypto.randomUUID(),previewSequence:0,assets:[],autoSlug:!post.publishedAt&&post.slug.startsWith('post-')};
-      $('blog-library').hidden=true;$('blog-editor').hidden=false;$('blog-title').value=post.title;$('blog-summary').value=post.summary;$('blog-slug').value=post.slug;$('blog-tags').value=post.tags.join(', ');$('blog-markdown').value=post.markdown;setError('');status('All changes saved');renderState();selectTab('content');renderArtwork();void loadMedia();void preview();$('blog-title').focus();if(post.title==='Untitled draft')$('blog-title').select();
+      $('blog-library').hidden=true;$('blog-editor').hidden=false;$('blog-title').value=post.title;$('blog-summary').value=post.summary;$('blog-slug').value=post.slug;tagInput.value='';tagInput.setCustomValidity('');renderTags();$('blog-markdown').value=post.markdown;setError('');status('All changes saved');renderState();selectTab('content');renderArtwork();void loadMedia();void preview();$('blog-title').focus();if(post.title==='Untitled draft')$('blog-title').select();
     }catch(error){$('blog-library-error').textContent=error.message;}
   }
   async function create(){if(!(await leave()))return;$('blog-new').disabled=true;try{const {post}=await api('blogs',{method:'POST',body:{}});updatePost(post);await openPost(post.id);}catch(error){$('blog-library-error').textContent=error.message;}finally{$('blog-new').disabled=false;}}
   function selectTab(name){for(const tab of document.querySelectorAll('[data-blog-tab]')){const active=tab.dataset.blogTab===name;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;$(`blog-panel-${tab.dataset.blogTab}`).hidden=!active;}if(name==='history')void loadHistory();if(name==='suggestions')renderSuggestions();if(name==='artwork')renderArtwork();}
   for(const tab of document.querySelectorAll('[data-blog-tab]')){tab.addEventListener('click',()=>selectTab(tab.dataset.blogTab));tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const tabs=[...document.querySelectorAll('[data-blog-tab]')],index=tabs.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;selectTab(tabs[next].dataset.blogTab);tabs[next].focus();});}
   for(const mode of document.querySelectorAll('[data-blog-mode]'))mode.addEventListener('click',()=>{$('blog-composer-panes').dataset.mode=mode.dataset.blogMode;for(const button of document.querySelectorAll('[data-blog-mode]'))button.setAttribute('aria-pressed',String(button===mode));});
-  for(const key of ['title','summary','slug','tags','markdown'])$(`blog-${key}`).addEventListener('input',()=>{
-    if(!editor)return;const value=$(`blog-${key}`).value;editor.post[key]=key==='tags'?value.split(',').map(tag=>tag.trim()).filter(Boolean):value;
+  for(const key of ['title','summary','slug','markdown'])$(`blog-${key}`).addEventListener('input',()=>{
+    if(!editor)return;const value=$(`blog-${key}`).value;editor.post[key]=value;
     if(key==='slug')editor.autoSlug=false;
     if(key==='title'&&editor.autoSlug){editor.post.slug=slugify(value)||editor.post.slug;$('blog-slug').value=editor.post.slug;}
     changed(key==='markdown'||key==='title'||key==='summary');
@@ -79,7 +108,12 @@ export function initBlogs({api,toast}) {
   $('blog-preview-link').addEventListener('click',event=>{if(dirty()||editor?.saving){event.preventDefault();void save().then(ok=>{if(ok)toast('Draft saved. Click Preview article to open it.');});}});
   const insert=(text)=>{const input=$('blog-markdown');input.setRangeText(text,input.selectionStart,input.selectionEnd,'end');editor.post.markdown=input.value;changed();input.focus();};
   const snippets={heading:'\n## A closer look\n\n',code:'\n```cpp\n// Your code here\n```\n',mermaid:'\n```mermaid\nflowchart LR\n  A[Request] --> B[Service]\n  B --> C[(Database)]\n```\n',embed:'\n```embed\nhttps://codepen.io/your-name/pen/your-demo\n```\n',link:'[Link text](https://example.com)'};
-  for(const tool of document.querySelectorAll('[data-blog-insert]'))tool.addEventListener('click',()=>insert(snippets[tool.dataset.blogInsert]));
+  for(const tool of document.querySelectorAll('[data-blog-icon]'))tool.append(icon(tool.dataset.blogIcon));
+  for(const tool of document.querySelectorAll('[data-blog-insert]'))tool.addEventListener('click',()=>{
+    if(!editor)return;const input=$('blog-markdown'),edit=formatMarkdown(input.value,input.selectionStart,input.selectionEnd,tool.dataset.blogInsert);
+    if(edit){input.focus();input.setRangeText(edit.text,edit.start,edit.end,'end');input.setSelectionRange(edit.selectionStart,edit.selectionEnd);editor.post.markdown=input.value;changed();}
+    else insert(snippets[tool.dataset.blogInsert]);
+  });
   $('blog-markdown').addEventListener('keydown',event=>{if(event.key==='Tab'){event.preventDefault();insert('  ');}if((event.ctrlKey||event.metaKey)&&event.key==='s'){event.preventDefault();void save();}});
   function renderArtwork(){if(!editor)return;const post=editor.post;
     for(const [container,collection]of [[$('blog-presets'),technicalPresets],[$('blog-project-presets'),projectPresets]]){
@@ -90,7 +124,7 @@ export function initBlogs({api,toast}) {
         choice.append(artworkNode({preset:preset.id},post.id),caption);container.append(choice);
       }enhanceArtwork(container);
     }
-    for(const key of ['thumbnail','banner']){replaceArtwork($(`blog-${key}-preview`),post[key],post.id,key==='banner');$(`blog-${key}-position`).value=post[key].position;}
+    for(const key of ['thumbnail','banner']){replaceArtwork($(`blog-${key}-preview`),post[key],post.id,key==='banner');$(`blog-${key}-position`).value=post[key].position;$(`blog-${key}-crop`).hidden=!post[key].assetId;$(`blog-${key}-reset`).hidden=!post[key].assetId;}
   }
   for(const key of ['thumbnail','banner']){$(`blog-${key}-upload`).addEventListener('click',()=>chooseUpload(key));$(`blog-${key}-reset`).addEventListener('click',()=>{editor.post[key].assetId=null;changed(false);renderArtwork();});$(`blog-${key}-position`).addEventListener('change',()=>{editor.post[key].position=$(`blog-${key}-position`).value;changed(false);renderArtwork();});}
   function renderMedia(){if(!editor)return;$('blog-media-library').replaceChildren();for(const asset of editor.assets){const item=button('',()=>openImage({asset}), 'blog-media-item'),image=node('img');image.src=asset.url;image.alt='';item.append(image,node('span','',asset.name));item.title=`Insert ${asset.name}`;$('blog-media-library').append(item);}}

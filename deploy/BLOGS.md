@@ -7,7 +7,9 @@ conflict instead of silently overwriting the newer version.
 
 ## Writing and preview
 
-- Set the title, summary, URL slug, and comma-separated tags.
+- Set the title, summary, and URL slug. Tags work like Books: press Enter to
+  create a chip, select an existing suggestion, or remove a chip with ×.
+  Tag changes save automatically.
 - Switch between **Write**, **Split**, and **Preview**. **Preview article** opens
   a private, full-page preview of the saved draft using the public article layout.
 - Use Markdown headings, lists, quotes, tables, links, and fenced code blocks.
@@ -16,7 +18,11 @@ conflict instead of silently overwriting the newer version.
 - Use a `mermaid` code fence to render diagrams. Invalid diagrams display an error
   beside their source. Mermaid is bundled locally and loads only when needed.
   Raw HTML and arbitrary scripts are not executed as article content.
-- The **Code**, **Diagram**, **Embed**, and **Link** buttons insert examples.
+- The icon toolbar formats the selected text or lines: H1/H2/H3, subtext,
+  bold/italic, strikethrough, underline, bullets, numbered lists, todos, and quotes.
+  Use `-# Small text` for subtext, `++underlined text++` for underline, and
+  `- [ ]` / `- [x]` for tasks. Reader checkboxes display the saved task state.
+  The **Code snippet**, **Mermaid diagram**, **Embed**, and **Link** buttons insert examples.
   Tab inserts two spaces in the Markdown editor; Ctrl/Cmd+S saves immediately.
 
 An example diagram:
@@ -50,12 +56,14 @@ The Markdown sizing extension is:
 
 Images must be uploaded to the current post; arbitrary external image URLs are
 shown as an upload prompt. **Artwork & images** holds the post's media library,
-custom thumbnail/banner uploads, crop positions, and ten animated technical
+one shared panel for thumbnail/banner uploads and image alignment, and ten animated technical
 presets: **Contour atlas, Fluid currents, Gravity playground, Inside the
 processor, Learning graph, Orbital mechanics, Reaction garden, Particle
 accelerator, Light laboratory, and Signal paths**. A second collection reuses
 the six original project animations: network, market, binary, stack, black hole,
 and latency. A preset applies both images; either can be overridden independently.
+Thumbnails use 16:9 throughout the editor and reading lists. Gravity playground
+simulates bouncing balls with gravity, wall impacts, and ball-to-ball collisions.
 
 Animations use the shared project rendering code and animation clock, pause
 offscreen or in hidden tabs, and respect reduced-motion preferences. On the
@@ -142,7 +150,7 @@ application once configured.
 ## Public routes and storage
 
 - `/blog`: public reading list, with five posts per page.
-- `/blog/<slug>`: article HTML with a full-width banner above the navigation,
+- `/blog/<slug>`: article HTML with navigation above a full-width banner,
   canonical URL, and sharing metadata.
 - `/blog/share/<slug>.jpg`: a 1200×630 JPEG preview from the published thumbnail.
 - `/api/public/blogs`: published summaries and cursor pagination.

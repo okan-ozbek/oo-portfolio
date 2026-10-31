@@ -29,6 +29,35 @@ export function embedUrl(value) {
 }
 
 const md = new MarkdownIt({ html: false, linkify: true, typographer: false });
+// An explicit Markdown delimiter keeps underline available without allowing raw HTML.
+md.inline.ruler.before('emphasis','blog_underline',(state,silent)=>{
+  if(!state.src.startsWith('++',state.pos))return false;
+  const end=state.src.indexOf('++',state.pos+2);
+  if(end<=state.pos+2)return false;
+  if(!silent){state.push('blog_underline_open','u',1);const text=state.push('text','',0);text.content=state.src.slice(state.pos+2,end);state.push('blog_underline_close','u',-1);}
+  state.pos=end+2;return true;
+});
+// Subtext is a small paragraph introduced with -#, rather than executable markup.
+md.block.ruler.before('list','blog_subtext',(state,start,end,silent)=>{
+  if(state.sCount[start]-state.blkIndent>=4)return false;
+  const text=state.src.slice(state.bMarks[start]+state.tShift[start],state.eMarks[start]);
+  if(!text.startsWith('-# '))return false;
+  if(silent)return true;
+  const open=state.push('paragraph_open','p',1);open.attrSet('class','blog-subtext');open.map=[start,start+1];
+  const inline=state.push('inline','',0);inline.content=text.slice(3);inline.children=[];inline.map=[start,start+1];state.push('paragraph_close','p',-1);state.line=start+1;return true;
+},{alt:['paragraph','reference','blockquote']});
+md.core.ruler.after('inline','blog_tasks',state=>{
+  for(let i=2;i<state.tokens.length;i++){
+    const inline=state.tokens[i];
+    if(inline.type!=='inline'||state.tokens[i-1].type!=='paragraph_open'||state.tokens[i-2].type!=='list_item_open')continue;
+    const first=inline.children?.[0],match=first?.type==='text'&&/^\[([ xX])\] /.exec(first.content);
+    if(!match)continue;
+    first.content=first.content.slice(match[0].length);
+    const checkbox=new state.Token('html_inline','',0);
+    checkbox.content=`<input class="blog-task-check" type="checkbox" disabled${match[1].toLowerCase()==='x'?' checked':''} aria-label="${escapeHtml(inline.content.slice(4))}">`;
+    inline.children.unshift(checkbox);state.tokens[i-2].attrSet('class','blog-task-item');
+  }
+});
 md.validateLink = value => /^(https?:\/\/|mailto:|#|\/(?!\/))/i.test(value);
 const defaultFence = md.renderer.rules.fence;
 md.renderer.rules.fence = (tokens, index, options, env, self) => {
