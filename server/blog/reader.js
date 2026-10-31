@@ -17,3 +17,22 @@ more?.addEventListener('click',async()=>{
   try{const response=await fetch(`/api/public/blogs?cursor=${encodeURIComponent(more.dataset.cursor)}`);if(!response.ok)throw new Error();const page=await response.json();document.getElementById('blog-feed').insertAdjacentHTML('beforeend',page.html);enhanceArtwork(document.getElementById('blog-feed'));more.dataset.cursor=page.nextCursor??'';more.parentElement.hidden=!page.nextCursor;status.textContent=`${page.posts.length} more posts loaded.`;}
   catch{status.textContent='Could not load more posts. Please try again.';}finally{more.disabled=false;}
 });
+
+const readingProgress=document.querySelector('.blog-reading-progress');
+const article=document.querySelector('.blog-article');
+if(readingProgress&&article){
+  let queued=false;
+  const updateProgress=()=>{
+    queued=false;
+    const rect=article.getBoundingClientRect();
+    const start=Math.max(0,rect.top+window.scrollY);
+    const end=Math.max(start,rect.bottom+window.scrollY-window.innerHeight);
+    const fraction=end===start?(rect.bottom<=window.innerHeight?1:0):(window.scrollY-start)/(end-start);
+    readingProgress.value=Math.round(Math.max(0,Math.min(1,fraction))*100);
+  };
+  const schedule=()=>{if(!queued){queued=true;requestAnimationFrame(updateProgress);}};
+  window.addEventListener('scroll',schedule,{passive:true});
+  window.addEventListener('resize',schedule);
+  new ResizeObserver(schedule).observe(article);
+  updateProgress();
+}
