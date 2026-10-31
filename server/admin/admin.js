@@ -1,6 +1,7 @@
 /* The dashboard receives no password hash or secret configuration. */
 import { initResumes } from './resumes.js';
 import { initBooks } from './books.js';
+import { icon as actionIcon } from './icons.js';
 const $ = id => document.getElementById(id);
 const number = new Intl.NumberFormat();
 let csrf = "";
@@ -9,6 +10,9 @@ let editing = null;
 let deleting = null;
 let deletePending = false;
 const pendingLinks = new Set();
+const selectedLinks = new Set();
+let bulkPending = false;
+let menuTrigger = null;
 let toastAnimation;
 let refreshVersion = 0;
 let activityRange = "30d";
@@ -47,6 +51,8 @@ function showLogin() {
   bookWorkspace.reset();
   selectSection('links');
   closeRangeMenu();
+  closeLinkMenu();
+  selectedLinks.clear();
   $("loading").hidden = true;
   $("dashboard").hidden = true;
   $("login-view").hidden = false;
@@ -100,102 +106,121 @@ function element(tag, className, content) {
   return node;
 }
 
-function actionIcon(name) {
-  const paths = {
-    trash: ["M3 6h14", "M8 3h4l1 3H7l1-3Z", "M5 6l1 11h8l1-11", "M8 9v5", "M12 9v5"],
-    pause: ["M6 4v12", "M14 4v12"],
-    play: ["m6 3 10 7-10 7V3Z"],
-  };
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 20 20");
-  svg.setAttribute("aria-hidden", "true");
-  svg.classList.add("action-icon");
-  for (const d of paths[name]) {
-    const path = document.createElementNS(svg.namespaceURI, "path");
-    path.setAttribute("d", d);
-    svg.append(path);
+function filteredLinks() {
+  const query = $("search").value.toLowerCase();
+  return links.filter(link => [link.label, link.slug, link.destination, link.source].join(" ").toLowerCase().includes(query));
+}
+
+function updateSelection() {
+  const existing = new Set(links.map(link => link.id));
+  for (const id of selectedLinks) if (!existing.has(id)) selectedLinks.delete(id);
+  const visible = filteredLinks();
+  const count = visible.filter(link => selectedLinks.has(link.id)).length;
+  const hidden = selectedLinks.size - count;
+  $("select-all-links").checked = visible.length > 0 && count === visible.length;
+  $("select-all-links").indeterminate = count > 0 && count < visible.length;
+  $("select-all-links").disabled = !visible.length || bulkPending;
+  $("link-bulk-actions").hidden = selectedLinks.size === 0;
+  $("link-selection-count").textContent = hidden ? String(selectedLinks.size) + ' selected · ' + hidden + ' hidden' : String(selectedLinks.size) + ' selected';
+  const selected = links.filter(link => selectedLinks.has(link.id));
+  $("bulk-pause-links").disabled = bulkPending || !selected.some(link => link.enabled);
+  $("bulk-activate-links").disabled = bulkPending || !selected.some(link => !link.enabled);
+  $("bulk-delete-links").disabled = bulkPending;
+  $("clear-link-selection").disabled = bulkPending;
+  for (const checkbox of $("link-rows").querySelectorAll('[data-select-link]')) {
+    checkbox.checked = selectedLinks.has(checkbox.dataset.selectLink);
+    checkbox.disabled = bulkPending;
+    checkbox.closest('tr').classList.toggle('is-selected', checkbox.checked);
   }
-  return svg;
+}
+
+function closeLinkMenu(returnFocus = false) {
+  const trigger = menuTrigger;
+  if ($("link-action-menu").matches(':popover-open')) $("link-action-menu").hidePopover();
+  trigger?.setAttribute('aria-expanded', 'false'); menuTrigger = null;
+  if (returnFocus && trigger?.isConnected) trigger.focus();
+}
+
+function openDeleteLinks(items) {
+  closeLinkMenu();
+  deleting = items.map(link => ({ id: link.id, label: link.label, slug: link.slug }));
+  const plural = items.length > 1;
+  $("delete-title").textContent = plural ? 'Delete ' + items.length + ' links?' : 'Delete this link?';
+  $("delete-link-name").textContent = plural ? items.length + ' selected links' : items[0].label;
+  $("delete-link-url").textContent = items.map(link => '/r/' + link.slug).join('\n');
+  $("delete-warning").textContent = plural ? 'This permanently removes all selected links, their click history, and cooldown records. Their shared URLs will stop working. This cannot be undone.' : 'This permanently removes the link, its click history, and cooldown records. Shared URLs will stop working. This cannot be undone.';
+  $("delete-error").textContent = '';
+  $("delete-dialog").showModal(); $("cancel-delete").focus();
+}
+
+async function setLinksEnabled(items, enabled) {
+  if (!items.length || bulkPending) return;
+  closeLinkMenu(); bulkPending = true;
+  const ids = items.map(link => link.id);
+  ids.forEach(id => pendingLinks.add(id)); renderRows();
+  try {
+    await api('links/bulk', { method: 'POST', body: { ids, action: enabled ? 'activate' : 'pause' } });
+    // Apply the confirmed state even if the subsequent statistics refresh fails.
+    links = links.map(link => ids.includes(link.id) ? { ...link, enabled } : link);
+    renderRows(); await refresh();
+    toast(items.length === 1 ? enabled ? 'Link activated.' : 'Link paused. Its history is preserved.' : items.length + (enabled ? ' links activated.' : ' links paused. Their history is preserved.'));
+  } catch (error) { toast(error.message); }
+  finally { ids.forEach(id => pendingLinks.delete(id)); bulkPending = false; renderRows(); }
+}
+
+function openLinkMenu(link, trigger) {
+  if (menuTrigger === trigger && $("link-action-menu").matches(':popover-open')) return closeLinkMenu(true);
+  closeLinkMenu(); menuTrigger = trigger;
+  const menu = $("link-action-menu"); menu.replaceChildren();
+  const add = (text, glyph, action, destructive = false) => {
+    const item = element('button', destructive ? 'link-menu-item destructive' : 'link-menu-item');
+    item.type = 'button'; item.setAttribute('role', 'menuitem'); item.append(actionIcon(glyph), document.createTextNode(text));
+    item.addEventListener('click', () => { closeLinkMenu(); action(); }); menu.append(item);
+  };
+  add('Edit link', 'edit', () => openEditor(link));
+  add(link.enabled ? 'Pause link' : 'Activate link', link.enabled ? 'pause' : 'play', () => setLinksEnabled([link], !link.enabled));
+  add('Delete link', 'trash', () => openDeleteLinks([link]), true);
+  trigger.setAttribute('aria-expanded', 'true'); menu.showPopover();
+  const anchor = trigger.getBoundingClientRect(), bounds = menu.getBoundingClientRect();
+  menu.style.left = Math.max(12, Math.min(anchor.right - bounds.width, window.innerWidth - bounds.width - 12)) + 'px';
+  menu.style.top = (anchor.bottom + bounds.height + 8 > window.innerHeight ? Math.max(12, anchor.top - bounds.height - 8) : anchor.bottom + 8) + 'px';
+  menu.querySelector('[role=menuitem]').focus();
 }
 
 function renderRows() {
-  const query = $("search").value.toLowerCase();
-  const filtered = links.filter(link => [link.label, link.slug, link.destination, link.source].join(" ").toLowerCase().includes(query));
+  closeLinkMenu();
+  const filtered = filteredLinks();
   $("link-rows").replaceChildren();
   $("empty-state").hidden = links.length > 0;
   $("table-wrap").hidden = filtered.length === 0;
   $("no-results").hidden = links.length === 0 || filtered.length > 0;
   for (const link of filtered) {
-    const row = element("tr");
-    const identity = element("td");
-    identity.dataset.label = "Link / destination";
-    identity.append(element("div", "link-name", link.label), element("span", "short-url", `/r/${link.slug}`));
-    const destination = element("a", "destination", link.destination);
-    destination.href = link.destination;
-    destination.target = "_blank";
-    destination.rel = "noopener noreferrer";
-    destination.title = "Preview destination without counting a click";
-    identity.append(destination);
-    const source = element("td");
-    source.dataset.label = "Source";
-    source.append(element("span", "source-tag", link.source || "—"));
-    const status = element("td");
-    status.dataset.label = "Status";
-    status.append(element("span", `link-status${link.enabled ? "" : " paused"}`, link.enabled ? "Active" : "Paused"));
-    const clicks = element("td", "number click-value", number.format(link.clicks));
-    clicks.dataset.label = "Clicks";
-    const time = link.lastClickedAt ? new Intl.DateTimeFormat(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }).format(new Date(link.lastClickedAt)) : "No clicks yet";
-    const lastClick = element("td", "last-click", time);
-    lastClick.dataset.label = "Last counted";
-    const actions = element("td");
-    const actionWrap = element("div", "row-actions");
-    const copy = element("button", "secondary", "Copy ↗");
-    copy.setAttribute("aria-label", `Copy link for ${link.label}`);
-    copy.addEventListener("click", async () => {
-      try { await navigator.clipboard.writeText(link.url); toast("Link copied. Ready for your resume."); }
-      catch { toast(`Copy this link: ${link.url}`); }
+    const row = element('tr');
+    const selection = element('td', 'link-select-cell');
+    const checkbox = element('input'); checkbox.type = 'checkbox'; checkbox.dataset.selectLink = link.id; checkbox.setAttribute('aria-label', 'Select ' + link.label);
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked && selectedLinks.size >= 100) { checkbox.checked = false; return toast('Select up to 100 links at a time.'); }
+      if (checkbox.checked) selectedLinks.add(link.id); else selectedLinks.delete(link.id);
+      updateSelection();
     });
-    const edit = element("button", "secondary", "Edit");
-    edit.setAttribute("aria-label", `Edit ${link.label}`);
-    edit.addEventListener("click", () => openEditor(link));
-    const toggle = element("button", "secondary toggle-link");
-    toggle.append(actionIcon(link.enabled ? "pause" : "play"), document.createTextNode(link.enabled ? "Pause" : "Activate"));
-    toggle.setAttribute("aria-label", `${link.enabled ? "Deactivate" : "Activate"} ${link.label}`);
-    toggle.title = link.enabled ? "Deactivate link" : "Activate link";
-    toggle.dataset.toggleLink = link.id;
-    toggle.addEventListener("click", async () => {
-      pendingLinks.add(link.id);
-      for (const button of actionWrap.children) button.disabled = true;
-      try {
-        await api(`links/${link.id}`, { method: "PATCH", body: { enabled: !link.enabled } });
-        pendingLinks.delete(link.id);
-        await refresh();
-        toast(link.enabled ? "Link paused. Its history is preserved." : "Link activated.");
-      } catch (error) { toast(error.message); }
-      finally {
-        pendingLinks.delete(link.id);
-        renderRows();
-        if (document.activeElement === document.body) $("link-rows").querySelector(`[data-toggle-link="${link.id}"]`)?.focus({ preventScroll: true });
-      }
-    });
-    const remove = element("button", "secondary delete-link");
-    remove.append(actionIcon("trash"));
-    remove.setAttribute("aria-label", `Delete ${link.label}`);
-    remove.title = "Permanently delete link and tracking history";
-    remove.addEventListener("click", () => {
-      deleting = link;
-      $("delete-link-name").textContent = link.label;
-      $("delete-link-url").textContent = `/r/${link.slug}`;
-      $("delete-error").textContent = "";
-      $("delete-dialog").showModal();
-      $("cancel-delete").focus();
-    });
-    actionWrap.append(copy, toggle, edit, remove);
-    for (const button of actionWrap.children) button.disabled = pendingLinks.has(link.id);
-    actions.append(actionWrap);
-    row.append(identity, source, status, clicks, lastClick, actions);
-    $("link-rows").append(row);
+    selection.append(checkbox);
+    const identity = element('td', 'link-identity-cell'); identity.dataset.label = 'Link / destination';
+    identity.append(element('div', 'link-name', link.label), element('span', 'short-url', '/r/' + link.slug));
+    const destination = element('a', 'destination', link.destination);
+    destination.href = link.destination; destination.target = '_blank'; destination.rel = 'noopener noreferrer'; destination.title = 'Preview destination without counting a click'; identity.append(destination);
+    const source = element('td'); source.dataset.label = 'Source'; source.append(element('span', 'source-tag', link.source || '—'));
+    const status = element('td'); status.dataset.label = 'Status'; status.append(element('span', 'link-status' + (link.enabled ? '' : ' paused'), link.enabled ? 'Active' : 'Paused'));
+    const clicks = element('td', 'number click-value', number.format(link.clicks)); clicks.dataset.label = 'Clicks';
+    const time = link.lastClickedAt ? new Intl.DateTimeFormat(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(link.lastClickedAt)) : 'No clicks yet';
+    const lastClick = element('td', 'last-click', time); lastClick.dataset.label = 'Last counted';
+    const actions = element('td', 'link-action-cell');
+    const trigger = element('button', 'action-button link-menu-trigger'); trigger.type = 'button'; trigger.append(actionIcon('ellipsis'));
+    trigger.setAttribute('aria-label', 'Actions for ' + link.label); trigger.title = 'Link actions'; trigger.setAttribute('aria-haspopup', 'menu'); trigger.setAttribute('aria-expanded', 'false'); trigger.setAttribute('aria-controls', 'link-action-menu'); trigger.disabled = bulkPending || pendingLinks.has(link.id);
+    trigger.addEventListener('click', () => openLinkMenu(link, trigger));
+    trigger.addEventListener('keydown', event => { if (event.key === 'ArrowDown') { event.preventDefault(); openLinkMenu(link, trigger); } });
+    actions.append(trigger); row.append(selection, identity, source, status, clicks, lastClick, actions); $("link-rows").append(row);
   }
+  updateSelection();
 }
 
 function renderChart(series, startDay, endDay) {
@@ -405,36 +430,66 @@ $("delete-dialog").addEventListener("close", () => { deleting = null; });
 $("delete-form").addEventListener("submit", async event => {
   event.preventDefault();
   if (!deleting || deletePending) return;
-  const link = deleting;
+  const targets = deleting;
+  const ids = targets.map(link => link.id);
   deletePending = true;
   let removed = false;
-  pendingLinks.add(link.id);
+  ids.forEach(id => pendingLinks.add(id));
   $("delete-error").textContent = "";
   for (const button of $("delete-form").querySelectorAll("button")) button.disabled = true;
   $("confirm-delete").textContent = "Deleting…";
   try {
-    await api(`links/${link.id}`, { method: "DELETE", body: {} });
+    await api('links/bulk', { method: 'POST', body: { ids, action: 'delete' } });
     removed = true;
-    pendingLinks.delete(link.id);
+    ids.forEach(id => { pendingLinks.delete(id); selectedLinks.delete(id); });
+    links = links.filter(link => !ids.includes(link.id));
+    renderRows();
     $("delete-dialog").close();
     await refresh();
-    toast("Link and tracking history permanently deleted.");
+    toast(targets.length === 1 ? 'Link and tracking history permanently deleted.' : targets.length + ' links and their tracking history permanently deleted.');
     $("new-link").focus({ preventScroll: true });
   } catch (error) {
     if (removed) {
-      links = links.filter(item => item.id !== link.id);
       renderRows();
-      toast("Link deleted. Refresh to update all statistics.");
+      toast('Links deleted. Refresh to update all statistics.');
     } else if ($("delete-dialog").open) $("delete-error").textContent = error.message;
     else toast(error.message);
   } finally {
-    pendingLinks.delete(link.id);
+    ids.forEach(id => pendingLinks.delete(id));
     deletePending = false;
     for (const button of $("delete-form").querySelectorAll("button")) button.disabled = false;
     $("confirm-delete").textContent = "Delete permanently";
   }
 });
 $("search").addEventListener("input", renderRows);
+$("select-all-links").addEventListener('change', event => {
+  const visible = filteredLinks();
+  if (event.target.checked && new Set([...selectedLinks, ...visible.map(link => link.id)]).size > 100) {
+    updateSelection(); return toast('Select up to 100 links at a time.');
+  }
+  for (const link of visible) { if (event.target.checked) selectedLinks.add(link.id); else selectedLinks.delete(link.id); }
+  updateSelection();
+});
+$("clear-link-selection").addEventListener('click', () => { selectedLinks.clear(); updateSelection(); });
+$("bulk-pause-links").addEventListener('click', () => setLinksEnabled(links.filter(link => selectedLinks.has(link.id)), false));
+$("bulk-activate-links").addEventListener('click', () => setLinksEnabled(links.filter(link => selectedLinks.has(link.id)), true));
+$("bulk-delete-links").addEventListener('click', () => openDeleteLinks(links.filter(link => selectedLinks.has(link.id))));
+for (const [id, glyph] of [['bulk-pause-links', 'pause'], ['bulk-activate-links', 'play'], ['bulk-delete-links', 'trash']]) $(id).prepend(actionIcon(glyph));
+$("link-action-menu").addEventListener('toggle', () => {
+  if (!$("link-action-menu").matches(':popover-open')) { menuTrigger?.setAttribute('aria-expanded', 'false'); menuTrigger = null; }
+});
+$("link-action-menu").addEventListener('keydown', event => {
+  if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); return closeLinkMenu(true); }
+  if (event.key === 'Tab') return closeLinkMenu();
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  const items = [...$("link-action-menu").querySelectorAll('[role=menuitem]')];
+  const current = items.indexOf(document.activeElement);
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+  items[next].focus();
+});
+window.addEventListener('resize', () => closeLinkMenu());
+window.addEventListener('scroll', () => closeLinkMenu(), true);
 async function chooseActivityRange(value) {
   closeRangeMenu(true);
   if (value === activityRange) return;
@@ -490,7 +545,7 @@ $("link-form").addEventListener("submit", async event => {
     await api(editing ? `links/${editing.id}` : "links", { method: editing ? "PUT" : "POST", body });
     $("link-dialog").close();
     await refresh();
-    toast(editing ? "Link updated." : "Link created. Copy it and put it to work.");
+    toast(editing ? 'Link updated.' : 'Link created.');
   } catch (error) { $("form-error").textContent = error.message; }
   finally { $("save-link").disabled = false; }
 });
@@ -498,6 +553,7 @@ $("link-form").addEventListener("submit", async event => {
 const resumeWorkspace = initResumes({ api, toast, refreshLinks: refresh });
 const bookWorkspace = initBooks({ api, toast });
 async function selectSection(section) {
+  closeLinkMenu();
   for (const name of ['links', 'resumes', 'books']) {
     $(`${name}-view`).hidden = name !== section;
     if (name === section) $(`nav-${name}`).setAttribute('aria-current', 'page');

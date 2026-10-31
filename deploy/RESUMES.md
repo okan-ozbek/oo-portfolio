@@ -9,6 +9,8 @@ Resume cards show a private first-page PDF thumbnail. Poppler renders it on
 first request; SQLite caches it against the PDF contents and regenerates it
 after a PDF update. Preview requests do not count as downloads. Thumbnails
 require an admin session and are deleted with the associated resume.
+The website's current resume appears first with a verification symbol and a
+subtle green glow around its card.
 
 ## Local use
 

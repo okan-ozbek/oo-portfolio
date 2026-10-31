@@ -1,3 +1,4 @@
+import { icon } from './icons.js';
 const $ = id => document.getElementById(id);
 const el = (tag, className, text) => {
   const node = document.createElement(tag);
@@ -138,9 +139,10 @@ export function initBooks({ api, toast }) {
       for (const tag of book.tags) tags.append(button(tag, () => { activeTag = tag; render(); }, tagClass(tag)));
       const edit = button(book.tags.length ? '＋' : '＋ Add tags', () => openEdit(book), 'book-add-tags'); edit.setAttribute('aria-label', `Edit tags for ${book.name}`); tags.append(edit);
       const actions = el('div', 'book-actions');
-      const read = el('a', 'text-button', 'Read ↗'); read.href = `${base}/pdf`; read.target = '_blank'; read.rel = 'noopener';
-      const download = el('a', 'secondary link-button', 'Download ↓'); download.href = `${base}/pdf?download=1`; download.download = `${book.name}.pdf`;
-      const remove = button('Delete', () => { deleting = book; $('book-delete-name').textContent = book.name; $('book-delete-error').textContent = ''; $('book-delete-dialog').showModal(); }, 'book-delete-button');
+      const read = el('a', 'action-button'); read.href = `${base}/pdf`; read.target = '_blank'; read.rel = 'noopener'; read.title = 'Read book'; read.setAttribute('aria-label', `Read ${book.name}`); read.append(icon('eye'));
+      const download = el('a', 'action-button'); download.href = `${base}/pdf?download=1`; download.download = `${book.name}.pdf`; download.title = 'Download PDF'; download.setAttribute('aria-label', `Download ${book.name}`); download.append(icon('download'));
+      const remove = button('', () => { deleting = book; $('book-delete-name').textContent = book.name; $('book-delete-error').textContent = ''; $('book-delete-dialog').showModal(); }, 'action-button destructive');
+      remove.title = 'Delete book'; remove.setAttribute('aria-label', `Delete ${book.name}`); remove.append(icon('trash'));
       actions.append(read, download, remove);
       for (const [className, node] of [['book-cover-cell', cover], ['book-title-cell', title], ['book-pages-cell', pages], ['book-tags-cell', tags], ['book-actions-cell', actions]]) {
         const cell = el('td', className); cell.append(node); row.append(cell);
