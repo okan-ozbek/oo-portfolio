@@ -7,6 +7,6 @@ export default defineConfig([
   ...nextTs,
   globalIgnores([
     "dist/**", ".next/**", "out/**", ".sites-runtime/**", ".wrangler/**",
-    "outputs/**", "work/**", "generated_images/**", "next-env.d.ts", "server/blog/vendor/**",
+    "outputs/**", "work/**", "generated_images/**", "next-env.d.ts", "server/blog/vendor/**", "server/home/vendor/**",
   ]),
 ]);

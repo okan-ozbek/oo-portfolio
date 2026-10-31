@@ -50,8 +50,8 @@ export function artwork(preset, seed = '', wide = false) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="${(w-dx*length)/2}" y1="${(h-dy*length)/2}" x2="${(w+dx*length)/2}" y2="${(h+dy*length)/2}"><stop stop-color="#202024"/><stop offset="1" stop-color="#161619"/></linearGradient></defs><rect width="1200" height="${h}" fill="url(#g)"/>${shapes}<g fill="#888888" font-family="monospace" font-size="12" letter-spacing="2"><text x="30" y="35">${descriptor.code}</text></g><path d="M1170 25h-25m25 0v25M30 ${h-25}v-15" stroke="#ff3939" fill="none"/></svg>`;
 }
 export function artHtml(spec,seed,{wide=false,className='',priority=false}={}){
-  const animated=!spec?.assetId,preset=presets.includes(spec?.preset)?spec.preset:'terrain';
-  return `<span class="blog-art ${escape(className)}"${animated?` data-art-preset="${preset}" data-art-seed="${escape(seed)}"`:''}><img src="${escape(artUrl(spec,seed,wide))}" style="object-position:${escape(spec?.position??'center')}" alt="" ${priority?'fetchpriority="high"':'loading="lazy"'}>${animated?'<canvas aria-hidden="true"></canvas>':''}</span>`;
+
+  return `<span class="blog-art ${escape(className)}"${!spec?.assetId?` data-art-preset="${presets.includes(spec?.preset)?spec.preset:'terrain'}" data-art-seed="${escape(seed)}"`:''}><img src="${escape(artUrl(spec,seed,wide))}" style="object-position:${escape(spec?.position??'center')}" alt="" ${priority?'fetchpriority="high"':'loading="lazy"'}></span>`;
 }
 export function artUrl(spec, seed, wide = false) {
   if (spec?.assetId) return `/blog/media/${spec.assetId}?size=${wide?'banner':'thumbnail'}`;

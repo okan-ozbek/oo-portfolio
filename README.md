@@ -1,6 +1,6 @@
 # Pixelware — Complexity under control
 
-A static project showcase built with React, TypeScript, Vite/Vinext, and Tailwind CSS. A graphite palette, red accents, and a compact grid put the projects first. The six-card grid starts with the Visual Hardware IDE and includes five clearly labeled placeholders, with animated candlestick, network, and binary visuals; the market data is simulated. The public portfolio remains a static export. A private Node/SQLite service now powers the password-protected link studio at `/admin` and tracked redirects at `/r/<slug>`.
+A static project showcase built with React, TypeScript, Vite/Vinext, and Tailwind CSS. A graphite palette, red accents, and a compact grid put the projects first. The six-card grid starts with the Visual Hardware IDE and includes five clearly labeled placeholders, with animated candlestick, network, and binary visuals; the market data is simulated. The homepage is rendered from live SQLite data by the Node service; Vite still produces a static fallback and the shared stylesheet. A private Node/SQLite service now powers the password-protected link studio at `/admin` and tracked redirects at `/r/<slug>`.
 
 Native Canvas 2D renders the animated visuals without an animation dependency. Motion can be paused globally, respects reduced-motion preferences, and stops when canvases are outside the viewport or the tab is hidden.
 
@@ -32,7 +32,7 @@ Open **Projects** in /admin to create, edit, and delete homepage project cards. 
 
 Each project has a title, caption (the category line), brief description, destination URL, and a thumbnail selected from the same sixteen animated scenes as the blog editor. Existing projects retain their original artwork. Choose **Draft** to keep a card private, **Teaser** to display it as Coming soon without exposing its destination, or **Published** to display a clickable card title. Published projects require an HTTP(S) destination or a local path such as /blog/my-post. **Save project** applies the selected visibility and returns to the overview. Changes to a published project go live when saved; choose Draft to remove it from the homepage while working.
 
-Projects persist in the existing SQLite database. The homepage loads visible projects from /api/public/projects, so edits do not require a static rebuild. The original static six-card showcase remains the fallback if that service is unavailable. The development proxy and NGINX deployment both route the public endpoint to the admin service.
+Projects persist in the existing SQLite database. The backend renders visible projects, the first blog page, and the resume link into the initial homepage HTML, so edits do not require a rebuild. The live homepage requires the Node service; npm start previews only the static fallback. The development proxy and NGINX deployment both route the public endpoint to the admin service.
 
 ## Build and check
 
@@ -47,7 +47,7 @@ npm start
 
 Only `dist/client/` is public website output. `dist/server/` is an intermediate prerender artifact, not a production server to deploy.
 
-Each build generates `dist/client/sitemap.xml` for `https://pixelware.nl/`. Section anchors are not listed separately. The backend maintains `/blog/sitemap.xml` for currently published articles; `public/robots.txt` advertises both sitemaps. When adding static pages, update the canonical URL list in `scripts/generate-sitemap.mjs`. The static sitemap is available in the built preview (`npm start`) and Docker deployment; `npm run dev` does not generate it. No build-time timestamp is used as a misleading content modification date.
+The live /sitemap.xml index links to /sitemaps/pages.xml, /sitemaps/blogs.xml, and /sitemaps/resumes.xml. These are generated from SQLite on request, so published content and the selected website PDF are reflected immediately. Project write-ups use ordinary published blog URLs; project cards do not create separate sitemap entries. Public project edits update the homepage modification date. Draft autosaves and analytics do not change sitemap dates. The older /blog/sitemap.xml remains available for existing crawlers. Both development and NGINX proxy live sitemaps and /robots.txt to the backend. Static previews include fallback sitemaps; live content requires the backend.
 
 ## VPS deployment
 
@@ -88,7 +88,7 @@ See [the deployment guide](deploy/README.md) for DNS, certificate storage, verif
 | `scripts/`, `tests/` | Static export and deployment checks |
 | `deploy/` | NGINX, Caddy, and VPS instructions |
 
-The Google Fonts stylesheet loads Space Grotesk and IBM Plex Mono. The animated visuals are rendered by code rather than image assets. To fill the project grid later, edit `app/project-content.ts` and replace the placeholder status/layout in `app/showcase.tsx` when a real project is ready.
+The Google Fonts stylesheet loads Space Grotesk and IBM Plex Mono. The hero remains animated. Public project and blog thumbnails include static generated SVG images or uploaded images in the initial HTML. JavaScript progressively enhances preset thumbnails into animations; uploaded images remain static. The image stays visible if JavaScript or animation loading fails. Manage live project cards in the Projects admin workspace. app/project-content.ts provides only the build-time fallback.
 
 Vinext requires the React/RSC Vite plugins and `react-server-dom-webpack` indirectly. Keep those dependencies even though page components do not import them. The `next` package supplies metadata/configuration types and TypeScript tooling; no Next.js server runs on the VPS. The static build uses the prerender runner from the pinned Vinext version, so verify the export when upgrading it.
 
@@ -96,8 +96,14 @@ Historical Sites metadata may remain under `.openai/`; it is not loaded by Vite 
 
 ### Blog and project views
 
-The admin Blog and Project tables show unique device views, starting when analytics is installed. Opening a public article counts a blog view. Following a published project title opens a tracked redirect and counts a project view. Teaser cards, listings, private previews, HEAD requests, known bots, and explicit prefetches do not count.
+The admin Blog and Project tables show unique device views, starting when analytics is installed. Opening a public article counts a blog view. Published project links point directly to their destination for crawlers. With JavaScript enabled, a same-origin beacon counts the project open; the older tracked redirect URLs remain available. Without JavaScript, direct project links still work but do not record a project view. Teaser cards, listings, private previews, HEAD requests, known bots, and explicit prefetches do not count.
 
 A first-party HttpOnly cookie identifies an anonymous browser; SQLite stores only its hash per item and its first view date. Repeat visits never increment that item again while the cookie is retained, including across server restarts. No IP addresses, names, or browser fingerprints are collected. Another browser, clearing cookies, private browsing, or cookie expiry can count as another device. Counts cannot identify individual people and earlier traffic cannot be reconstructed.
 
 Both workspaces include daily view graphs above their tables. Each line represents a published item or an item with historical views. The graph counts each device on its first-view date; it is not a cumulative total or a repeat-visit count. The same 7-day, 30-day, rolling-quarter, and rolling-year UTC ranges as Link analytics are available, along with hover details and keyboard navigation.
+
+The selected website resume is indexable at /resume.pdf, with an HTTP canonical header shared by its named URL. Other resume variants and all admin previews retain noindex. Clearing the website selection removes the PDF from the resume sitemap. robots.txt advertises the sitemap index and excludes admin, API, and tracking routes.
+
+Published articles emit server-rendered BlogPosting JSON-LD with their live headline, description, author profile, canonical URL, share image, publication date, and last published modification date. Draft autosaves do not change this metadata, and previews and the blog index do not emit article markup. JSON is escaped for safe embedding and its exact content is authorized by a CSP hash.
+
+The homepage uses a shared React renderer and hydration entry built by scripts/build-home.mjs. Production serves its compiled stylesheet and client bundle from /blog/assets/home.css and /blog/assets/home-client.js. Development watches the renderer and client while Vite handles the stylesheet. The admin image builds and includes these artifacts. Blog listings expose canonical /blog?page=N URLs with ordinary Previous/Next anchors alongside optional Read more enhancement. Public preset SVG fallbacks are generated deterministically, cached in a bounded server cache, and served with browser caching. Thumbnail canvases are created only after JavaScript loads; animation respects reduced motion and pauses offscreen. The homepage motion control applies to both the hero and thumbnails.

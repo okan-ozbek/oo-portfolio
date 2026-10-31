@@ -1,3 +1,4 @@
+import { buildHome } from './build-home.mjs';
 import { fileURLToPath } from "node:url";
 import { validateStaticExport } from "./validate-static-export.mjs";
 import { generateSitemap } from "./generate-sitemap.mjs";
@@ -15,6 +16,7 @@ await builder.buildApp();
 // This internal runner belongs to the exact vinext version pinned in our lockfile.
 const { runPrerender } = await import(new URL("./build/run-prerender.js", import.meta.resolve("vinext")));
 await runPrerender({ root });
+await buildHome({staticCss:true});
 await generateSitemap(new URL("../dist/client/", import.meta.url));
 await validateStaticExport(new URL("../dist/client/", import.meta.url));
 await compressStatic(new URL("../dist/client/", import.meta.url));

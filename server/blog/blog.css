@@ -51,3 +51,5 @@ body.blog-reader main.blog-index{margin-top:0;padding-top:28px}.blog-suggestion{
 
 .blog-index .blog-feed-row:last-child{padding-bottom:12px}
 .blog-index + .contact-strip{margin-top:0}
+
+.blog-pagination{display:flex;align-items:center;justify-content:center;gap:24px;padding:20px 0;font-size:12px;color:var(--site-muted)}.blog-pagination a{color:var(--site-foreground)}
