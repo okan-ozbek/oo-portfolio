@@ -8,6 +8,7 @@ import sharp from 'sharp';
 import { createAdminServer } from '../server/admin-server.mjs';
 import { hashPassword } from '../server/security.mjs';
 import { renderMarkdown } from '../server/blog-markdown.mjs';
+import { indexPage } from '../server/blog-pages.mjs';
 import { formatMarkdown } from '../server/admin/blog-format.js';
 import {technicalPresets,projectPresets} from '../lib/art-catalog.mjs';
 
@@ -182,12 +183,28 @@ test('homepage serves current projects and articles in HTML and blog pagination 
   await app.request('/api/admin/projects/'+project.id,{method:'PUT',body:{version:project.version,project:{...project,state:'draft'}}});
   html=await (await app.request('/',{anonymous:true})).text();assert.doesNotMatch(html,/Server rendered project/);
   for(let i=0;i<6;i++){app.advance(1000);const post=await app.create('Pagination entry '+i);await app.action(post,'publish');}
+  html=markup(await (await app.request('/',{anonymous:true})).text());
+  assert.match(html,/<div class="home-blog-more"><a href="\/blog\?page=2">Read more<\/a><\/div>/);
+  assert.doesNotMatch(html,/Next page|Read more ↓/);
   const first=await (await app.request('/blog',{anonymous:true})).text(),second=await (await app.request('/blog?page=2',{anonymous:true})).text();
+  assert.match(first,/aria-label="Page 1" aria-current="page"/);
+  assert.match(second,/href="\/blog\?page=2" aria-label="Page 2" aria-current="page"/);
+  assert.match(first,/aria-disabled="true">← Previous/);assert.match(second,/aria-disabled="true">Next →/);
   assert.match(first,/rel="next"[^>]*href="\/blog\?page=2"/);assert.match(second,/rel="prev" href="\/blog"/);assert.match(second,/<link rel="canonical" href="https:\/\/pixelware.test\/blog\?page=2"/);
   const links=page=>[...page.matchAll(/class="blog-feed-image" href="([^"]+)"/g)].map(match=>match[1]);
   assert.match(await (await app.request('/sitemaps/pages.xml',{anonymous:true})).text(),/\/blog\?page=2/);
   assert.equal(links(first).length,5);assert.equal(links(second).length,2);assert.ok(links(first).every(link=>!links(second).includes(link)));assert.doesNotMatch(first,/<canvas/);
   assert.equal((await app.request('/blog?page=0',{anonymous:true})).status,400);assert.equal((await app.request('/blog?page=3',{anonymous:true})).status,404);assert.doesNotMatch(first+second,new RegExp(draft.slug));
+});
+
+test('numbered blog pagination stays compact for large archives and omits single-page controls',()=>{
+  const html=indexPage([],null,origin,{page:50,totalPages:100});
+  const nav=html.match(/<nav class="blog-pagination"[^]*?<\/nav>/)[0];
+  assert.equal((nav.match(/aria-label="Page /g)??[]).length,7);
+  for(const page of [1,48,49,50,51,52,100])assert.ok(nav.includes(`aria-label="Page ${page}"`));
+  assert.equal((nav.match(/blog-pagination-gap/g)??[]).length,2);
+  assert.match(nav,/rel="prev" href="\/blog\?page=49"/);assert.match(nav,/rel="next" href="\/blog\?page=51"/);
+  assert.doesNotMatch(indexPage([],null,origin),/class="blog-pagination"/);
 });
 
 test('BlogPosting metadata matches the live article, safely serializes text, and retains publication dates',async t=>{
