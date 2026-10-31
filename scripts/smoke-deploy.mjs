@@ -13,6 +13,7 @@ const project = `pixelware-deploy-test-${randomBytes(6).toString("hex")}`;
 const directory = mkdtempSync(join(tmpdir(), "pixelware-deploy-test-"));
 const root = fileURLToPath(new URL("../", import.meta.url));
 const image = `${project}:test`;
+const prebuiltImage = process.env.PIXELWARE_TEST_ADMIN_IMAGE;
 const secret = join(directory, "password-hash");
 const password = randomBytes(24).toString("base64url");
 writeFileSync(secret, await hashPassword(password), { mode: 0o444 });
@@ -44,7 +45,7 @@ try {
   const service = {
     ...production.services.admin,
     image,
-    build: { context: root, dockerfile: "deploy/Dockerfile.admin" },
+    build: prebuiltImage ? undefined : { context: root, dockerfile: "deploy/Dockerfile.admin" },
     environment: { ...production.services.admin.environment, APP_ORIGIN: "https://pixelware.test" },
     ports: ["127.0.0.1::3031"],
     restart: "no",
@@ -67,8 +68,11 @@ try {
     return file;
   });
   release = releases[0];
+  // Give the prebuilt image a test-owned tag: Compose cleanup must not remove
+  // the shared CI image while the other smoke tests are still using it.
+  if (prebuiltImage) docker('image', 'tag', prebuiltImage, image);
   started = true;
-  compose("up", "-d", "--build", "--force-recreate", "--wait", "--wait-timeout", "90");
+  compose("up", "-d", prebuiltImage ? "--no-build" : "--build", "--force-recreate", "--wait", "--wait-timeout", "90");
   const originalContainer = container();
   const originalVolume = dataVolume(originalContainer);
   let base = baseUrl();
@@ -103,7 +107,7 @@ try {
 
   // Match production's new release directory and forced container replacement.
   release = releases[1];
-  compose("up", "-d", "--build", "--force-recreate", "--wait", "--wait-timeout", "90");
+  compose("up", "-d", prebuiltImage ? "--no-build" : "--build", "--force-recreate", "--wait", "--wait-timeout", "90");
   const replacementContainer = container();
   assert.notEqual(replacementContainer, originalContainer, "The test must replace the container, not just restart it");
   assert.equal(dataVolume(replacementContainer), originalVolume, "Both releases must mount the same database volume");
@@ -124,7 +128,7 @@ try {
   assert.equal(savedResume.clicks, 1, 'Resume ownership of click history must survive replacement');
   assert.equal((await request(base, "/r/deploy-check")).status, 302); // New browser.
   assert.equal((await (await request(base, "/api/admin/links", { headers })).json()).links[0].clicks, 2);
-  console.log("Deployment smoke passed: two rebuilt releases, same volume, links, published PDF, resume mappings, download/click history, sessions, and browser cooldowns.");
+  console.log("Deployment smoke passed: two release directories and replaced containers, same volume, links, published PDF, resume mappings, download/click history, sessions, and browser cooldowns.");
 } catch (error) {
   if (started) {
     try { console.error(compose("logs", "--tail", "30")); } catch { /* Keep the original failure. */ }

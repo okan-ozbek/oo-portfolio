@@ -13,6 +13,7 @@ jobs:
   verify:
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -23,7 +24,11 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Install PDF library tools
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
+        run: |
+          if ! command -v pdfinfo >/dev/null || ! command -v pdftoppm >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends poppler-utils
+          fi
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
@@ -31,12 +36,54 @@ jobs:
         run: |
           bash -n deploy/install-release.sh
           docker compose -f compose.vps.yaml config --quiet
-      - name: Verify database survives rebuilding and replacing containers
-        run: npm run test:deploy
-      - name: Verify LaTeX compilation and PDF tracking
-        run: npm run test:resumes:compiler
-      - name: Verify resume upload and downloads through NGINX
-        run: npm run test:admin:container
+      - name: Set up cached Docker builds
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build admin image once
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: deploy/Dockerfile.admin
+          load: true
+          tags: pixelware-ci-admin:${{ github.sha }}
+          cache-from: type=gha,scope=pixelware-admin
+          cache-to: type=gha,scope=pixelware-admin,mode=max,timeout=2m,ignore-error=true
+      - name: Build compiler image once
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: deploy/Dockerfile.compiler
+          load: true
+          tags: pixelware-ci-compiler:${{ github.sha }}
+          cache-from: type=gha,scope=pixelware-compiler
+          cache-to: type=gha,scope=pixelware-compiler,mode=max,timeout=2m,ignore-error=true
+      - name: Package verified frontend without rebuilding Node dependencies
+        run: docker build -f deploy/Dockerfile.prebuilt -t pixelware-ci-portfolio:${{ github.sha }} .
+      - name: Verify deployment persistence, compiler isolation, and NGINX uploads in parallel
+        env:
+          PIXELWARE_TEST_ADMIN_IMAGE: pixelware-ci-admin:${{ github.sha }}
+          PIXELWARE_TEST_COMPILER_IMAGE: pixelware-ci-compiler:${{ github.sha }}
+          PIXELWARE_TEST_PORTFOLIO_IMAGE: pixelware-ci-portfolio:${{ github.sha }}
+        shell: bash
+        run: |
+          pids=()
+          npm run test:deploy &
+          pids+=("$!")
+          npm run test:resumes:compiler &
+          pids+=("$!")
+          npm run test:admin:container &
+          pids+=("$!")
+          status=0
+          for pid in "${pids[@]}"; do
+            if ! wait "$pid"; then status=1; fi
+          done
+          exit "$status"
+      - name: Save tested frontend for deployment
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: portfolio-static-${{ github.sha }}
+          path: dist/client/
+          if-no-files-found: error
+          retention-days: 1
   deploy:
     if: github.ref == 'refs/heads/master'
     needs: verify
@@ -46,6 +93,11 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+      - name: Restore tested frontend from this workflow run
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: portfolio-static-${{ github.sha }}
+          path: dist/client/
       - name: Transfer source and runtime secret over verified SSH
         shell: bash
         env:
@@ -71,12 +123,16 @@ jobs:
           key="$RUNNER_TEMP/deploy-key"
           hosts="$RUNNER_TEMP/deploy-known-hosts"
           hash="$RUNNER_TEMP/admin-password-hash"
+          source_tar="$RUNNER_TEMP/pixelware-source.tar"
           archive="$RUNNER_TEMP/pixelware-source.tgz"
-          trap 'rm -f "$key" "$hosts" "$hash" "$archive"' EXIT
+          trap 'rm -f "$key" "$hosts" "$hash" "$source_tar" "$archive"' EXIT
           printf '%s\n' "$VPS_SSH_KEY" > "$key"
           printf '%s\n' "$VPS_KNOWN_HOSTS" > "$hosts"
           printf '%s\n' "$ADMIN_PASSWORD_HASH" > "$hash"
-          git archive --format=tar.gz --output="$archive" HEAD
+          test -s dist/client/index.html
+          git archive --format=tar --output="$source_tar" HEAD
+          tar --append --file="$source_tar" dist/client
+          gzip -c "$source_tar" > "$archive"
           ssh_options=(-i "$key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$hosts")
           ssh "${ssh_options[@]}" -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" 'umask 077; mkdir -p "$HOME/pixelware-incoming"'
           scp "${ssh_options[@]}" -P "$VPS_PORT" "$archive" "$VPS_USER@$VPS_HOST:pixelware-incoming/source.tgz"

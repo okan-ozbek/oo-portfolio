@@ -5,6 +5,7 @@ import { createAdminServer } from '../server/admin-server.mjs';
 import { HttpError } from '../server/http.mjs';
 import { hashPassword } from '../server/security.mjs';
 import { validateProject } from '../server/resume-project.mjs';
+import { bookPdf } from './fixtures/book.mjs';
 
 const origin = 'https://pixelware.test';
 const password = 'resume integration test password';
@@ -13,13 +14,13 @@ const key = createHash('sha256').update('https://github.com/example').digest('he
 const scanned = [{ key, destination: 'https://github.com/example', occurrences: 2, pages: [1] }, { key: 'email', destination: 'mailto:alex@example.com', occurrences: 1, pages: [1] }];
 const pdf = Buffer.from('%PDF-1.7\nTest fixture only').toString('base64');
 const upload = { name: 'Engineering resume', slug: 'engineering', mainFile: 'main.tex', files: [{ path: 'main.tex', content: Buffer.from('test fixture').toString('base64') }, { path: 'styles/custom.sty', content: '' }] };
-async function fixture(t) {
+async function fixture(t, { realPdf = false } = {}) {
   let clock = Date.parse('2026-10-26T12:00:00Z'), fail = false, delay;
   const server = createAdminServer({ passwordHash, origin, databasePath: ':memory:', now: () => clock,
     compileResume: async (action, body) => {
       if (delay) await delay;
       if (fail) throw new HttpError(422, 'Synthetic compiler failure');
-      return { pdf: action === 'compile' ? pdf : Buffer.from(`%PDF-1.7\n${JSON.stringify(body.mappings)}`).toString('base64'), pages: 1, links: action === 'compile' ? scanned : scanned.map(link => ({ ...link, destination: body.mappings.find(mapping => mapping.from === link.destination)?.to ?? link.destination })) };
+      return { pdf: realPdf ? bookPdf(action === 'compile' ? 'Original resume' : 'Updated resume').toString('base64') : action === 'compile' ? pdf : Buffer.from(`%PDF-1.7\n${JSON.stringify(body.mappings)}`).toString('base64'), pages: realPdf ? 2 : 1, links: action === 'compile' ? scanned : scanned.map(link => ({ ...link, destination: body.mappings.find(mapping => mapping.from === link.destination)?.to ?? link.destination })) };
     } });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
@@ -37,6 +38,24 @@ async function fixture(t) {
 }
 const route = id => `/api/admin/resumes/${id}`;
 const selection = slug => ({ links: [{ key, tracked: true, slug, label: 'GitHub' }] });
+
+test('first-page thumbnails stay private, support HEAD, reuse cached images, and follow PDF updates', async t => {
+  const app = await fixture(t, { realPdf: true }); await app.login();
+  const { resume } = await app.json('/api/admin/resumes', 'POST', upload);
+  const thumbnail = `${route(resume.id)}/thumbnail`;
+  for (const method of ['GET', 'HEAD']) assert.equal((await app.request(thumbnail, method, undefined, { Cookie: '' })).status, 401);
+  const response = await app.request(thumbnail);
+  assert.equal(response.status, 200); assert.equal(response.headers.get('content-type'), 'image/png');
+  const original = Buffer.from(await response.arrayBuffer());
+  assert.deepEqual(original.subarray(0,8), Buffer.from([137,80,78,71,13,10,26,10]));
+  const head = await app.request(thumbnail, 'HEAD'); assert.equal(head.status, 200); assert.equal(head.headers.get('content-length'), String(original.length)); assert.equal((await head.arrayBuffer()).byteLength, 0);
+  assert.deepEqual(Buffer.from(await (await app.request(thumbnail)).arrayBuffer()), original);
+  await app.json(`${route(resume.id)}/compile`, 'POST', selection('preview-github'));
+  const updated = Buffer.from(await (await app.request(thumbnail)).arrayBuffer()); assert.notDeepEqual(updated, original);
+  assert.equal((await app.json(route(resume.id))).resume.downloads, 0, 'Previewing must not count as a PDF download');
+  await app.json(route(resume.id), 'DELETE', {});
+  assert.equal((await app.request(thumbnail)).status, 404);
+});
 
 test('resume management and source files stay private; PDFs are available immediately', async t => {
   const app = await fixture(t);

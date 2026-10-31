@@ -18,28 +18,35 @@ const secret = join(directory, "password-hash");
 writeFileSync(secret, await hashPassword(password));
 const docker = (...args) => execFileSync("docker", args, { encoding: "utf8", timeout: 180000 }).trim();
 const created = [];
+// CI builds each source image once with a persistent BuildKit cache. Keep
+// standalone runs self-contained and never remove an image supplied by CI.
+const adminImage = process.env.PIXELWARE_TEST_ADMIN_IMAGE || `${id}:admin`;
+const compilerImage = process.env.PIXELWARE_TEST_COMPILER_IMAGE || `${id}:compiler`;
+const portfolioImage = process.env.PIXELWARE_TEST_PORTFOLIO_IMAGE;
+const ownedImages = [!process.env.PIXELWARE_TEST_ADMIN_IMAGE && adminImage, !process.env.PIXELWARE_TEST_COMPILER_IMAGE && compilerImage].filter(Boolean);
 let networkCreated = false;
 let volumeCreated = false;
 try {
-  docker('build', '-f', 'deploy/Dockerfile.admin', '-t', `${id}:admin`, root);
-  docker('build', '-f', 'deploy/Dockerfile.compiler', '-t', `${id}:compiler`, root);
+  if (!process.env.PIXELWARE_TEST_ADMIN_IMAGE) docker('build', '-f', 'deploy/Dockerfile.admin', '-t', adminImage, root);
+  if (!process.env.PIXELWARE_TEST_COMPILER_IMAGE) docker('build', '-f', 'deploy/Dockerfile.compiler', '-t', compilerImage, root);
   docker("network", "create", id);
   networkCreated = true;
   docker("volume", "create", `${id}-data`);
   volumeCreated = true;
-  docker('run', '-d', '--name', `${id}-compiler`, '--network', id, '--network-alias', 'compiler', '--read-only', '--tmpfs', '/tmp:size=128m,mode=1777', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true', '--memory', '768m', '--pids-limit', '64', `${id}:compiler`);
+  docker('run', '-d', '--name', `${id}-compiler`, '--network', id, '--network-alias', 'compiler', '--read-only', '--tmpfs', '/tmp:size=128m,mode=1777', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true', '--memory', '768m', '--pids-limit', '64', compilerImage);
   created.push(`${id}-compiler`);
   docker("run", "-d", "--name", `${id}-admin`, "--network", id, "--network-alias", "admin",
     "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--tmpfs", "/tmp",
     "--mount", `type=volume,source=${id}-data,target=/data`,
     "--mount", `type=bind,source=${secret},target=/run/secrets/admin_password_hash,readonly`,
-    "-e", "ADMIN_PASSWORD_HASH_FILE=/run/secrets/admin_password_hash", "-e", "APP_ORIGIN=https://pixelware.test", '-e', 'RESUME_COMPILER_URL=http://compiler:3032', `${id}:admin`);
+    "-e", "ADMIN_PASSWORD_HASH_FILE=/run/secrets/admin_password_hash", "-e", "APP_ORIGIN=https://pixelware.test", '-e', 'RESUME_COMPILER_URL=http://compiler:3032', adminImage);
   created.push(`${id}-admin`);
   docker("run", "-d", "--name", `${id}-nginx`, "--network", id,
     "--read-only", "--user", "nginx", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--tmpfs", "/tmp",
-    "-p", "127.0.0.1::8080", "--mount", `type=bind,source=${join(root, "deploy", "nginx.conf")},target=/etc/nginx/nginx.conf,readonly`,
-    "--mount", `type=bind,source=${join(root, "dist", "client")},target=/usr/share/nginx/html,readonly`,
-    "--entrypoint", "nginx", "nginx:stable-alpine", "-g", "daemon off;");
+    "-p", "127.0.0.1::8080",
+    ...(portfolioImage ? [] : ["--mount", `type=bind,source=${join(root, "deploy", "nginx.conf")},target=/etc/nginx/nginx.conf,readonly`,
+      "--mount", `type=bind,source=${join(root, "dist", "client")},target=/usr/share/nginx/html,readonly`]),
+    "--entrypoint", "nginx", portfolioImage || "nginx:stable-alpine", "-g", "daemon off;");
   created.push(`${id}-nginx`);
   const port = docker("port", `${id}-nginx`, "8080/tcp").split(":").at(-1);
   const base = `http://127.0.0.1:${port}`;
@@ -127,7 +134,7 @@ try {
   for (const name of created.reverse()) docker("rm", "-f", name);
   if (volumeCreated) docker("volume", "rm", `${id}-data`);
   if (networkCreated) docker("network", "rm", id);
-  for (const image of [`${id}:admin`, `${id}:compiler`]) { try { docker('image', 'rm', image); } catch { /* build may have failed */ } }
+  for (const image of ownedImages) { try { docker('image', 'rm', image); } catch { /* build may have failed */ } }
   // mkdtemp creates this exact task-owned directory, not an inferred user path.
   rmSync(directory, { recursive: true, force: true });
 }

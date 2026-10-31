@@ -52,6 +52,50 @@ async function fixture(t, options = {}) {
 
 const linkBody = { label: "LinkedIn on resume", slug: "resume-linkedin", source: "Resume", destination: "https://www.linkedin.com/in/example?source=resume", enabled: true };
 
+test('bulk pause/activate preserves history and bulk deletion removes only selected links', async t => {
+  const app = await fixture(t); await app.login();
+  const created = [];
+  for (const slug of ['bulk-first', 'bulk-second', 'bulk-kept']) {
+    const response = await app.request('/api/admin/links', { method: 'POST', body: { ...linkBody, slug } });
+    created.push((await response.json()).link); await app.request(`/r/${slug}`);
+  }
+  const ids = created.slice(0, 2).map(link => link.id);
+  const bulk = action => app.request('/api/admin/links/bulk', { method: 'POST', body: { ids, action } });
+  assert.equal((await bulk('pause')).status, 200);
+  let data = await (await app.request('/api/admin/links')).json();
+  assert.ok(data.links.filter(link => ids.includes(link.id)).every(link => !link.enabled && link.clicks === 1));
+  assert.equal(data.links.find(link => link.id === created[2].id).enabled, true);
+  assert.equal((await app.request('/r/bulk-first')).status, 404);
+  assert.equal((await bulk('activate')).status, 200);
+  await app.request('/r/bulk-first');
+  data = await (await app.request('/api/admin/links')).json();
+  assert.ok(data.links.every(link => link.enabled && link.clicks === 1), 'Activation preserves cooldowns and click history');
+  const deletion = await bulk('delete'); assert.equal(deletion.status, 200); assert.deepEqual(await deletion.json(), { ok: true, affected: 2 });
+  data = await (await app.request('/api/admin/links')).json();
+  assert.deepEqual(data.links.map(link => link.id), [created[2].id]);
+  assert.equal(data.daily.reduce((sum, day) => sum + day.clicks, 0), 1);
+  for (const slug of ['bulk-first', 'bulk-second']) assert.equal((await app.request(`/r/${slug}`)).status, 404);
+});
+
+test('bulk requests validate all IDs before applying any change and require admin origin/CSRF', async t => {
+  const app = await fixture(t);
+  const path = '/api/admin/links/bulk';
+  assert.equal((await app.request(path, { method: 'POST', body: { ids: [], action: 'delete' } })).status, 401);
+  await app.login();
+  const { link } = await (await app.request('/api/admin/links', { method: 'POST', body: linkBody })).json();
+  const valid = { ids: [link.id], action: 'pause' };
+  for (const headers of [{ Origin: 'https://evil.test' }, { 'X-CSRF-Token': '' }]) assert.equal((await app.request(path, { method: 'POST', headers, body: valid })).status, 403);
+  assert.equal((await app.request(path, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: valid })).status, 415);
+  for (const body of [{ ...valid, ids: [] }, { ...valid, ids: [link.id, link.id] }, { ...valid, ids: ['../bad'] }, { ...valid, ids: [null] }, { ...valid, ids: Array(101).fill(link.id) }, { ...valid, action: 'other' }, { ...valid, enabled: false }]) {
+    assert.equal((await app.request(path, { method: 'POST', body })).status, 400);
+  }
+  for (const action of ['pause', 'activate', 'delete']) {
+    const response = await app.request(path, { method: 'POST', body: { ids: [link.id, '00000000-0000-0000-0000-000000000000'], action } });
+    assert.equal(response.status, 404);
+    const data = await (await app.request('/api/admin/links')).json(); assert.equal(data.links.length, 1); assert.equal(data.links[0].enabled, true);
+  }
+});
+
 test("scrypt hashes differ, verify safely, and reject weak passwords/configuration", async () => {
   assert.equal(await verifyPassword(password, passwordHash), true);
   assert.equal(await verifyPassword("wrong password", passwordHash), false);

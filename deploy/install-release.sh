@@ -23,18 +23,29 @@ mkdir -p "$root/releases" "$root/.deploy-secrets"
 chmod 700 "$root/.deploy-secrets" "$incoming"
 release="$(mktemp -d "$root/releases/release.XXXXXXXX")"
 tar -xzf "$incoming/source.tgz" -C "$release"
+if [[ ! -s "$release/dist/client/index.html" || ! -d "$release/dist/client/assets" ]]; then
+  printf 'The release is missing its verified static build. Refusing to rebuild on the VPS.\n' >&2
+  exit 1
+fi
 # The parent is private. Mode 0444 lets the non-root container user read the
 # mounted hash independently of the deployment user's numeric UID.
 install -m 0444 "$incoming/admin_password_hash" "$root/.deploy-secrets/admin_password_hash"
 ln -s "$root/.deploy-secrets" "$release/.deploy-secrets"
 cd "$release"
 compose_file="$release/compose.vps.yaml"
+# Use the exact frontend build that passed CI, instead of reinstalling npm
+# dependencies and compiling it again on the VPS. Other images retain caching.
+export PORTFOLIO_DOCKERFILE=deploy/Dockerfile.prebuilt
 # Keep this project name fixed to preserve data and certificate volumes.
 docker compose -f "$compose_file" -p "$project" config --quiet
+build_started=$SECONDS
 docker compose -f "$compose_file" -p "$project" build
+printf 'Image builds completed in %ss.\n' "$((SECONDS - build_started))"
 # Recreate even when image/config are unchanged: hashes are loaded at startup,
 # and Compose does not notice a changed file-secret's contents.
+startup_started=$SECONDS
 docker compose -f "$compose_file" -p "$project" up -d --force-recreate --wait --wait-timeout 180
+printf 'Container startup completed in %ss.\n' "$((SECONDS - startup_started))"
 printf '%s\n' "$project" > "$project_file"
 ln -sfn "$release" "$root/current"
 rm -f "$incoming/source.tgz" "$incoming/admin_password_hash"

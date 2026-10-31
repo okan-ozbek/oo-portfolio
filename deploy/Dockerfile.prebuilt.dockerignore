@@ -1,0 +1,8 @@
+# This file takes precedence over the root ignore file, which excludes dist.
+# Send only the validated static export and NGINX configuration to this build.
+**
+!deploy
+!deploy/nginx.conf
+!dist
+!dist/client
+!dist/client/**
