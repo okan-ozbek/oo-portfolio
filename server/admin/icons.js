@@ -6,6 +6,7 @@ const paths = {
   eye: ['M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6Z', 'M12.5 10a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z'],
   download: ['M10 2v10', 'm6 8 4 4 4-4', 'M3 13v4h14v-4'],
   verified: ['M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z', 'm6 10 3 3 5-6'],
+  bookmark: ['M5 3h10v15l-5-4-5 4V3Z'],
 };
 
 export function icon(name) {
