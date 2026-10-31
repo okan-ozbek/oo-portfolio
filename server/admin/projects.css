@@ -1,0 +1,23 @@
+.project-page-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:32px}
+#projects-view select,#projects-view textarea{font:inherit;background:#131316;border:1px solid #38383e;border-radius:5px;color:var(--text);padding:12px 13px;max-width:100%;outline-color:var(--red)}
+#projects-view .table-tools select{font-size:11px;padding:8px 12px}
+.project-library-row{display:grid;grid-template-columns:120px minmax(0,1fr) 100px auto;align-items:center;gap:24px;padding:22px 24px;border-top:1px solid var(--line)}
+.project-library-art{display:block;width:120px;aspect-ratio:16/9;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.project-library-copy{min-width:0}.project-library-copy strong{font-weight:500;font-size:15px}.project-library-copy p{font-size:12px;margin-top:7px}.project-destination{display:block;font:10px var(--mono);color:var(--muted);margin-top:8px;overflow-wrap:anywhere}.project-destination:hover{color:var(--text)}
+.project-library-row .blog-status{justify-self:start}.blog-status.teaser{color:#d4c29e;border-color:#605337;background:#39312355}.project-empty{padding:24px}
+.project-fields{display:grid;grid-template-columns:1fr 1fr;gap:0 24px;margin-top:22px}.project-field-wide{grid-column:1/-1}.project-fields input,.project-fields select,.project-fields textarea{display:block;width:100%;margin-top:9px}.project-fields .field-note{display:block;font-size:10px;font-weight:400;line-height:1.7;margin-top:8px}.project-fields textarea{resize:vertical;line-height:1.7!important}
+.project-thumbnail-heading{border-top:1px solid var(--line);padding-top:28px;margin-top:28px}.project-thumbnail-heading h2{font-size:22px}.project-thumbnail-heading p{font-size:12px;margin-top:8px}.project-selected-preview{max-width:420px;margin-top:20px;border:1px solid var(--line);border-radius:5px;overflow:hidden}.project-selected-preview>.blog-art{display:block;width:100%;aspect-ratio:16/9}
+#project-editor .blog-presets{grid-template-columns:repeat(3,minmax(0,1fr))}#project-editor .blog-preset{background:var(--panel);border-color:var(--line)}#project-editor .blog-preset[aria-pressed=true]{border-color:var(--red)}
+@media(min-width:1550px){#project-editor .blog-presets{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:900px){.project-library-row{grid-template-columns:90px minmax(0,1fr) auto;gap:16px}.project-library-art{width:90px}.project-library-row>.blog-status{grid-column:2}.project-library-row>button{grid-column:3;grid-row:1/3}#project-editor .blog-presets{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.project-page-heading{align-items:flex-start;flex-direction:column}.project-fields{grid-template-columns:1fr}.project-library-row{padding:18px 16px;grid-template-columns:70px minmax(0,1fr)}.project-library-art{width:70px}.project-library-row>button{grid-column:2;grid-row:auto;justify-self:start}.project-library-row .project-destination{font-size:9px}#project-library .table-tools{flex-wrap:wrap}}
+
+#project-save-status{font:10px var(--mono);color:var(--muted);margin-right:8px}
+
+/* Project library uses the same table density and controls as Blogs. */
+.project-table th:first-child{width:auto}.project-table th:nth-child(2){width:150px}.project-table th:last-child{width:85px;text-align:right;padding-right:24px}
+.project-table .project-library-row{display:table-row;padding:0}
+.project-table td{padding:19px 18px;vertical-align:middle}.project-table td:first-child{padding-left:24px}.project-table td:last-child{padding-right:24px;text-align:right}
+.project-identity-inner{display:flex;align-items:center;gap:20px;min-width:0}.project-table .project-library-art{width:80px;flex:none}.project-table .project-library-copy strong{font-size:14px}.project-table .project-library-copy p{font-size:11px;margin-top:7px}.project-table .project-destination{font-size:9px}
+#project-delete.secondary.destructive{color:#ec9fa8;border-color:#65424b!important;background:#332126}#project-delete.secondary.destructive:hover{background:#46282e}
+@media(max-width:700px){.project-table thead{display:none}.project-table,.project-table tbody{display:block}.project-table .project-library-row{display:grid;grid-template-columns:minmax(0,1fr) auto;padding:18px 16px;gap:12px;border-top:1px solid var(--line)}.project-table td,.project-table td:first-child,.project-table td:last-child{display:block;padding:0;border:0}.project-table .project-identity{grid-column:1/-1}.project-table .project-actions-cell{grid-column:2;grid-row:2}.project-identity-inner{gap:14px}.project-table .project-library-art{width:70px}}

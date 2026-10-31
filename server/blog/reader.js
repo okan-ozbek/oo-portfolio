@@ -36,3 +36,6 @@ if(readingProgress&&article){
   new ResizeObserver(schedule).observe(article);
   updateProgress();
 }
+
+const projectCount=document.querySelector('[data-project-count]');
+if(projectCount)fetch('/api/public/projects',{cache:'no-store'}).then(response=>response.ok?response.json():null).then(data=>{if(data)projectCount.textContent=String(data.projects.length).padStart(2,'0');}).catch(()=>{});

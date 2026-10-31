@@ -26,6 +26,14 @@ revision history. Published articles are served by the Node/SQLite service at
 `/blog/<slug>` and appear after About me on the homepage. See [the writing
 workflow and optional LinkedIn setup](deploy/BLOGS.md).
 
+## Project workspace
+
+Open **Projects** in /admin to create, edit, and delete homepage project cards. The first server startup backfills the six original cards once: Visual Hardware IDE is published and the other five are teasers. Deleting a backfilled card will not recreate it on restart.
+
+Each project has a title, caption (the category line), brief description, destination URL, and a thumbnail selected from the same sixteen animated scenes as the blog editor. Existing projects retain their original artwork. Choose **Draft** to keep a card private, **Teaser** to display it as Coming soon without exposing its destination, or **Published** to display a clickable card title. Published projects require an HTTP(S) destination or a local path such as /blog/my-post. **Save project** applies the selected visibility and returns to the overview. Changes to a published project go live when saved; choose Draft to remove it from the homepage while working.
+
+Projects persist in the existing SQLite database. The homepage loads visible projects from /api/public/projects, so edits do not require a static rebuild. The original static six-card showcase remains the fallback if that service is unavailable. The development proxy and NGINX deployment both route the public endpoint to the admin service.
+
 ## Build and check
 
 ```sh

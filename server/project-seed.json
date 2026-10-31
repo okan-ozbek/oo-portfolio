@@ -1,0 +1,51 @@
+[
+  {
+    "id": "01",
+    "name": "Visual Hardware IDE",
+    "href": "https://systems.pixelware.nl/",
+    "category": "Educational tools",
+    "description": "Explore CPU, cache, and memory behavior through interactive 3D simulations and an experimental C++ workspace.",
+    "visual": "network",
+    "code": "PXW / NETWORK"
+  },
+  {
+    "id": "02",
+    "name": "Project 02",
+    "category": "Trading systems",
+    "description": "A space for the next trading idea.",
+    "visual": "market",
+    "code": "PXW / MARKET"
+  },
+  {
+    "id": "03",
+    "name": "Project 03",
+    "category": "Experimental software",
+    "description": "A space for something a little different.",
+    "visual": "binary",
+    "code": "PXW / RESEARCH"
+  },
+  {
+    "id": "04",
+    "name": "Project 04",
+    "category": "Systems tooling",
+    "description": "A space for the next systems tool.",
+    "visual": "stack",
+    "code": "PXW / TOOLS"
+  },
+  {
+    "id": "05",
+    "name": "Project 05",
+    "category": "Data visualization",
+    "description": "A space to explore data through visuals.",
+    "visual": "blackhole",
+    "code": "PXW / DATA"
+  },
+  {
+    "id": "06",
+    "name": "Project 06",
+    "category": "Performance experiments",
+    "description": "A space to test ideas in performance.",
+    "visual": "latency",
+    "code": "PXW / PERFORMANCE"
+  }
+]
