@@ -17,6 +17,15 @@ without case-sensitive duplicates. Select a tag above the list to filter by
 that exact tag; **All books** clears it. Search matches names and tags and can
 be combined with the selected filter.
 
+Under each book's page count, **Set page** saves your current reading position.
+Enter a PDF page number and choose **Save bookmark**. The list shows the saved
+page; clicking the cover or title resumes there using the PDF viewer's page
+fragment. Click the saved page to update or clear it. Bookmarks live in the
+private database, persist across restarts/devices, and survive title/tag edits.
+This is a manual bookmark: the browser's built-in PDF viewer does not report
+page changes back to the library. PDF page numbers may differ from printed
+page labels. Downloads continue to contain the complete, unchanged PDF.
+
 **Upload books** accepts multiple PDF files, up to 100 MiB each. A single file
 can have a custom title; otherwise the filename supplies its title. Selected
 tags apply to every file in that upload. PDFs upload sequentially; failed files
