@@ -8,11 +8,14 @@ import { validatePasswordHash, verifyPassword } from "./security.mjs";
 import { HttpError, readJson } from "./http.mjs";
 import { createResumes } from "./resumes.mjs";
 import { createBooks } from "./books.mjs";
+import { createBlogs } from "./blogs.mjs";
 
 const sha256 = value => createHash("sha256").update(value).digest("hex");
 const SESSION_SECONDS = 12 * 60 * 60;
 const CLICK_COOLDOWN_SECONDS = 60 * 60;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+const loopbackAddress = address => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(address);
 const assets = new Map([
   ["/admin", ["index.html", "text/html; charset=utf-8"]],
   ["/admin/", ["index.html", "text/html; charset=utf-8"]],
@@ -20,6 +23,8 @@ const assets = new Map([
   ["/admin/assets/admin.css", ["admin.css", "text/css; charset=utf-8"]],
   ["/admin/assets/resumes.js", ["resumes.js", "text/javascript; charset=utf-8"]],
   ["/admin/assets/books.js", ["books.js", "text/javascript; charset=utf-8"]],
+  ["/admin/assets/blogs.js", ["blogs.js", "text/javascript; charset=utf-8"]],
+  ["/admin/assets/blogs.css", ["blogs.css", "text/css; charset=utf-8"]],
   ["/admin/assets/icons.js", ["icons.js", "text/javascript; charset=utf-8"]],
 ]);
 
@@ -39,11 +44,13 @@ function activityWindow(range, timestamp) {
   return { startDay: start.toISOString().slice(0, 10), endDay: end.toISOString().slice(0, 10) };
 }
 
-export function createAdminServer({ passwordHash, origin, databasePath, secureCookies = true, now = Date.now, compileResume }) {
+export function createAdminServer({ passwordHash, origin, databasePath, secureCookies = true, localNoLogin = false, now = Date.now, compileResume }) {
   validatePasswordHash(passwordHash);
   const publicUrl = new URL(origin);
   if (publicUrl.origin !== origin || !["http:", "https:"].includes(publicUrl.protocol)) throw new Error("APP_ORIGIN must be an origin without a trailing slash.");
   if (secureCookies && publicUrl.protocol !== "https:") throw new Error("Production APP_ORIGIN requires HTTPS.");
+  if (localNoLogin && (secureCookies || publicUrl.protocol !== 'http:' || !LOOPBACK_HOSTS.has(publicUrl.hostname))) throw new Error('Password-free admin is only available on HTTP loopback development servers.');
+  const allowedOrigins = localNoLogin ? new Set([...LOOPBACK_HOSTS].map(host => `http://${host}${publicUrl.port ? `:${publicUrl.port}` : ''}`)) : new Set([origin]);
   if (databasePath !== ":memory:") mkdirSync(dirname(resolve(databasePath)), { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(databasePath);
   db.exec(`
@@ -81,11 +88,20 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
   const cookieName = secureCookies ? "__Host-pixelware_admin" : "pixelware_admin_dev";
   const visitorCookieName = secureCookies ? "__Host-pixelware_click" : "pixelware_click_dev";
   const cookie = (token, maxAge) => `${cookieName}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secureCookies ? "; Secure" : ""}`;
+  const localSession = localNoLogin ? { token_hash: sha256(randomBytes(32)), csrf: randomBytes(32).toString('hex') } : null;
   let loginsInFlight = 0;
   function readCookie(req, name) {
     return (req.headers.cookie ?? "").split(";").map(value => value.trim()).find(value => value.startsWith(`${name}=`))?.slice(name.length + 1);
   }
   function session(req) {
+    if (localSession) {
+      let host;
+      try { host = new URL(`http://${req.headers.host}`).hostname; } catch { return null; }
+      if (!loopbackAddress(req.socket.remoteAddress) || !LOOPBACK_HOSTS.has(host)) return null;
+      const existing = db.prepare('SELECT expires_at FROM sessions WHERE token_hash=?').get(localSession.token_hash);
+      if (!existing || existing.expires_at <= now()) db.prepare('INSERT OR REPLACE INTO sessions VALUES (?, ?, ?, ?)').run(localSession.token_hash, localSession.csrf, now() + SESSION_SECONDS * 1000, passwordVersion);
+      return localSession;
+    }
     const token = readCookie(req, cookieName);
     if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
     return db.prepare("SELECT * FROM sessions WHERE token_hash = ? AND expires_at > ? AND password_version = ?").get(sha256(token), now(), passwordVersion) ?? null;
@@ -102,6 +118,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
   };
   const resumes = createResumes({ db, origin, now, send, visitor, compile: compileResume });
   const books = createBooks({ db, now, send });
+  const blogs = createBlogs({ db, origin, now, send, isAuthenticated: session });
   function validateLink(body) {
     const { label, slug, destination, source = "", enabled = true } = body;
     if (typeof label !== "string" || !label.trim() || label.length > 100) throw new HttpError(400, "Enter a label of 1–100 characters.");
@@ -136,8 +153,13 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
     res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
-    res.setHeader("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+    res.setHeader("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://codepen.io https://codesandbox.io https://stackblitz.com https://systems.pixelware.nl; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
     try {
+      if (localNoLogin) {
+        let host;
+        try { host = new URL(`http://${req.headers.host}`).hostname; } catch { /* Reject malformed hosts below. */ }
+        if (!loopbackAddress(req.socket.remoteAddress) || !LOOPBACK_HOSTS.has(host)) throw new HttpError(403, 'Local development accepts only loopback requests.');
+      }
       const requestUrl = new URL(req.url, "http://internal");
       const path = requestUrl.pathname;
       if (path === "/healthz" && req.method === "GET") return send(res, 200, { ok: Boolean(db.prepare("SELECT 1").get()) });
@@ -148,6 +170,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
         return res.end(req.method === "HEAD" ? undefined : body);
       }
       if (await resumes.publicRoute(req, res, requestUrl)) return;
+      if (await blogs.publicRoute(req, res, requestUrl)) return;
       if (path.startsWith("/r/")) {
         if (!["GET", "HEAD"].includes(req.method)) throw new HttpError(405, "Method not allowed.");
         const slug = path.slice(3);
@@ -183,9 +206,10 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
       }
       if (!path.startsWith("/api/admin/")) throw new HttpError(404, "Not found.");
       if (!["GET", "HEAD"].includes(req.method)) {
-        if (req.headers.origin !== origin) throw new HttpError(403, "Request origin is not allowed.");
+        if (!allowedOrigins.has(req.headers.origin)) throw new HttpError(403, "Request origin is not allowed.");
         const pdfUpload = path === '/api/admin/books' && req.method === 'POST';
-        if (!(pdfUpload ? /^application\/pdf(?:;|$)/i : /^application\/json(?:;|$)/i).test(req.headers["content-type"] ?? "")) throw new HttpError(415, pdfUpload ? 'Send a PDF.' : 'Send JSON.');
+        const imageUpload = /^\/api\/admin\/blogs\/(?:[a-f0-9-]{36}|author)\/media$/.test(path) && req.method === 'POST';
+        if (!(pdfUpload ? /^application\/pdf(?:;|$)/i : imageUpload ? /^image\/(png|jpeg|webp|gif)(?:;|$)/i : /^application\/json(?:;|$)/i).test(req.headers["content-type"] ?? "")) throw new HttpError(415, pdfUpload ? 'Send a PDF.' : imageUpload ? 'Send an image.' : 'Send JSON.');
       }
       if (path === "/api/admin/login" && req.method === "POST") {
         const body = await readJson(req);
@@ -218,7 +242,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
           throw new HttpError(403, "Session verification failed. Refresh and try again.");
         }
       }
-      if (path === "/api/admin/session" && req.method === "GET") return send(res, 200, { csrf: current.csrf });
+      if (path === "/api/admin/session" && req.method === "GET") return send(res, 200, { csrf: current.csrf, ...(localNoLogin ? { localDevelopment: true } : {}) });
       if (path === "/api/admin/logout" && req.method === "POST") {
         db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(current.token_hash);
         res.setHeader("Set-Cookie", cookie("", 0));
@@ -226,6 +250,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
       }
       if (await resumes.adminRoute(req, res, requestUrl)) return;
       if (await books.adminRoute(req, res, requestUrl)) return;
+      if (await blogs.adminRoute(req, res, requestUrl, current)) return;
       if (path === "/api/admin/links" && req.method === "GET") {
         const range = requestUrl.searchParams.get("range") ?? "30d";
         const { startDay, endDay } = activityWindow(range, now());

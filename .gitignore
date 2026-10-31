@@ -44,3 +44,4 @@ next-env.d.ts
 /outputs/
 /work/
 /generated_images/
+/server/blog/vendor/
