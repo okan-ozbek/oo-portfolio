@@ -37,6 +37,7 @@ export function Showcase() {
         </a>
         <nav aria-label="Main navigation">
           <a className="nav-projects" href="#projects">Projects <span>{projectCount}</span></a>
+          <a href="/blog">Blog</a>
           <a className="nav-contact" href={`mailto:${contact.email}`}>Let’s talk <ArrowUpRight size={15} aria-hidden="true" /></a>
         </nav>
       </header>

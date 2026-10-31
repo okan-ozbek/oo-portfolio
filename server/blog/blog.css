@@ -33,3 +33,21 @@ body.blog-reader{-webkit-font-smoothing:antialiased}body.blog-reader ::selection
 
 .blog-diagram-body{overflow-x:auto;padding:20px;font:var(--content-font-size)/1.7 var(--site-mono);color:var(--content-text)}.blog-diagram-body>pre{padding:0}.blog-diagram-body svg{display:block;max-width:100%;height:auto;margin:auto;background:transparent;font-family:var(--site-mono)!important}.blog-diagram-body :is(p,span){margin:0;font-family:var(--site-mono)!important;line-height:1.5}.blog-diagram-body :is(text,.label,.nodeLabel){font-family:var(--site-mono)!important;font-size:var(--content-font-size)!important}.blog-diagram-body .edgeLabel{background:var(--content-surface);color:var(--content-text)}
 @media(max-width:800px){:root{--content-font-size:12px}}@media(max-width:480px){.blog-content pre,.blog-diagram-body{padding:16px}.blog-diagram-body>pre{padding:0}}
+
+body.blog-reader main.blog-index{margin-top:0;padding-top:28px}.blog-suggestion{display:flex;flex-direction:column;gap:14px}.blog-suggestion>img,.blog-suggestion>.blog-art{width:100%;height:auto;aspect-ratio:16/9}.blog-suggestion strong{font-size:15px}.blog-suggestion-caption{font-size:12px;color:var(--site-muted);margin:6px 0}.blog-site-footer{margin-top:0;border-top:0}
+
+.blog-changelog{margin-top:48px;padding-top:24px;border-top:1px solid var(--site-line)}.blog-changelog h2{font-size:20px;font-weight:500}.blog-changelog ol{list-style:none;padding:0}.blog-changelog li{padding:12px 0;border-top:1px solid var(--site-line)}.blog-changelog time{font:10px var(--site-mono);color:var(--site-muted)}.blog-changelog p{font-size:13px;margin:6px 0}
+
+/* Use the same outer grid as the logo, navigation, and footer. */
+.blog-article-layout.site-frame{max-width:none;padding:0;grid-template-columns:minmax(0,1fr) 260px;justify-content:stretch}
+.blog-reading-progress{position:fixed;inset:0 0 auto;width:100%;height:3px;margin:0;border:0;border-radius:0;appearance:none;z-index:100;background:transparent;color:var(--site-red);pointer-events:none}
+.blog-reading-progress::-webkit-progress-bar{background:transparent}
+.blog-reading-progress::-webkit-progress-value{background:var(--site-red)}
+.blog-reading-progress::-moz-progress-bar{background:var(--site-red)}
+@media(max-width:1050px){.blog-article-layout.site-frame{grid-template-columns:minmax(0,1fr) 220px}}
+@media(max-width:800px){.blog-article-layout.site-frame{grid-template-columns:minmax(0,1fr)}}
+
+@media(min-width:801px){.blog-suggestions-inner{top:120px;max-height:calc(100dvh - 140px)}}
+
+.blog-index .blog-feed-row:last-child{padding-bottom:12px}
+.blog-index + .contact-strip{margin-top:0}

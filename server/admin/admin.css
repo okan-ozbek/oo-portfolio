@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap");
 :root{color-scheme:dark;--bg:#111113;--panel:#19191c;--line:#2c2c32;--text:#ededf1;--muted:#93939f;--red:#ff3939;--mono:'Consolas','Courier New',monospace;font-family:'Segoe UI',Arial,sans-serif;font-size:14px}
 .section-heading h1{font-size:36px;margin:10px 0 8px}.section-heading h1>span{color:var(--red)}
 .book-filter-bar{display:flex;gap:18px;align-items:flex-start;padding:0 24px 22px;border-bottom:1px solid var(--line)}
@@ -380,3 +381,7 @@ main{padding:28px 18px}
 
 
 @media(max-width:500px){.sidebar nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.sidebar .nav-item{min-width:0;font-size:11px;gap:8px;padding:11px 8px}}
+
+.wordmark{align-items:center;gap:10px;font-family:"Space Grotesk",Arial,sans-serif;font-size:22px;font-weight:600;letter-spacing:-.9px}.wordmark .brand-period{margin-left:-9px}.wordmark .brand-icon{width:30px;height:29px;flex:none;background:var(--red);mask:url(/pixelware-logo.svg) center/contain no-repeat}
+
+.sidebar-logout{align-self:flex-start;margin:16px 10px 0;font-size:11px}

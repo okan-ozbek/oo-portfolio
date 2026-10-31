@@ -1,4 +1,4 @@
-#blogs-view select,#blogs-view textarea,#blog-author-dialog select,#blog-image-dialog select{font:inherit;background:#131313;border:1px solid #383838;border-radius:5px;color:var(--text);padding:10px 12px;max-width:100%;outline-color:var(--red)}
+#blogs-view select,#blogs-view textarea,#blog-author-dialog select,#blog-image-dialog select{font:inherit;background:#131316;border:1px solid #38383e;border-radius:5px;color:var(--text);padding:10px 12px;max-width:100%;outline-color:var(--red)}
 #blogs-view .table-tools select{font-size:11px;height:34px;padding:5px 10px}#blogs-view .table-tools .secondary{height:34px}
 .blog-heading-actions,.blog-editor-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.blog-heading-actions .secondary{font-size:11px}
 .blog-table th:first-child{width:100px}.blog-table td:first-child{padding-right:0}.blog-table th:last-child{width:85px}.blog-table tr{cursor:pointer}.blog-table tr:focus-visible{outline:2px solid var(--red);outline-offset:-3px}
@@ -22,6 +22,23 @@
 .blog-art-group-title{display:flex;align-items:center;gap:14px;font-size:14px;font-weight:500;margin:30px 0 16px}.blog-art-group-title>span{font:9px var(--mono);color:#777777}.blog-presets{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:32px}.blog-preset>.blog-art{display:block;padding:0;aspect-ratio:16/9;width:100%;height:auto}.blog-preset>.blog-art>img{height:100%;aspect-ratio:auto}.blog-preset-caption{position:relative;padding:15px 37px 16px 15px;min-height:68px}.blog-preset-caption strong{display:block;font-size:12px;font-weight:500;color:#d1d1d1}.blog-preset-caption small{display:block;margin-top:6px;font:9px var(--mono);color:#808080}.blog-preset-check{position:absolute;right:15px;top:16px;font:12px var(--mono);color:#9b6b76}.blog-preset[aria-pressed=true] .blog-preset-check{color:#ff7f87}.blog-preset{transition:border-color .15s,box-shadow .15s}.blog-preset:hover{border-color:#77616b;box-shadow:0 5px 24px #0003}.blog-preset[aria-pressed=true]{border-color:#ff555f;box-shadow:0 0 0 1px #ff555f33}.blog-art-preview{display:block;width:100%;height:auto;aspect-ratio:16/9;border:1px solid var(--line);border-radius:4px;margin:20px 0;overflow:hidden}.blog-art-preview>.blog-art{width:100%;height:100%}.blog-table-thumbnail{display:block}.blog-table-thumbnail>img{width:100%;height:100%;object-fit:cover}
 @media(min-width:1550px){.blog-presets{grid-template-columns:repeat(4,minmax(0,1fr))}}@media(max-width:900px){.blog-presets{grid-template-columns:repeat(2,minmax(0,1fr))}.blog-art-group-title{flex-wrap:wrap;gap:8px}.blog-preset-caption{padding-left:12px}.blog-preset-caption strong{font-size:11px}}@media(max-width:450px){.blog-presets{gap:10px}.blog-preset-caption{padding:12px 25px 12px 10px}.blog-preset-caption small{font-size:8px}.blog-preset-check{right:9px;top:13px}}
 
-.blog-tags-field>label{display:block}.blog-tags-field .book-tag-editor{margin-top:8px;background:#101010}.blog-tags-field .book-tag-editor input{margin:0;width:100%;font-size:12px}.blog-tags-field .field-note{font-size:9px;display:block;margin-top:6px}.blog-tags-field .book-tag-remove{width:auto;margin:0}.blog-composer-toolbar{gap:12px}.blog-insert-tools{flex:1}.blog-insert-tools button{width:32px;height:32px;padding:6px;display:inline-flex;align-items:center;justify-content:center}.blog-insert-tools .action-icon{width:18px;height:18px}.blog-insert-tools button:nth-child(5),.blog-insert-tools button:nth-child(9),.blog-insert-tools button:nth-child(13){margin-left:8px}.blog-preset{background:#171717}.blog-art-preview{margin:16px 0}.blog-art{background:var(--site-art-background)}.blog-composer.panel{background:#191919}
+.blog-tags-field>label{display:block}.blog-tags-field .book-tag-editor{margin-top:8px;background:#131316}.blog-tags-field .book-tag-editor input{margin:0;width:100%;font-size:12px}.blog-tags-field .field-note{font-size:9px;display:block;margin-top:6px}.blog-tags-field .book-tag-remove{width:auto;margin:0}.blog-composer-toolbar{gap:12px}.blog-insert-tools{flex:1}.blog-insert-tools button{width:32px;height:32px;padding:6px;display:inline-flex;align-items:center;justify-content:center}.blog-insert-tools .action-icon{width:18px;height:18px}.blog-insert-tools button:nth-child(5),.blog-insert-tools button:nth-child(9),.blog-insert-tools button:nth-child(13){margin-left:8px}.blog-preset{background:#171717}.blog-art-preview{margin:16px 0}.blog-art{background:var(--site-art-background)}.blog-composer.panel{background:var(--panel)}
 
-#blogs-view{--panel:#191919;--line:#2c2c2c}#blogs-view .secondary{background:#242424;border-color:#383838}#blogs-view .blog-preset:hover{border-color:#777}#blogs-view .blog-preset[aria-pressed=true]{border-color:#ff555f}
+#blogs-view .blog-preset:hover{border-color:#777}#blogs-view .blog-preset[aria-pressed=true]{border-color:#ff555f}
+
+#blogs-view .blog-composer-toolbar{background:var(--panel)}
+#blogs-view .table-tools select{appearance:none;padding-right:30px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m3 4 3 3 3-3' fill='none' stroke='%2393939f'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+
+/* Compact, full-width revision rows beneath the editor. */
+#blog-panel-history{width:100%;margin-top:24px}
+#blog-panel-history .blog-settings-intro{max-width:none;margin:0 0 12px}
+#blog-panel-history .blog-settings-intro h2{font-size:18px;margin-bottom:6px}
+#blog-panel-history .blog-settings-intro p{font-size:11px;line-height:1.5}
+#blog-history{max-width:none;width:100%}
+#blog-history .blog-revision{padding:12px 0;gap:16px;align-items:center}
+#blog-history .blog-revision>div{flex:1;min-width:0;display:grid;grid-template-columns:120px minmax(0,1fr) auto;gap:12px;align-items:center}
+#blog-history .blog-revision strong{font-size:12px}
+#blog-history .blog-revision p,#blog-history .blog-revision time{margin:0}
+#blog-history .blog-revision button{padding:7px 10px;font-size:10px}
+#blog-slug:disabled{cursor:not-allowed}
+@media(max-width:700px){#blog-history .blog-revision>div{grid-template-columns:minmax(0,1fr);gap:4px}}
