@@ -17,6 +17,9 @@ test('device views deduplicate forever per item, ignore previews and prefetches,
   const admin=(path,method='GET',body)=>request('/api/admin/'+path,{method,headers:{Cookie:adminCookie,Origin:origin,'X-CSRF-Token':csrf,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
   const counts=async()=>({projects:(await (await admin('projects')).json()).projects,posts:(await (await admin('blogs')).json()).posts});
   await start();await login();
+  assert.equal((await request('/api/admin/view-activity?kind=blog')).status,401);
+  assert.equal((await admin('view-activity?kind=other')).status,400);
+  assert.equal((await admin('view-activity?kind=blog&range=invalid')).status,400);
   let post=(await (await admin('blogs','POST',{})).json()).post;
   post=(await (await admin('blogs/'+post.id,'PATCH',{version:post.version,post:{...Object.fromEntries(['title','slug','summary','markdown','tags','thumbnail','banner','relatedIds'].map(key=>[key,post[key]])),title:'A viewed article',summary:'A useful summary.',markdown:'Some useful content.'},sessionId:'view-test'})).json()).post;
   post=(await (await admin('blogs/'+post.id+'/publish','POST',{version:post.version})).json()).post;
@@ -31,11 +34,13 @@ test('device views deduplicate forever per item, ignore previews and prefetches,
   assert.equal((await counts()).posts[0].uniqueViews,0);assert.equal((await counts()).projects[0].uniqueViews,0);
   const first=await request(article);const raw=first.headers.get('set-cookie');assert.match(raw,/HttpOnly/);assert.match(raw,/Secure/);const device=raw.split(';')[0];
   await Promise.all(Array.from({length:6},()=>request(article,{headers:{Cookie:device}})));
+  for(const kind of ['blog','project']){const response=await admin('view-activity?kind='+kind+'&range=30d');assert.equal(response.status,200);const chart=await response.json();assert.equal(chart.range,'30d');assert.ok(chart.chartStartDay<chart.chartEndDay);if(kind==='blog')assert.equal(chart.series[0].daily.reduce((sum,day)=>sum+day.views,0),1);}
   const opened=await request(project,{headers:{Cookie:device}});assert.equal(opened.status,302);assert.equal(opened.headers.get('location'),'https://systems.pixelware.nl/');
   await request(project,{headers:{Cookie:device}});
   time+=365*86400000;await login();await request(article,{headers:{Cookie:device}});await request(project,{headers:{Cookie:device}});
   let data=await counts();assert.equal(data.posts[0].uniqueViews,1);assert.equal(data.projects[0].uniqueViews,1);
   await request(article);await request(project);data=await counts();assert.equal(data.posts[0].uniqueViews,2);assert.equal(data.projects[0].uniqueViews,2);
+  for(const kind of ['blog','project']){const chart=await (await admin('view-activity?kind='+kind+'&range=7d')).json();assert.equal(chart.series.length,1);assert.equal(chart.series[0].daily.reduce((sum,day)=>sum+day.views,0),1,'Only the new device in the selected week counts; the returning device retains its original date');}
   assert.equal((await request('/api/public/projects/02/visit')).status,404);
   assert.equal((await request('/api/public/projects/01/visit',{method:'POST'})).status,405);
   await close();await start();await login();await request(article,{headers:{Cookie:device}});await request(project,{headers:{Cookie:device}});

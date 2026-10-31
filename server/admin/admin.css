@@ -393,3 +393,5 @@ main{padding:28px 18px}
 .library-filter-picker .range-menu [role=option]{padding:11px 12px;font-size:12px}
 
 .unique-views{font:11px var(--mono);color:var(--text);font-variant-numeric:tabular-nums}.views-heading{width:85px}
+
+.content-activity{overflow:visible}.content-activity .chart-wrap{overflow:visible}.content-activity .panel-heading .muted{max-width:none}.content-activity .chart-tooltip{max-height:260px;overflow:auto}
