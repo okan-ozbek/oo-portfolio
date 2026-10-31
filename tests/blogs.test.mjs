@@ -184,11 +184,14 @@ test('homepage serves current projects and articles in HTML and blog pagination 
   html=await (await app.request('/',{anonymous:true})).text();assert.doesNotMatch(html,/Server rendered project/);
   for(let i=0;i<6;i++){app.advance(1000);const post=await app.create('Pagination entry '+i);await app.action(post,'publish');}
   html=markup(await (await app.request('/',{anonymous:true})).text());
-  assert.match(html,/<div class="home-blog-more"><a href="\/blog\?page=2">Read more<\/a><\/div>/);
+  assert.match(html,/<div class="home-blog-more"><a href="\/blog">Read more<\/a><\/div>/);
   assert.doesNotMatch(html,/Next page|Read more ↓/);
   const first=await (await app.request('/blog',{anonymous:true})).text(),second=await (await app.request('/blog?page=2',{anonymous:true})).text();
+  assert.doesNotMatch(first+second,/blog-load-area|data-blog-more|Read more ↓/);
   assert.match(first,/aria-label="Page 1" aria-current="page"/);
   assert.match(second,/href="\/blog\?page=2" aria-label="Page 2" aria-current="page"/);
+  assert.match(first,/aria-disabled="true">« First/);assert.match(second,/href="\/blog">« First/);
+  assert.match(first,/href="\/blog\?page=2">Last »/);assert.match(second,/aria-disabled="true">Last »/);
   assert.match(first,/aria-disabled="true">← Previous/);assert.match(second,/aria-disabled="true">Next →/);
   assert.match(first,/rel="next"[^>]*href="\/blog\?page=2"/);assert.match(second,/rel="prev" href="\/blog"/);assert.match(second,/<link rel="canonical" href="https:\/\/pixelware.test\/blog\?page=2"/);
   const links=page=>[...page.matchAll(/class="blog-feed-image" href="([^"]+)"/g)].map(match=>match[1]);
