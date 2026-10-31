@@ -13,12 +13,18 @@ npm ci
 npm run dev
 ```
 
-Open the localhost URL printed by Vite. First startup creates a local password in `.admin-local-password`. Open `/admin` to manage tracked links. Credentials and SQLite data are excluded from Git and image builds. See [admin setup and GitHub Actions deployment](deploy/ADMIN.md). These commands work on Windows, macOS, and Linux.
+Open the localhost URL printed by Vite. With `npm run dev`, `/admin` opens without a login on `localhost`, `127.0.0.1`, or `::1`. This development-only option is not enabled by the deployed server; production still requires its admin password. Local mutations retain origin and CSRF checks. First startup also generates ignored local credentials for tools that use password authentication. Credentials and SQLite data are excluded from Git and image builds. See [admin setup and GitHub Actions deployment](deploy/ADMIN.md). These commands work on Windows, macOS, and Linux.
 
 The **Resumes** admin section accepts LaTeX projects with supporting files, finds
 their compiled hyperlinks, creates tracking links per variant, and provides
 downloadable PDFs. Start its isolated compiler with `npm run resume:compiler`
 (Docker required). See [the resume workflow and deployment notes](deploy/RESUMES.md).
+
+The **Blogs** workspace supports autosaved Markdown drafts, highlighted code,
+Mermaid diagrams, resizable images, paired artwork presets, publishing, and
+revision history. Published articles are served by the Node/SQLite service at
+`/blog/<slug>` and appear after About me on the homepage. See [the writing
+workflow and optional LinkedIn setup](deploy/BLOGS.md).
 
 ## Build and check
 
@@ -33,7 +39,7 @@ npm start
 
 Only `dist/client/` is public website output. `dist/server/` is an intermediate prerender artifact, not a production server to deploy.
 
-Each build generates `dist/client/sitemap.xml` for `https://pixelware.nl/`. The portfolio is a single page, so section anchors are not listed separately. `public/robots.txt` advertises the sitemap. When adding pages, update the canonical URL list in `scripts/generate-sitemap.mjs`. The generated sitemap is available in the built preview (`npm start`) and Docker deployment; `npm run dev` does not generate it. No build-time timestamp is used as a misleading content modification date.
+Each build generates `dist/client/sitemap.xml` for `https://pixelware.nl/`. Section anchors are not listed separately. The backend maintains `/blog/sitemap.xml` for currently published articles; `public/robots.txt` advertises both sitemaps. When adding static pages, update the canonical URL list in `scripts/generate-sitemap.mjs`. The static sitemap is available in the built preview (`npm start`) and Docker deployment; `npm run dev` does not generate it. No build-time timestamp is used as a misleading content modification date.
 
 ## VPS deployment
 
