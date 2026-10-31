@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow"><meta name="color-scheme" content="dark">
-  <title>Analytics · Pixelware</title>
+  <title>Admin · Pixelware</title>
   <link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/admin/assets/admin.css">
   <script src="/admin/assets/admin.js" type="module"></script>
 </head>
@@ -19,15 +19,15 @@
     </div>
     <div class="login-form-wrap"><form id="login-form" class="login-form">
       <p class="eyebrow">OWNER ACCESS</p>
-      <h2>Welcome back.</h2><p class="muted">Sign in to view your website’s analytics.</p>
+      <h2>Welcome back.</h2><p class="muted">Sign in to your private workspace.</p>
       <label for="password">Admin password</label><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256">
       <p id="login-error" class="error" role="alert"></p>
-      <button id="sign-in" class="primary" type="submit">Open analytics <span>↗</span></button>
+      <button id="sign-in" class="primary" type="submit">Open workspace <span>↗</span></button>
       <p class="login-note">Private dashboard. No public registration.</p>
     </form></div>
   </section>
   <div id="dashboard" class="app-shell" hidden>
-    <aside class="sidebar"><a class="wordmark" href="/">pixelware<span>.</span></a><p class="eyebrow">WORKSPACE</p><nav aria-label="Admin sections"><button type="button" id="nav-links" class="nav-item" aria-current="page"><span aria-hidden="true">↗</span> Link analytics</button><button type="button" id="nav-resumes" class="nav-item"><span aria-hidden="true">▤</span> Resumes <small>LAB</small></button></nav><p class="sidebar-note"><span class="status-dot"></span> Your private workspace</p></aside>
+    <aside class="sidebar"><a class="wordmark" href="/">pixelware<span>.</span></a><p class="eyebrow">WORKSPACE</p><nav aria-label="Admin sections"><button type="button" id="nav-links" class="nav-item" aria-current="page"><span aria-hidden="true">↗</span> Link analytics</button><button type="button" id="nav-resumes" class="nav-item"><span aria-hidden="true">▤</span> Resumes <small>LAB</small></button><button type="button" id="nav-books" class="nav-item"><span aria-hidden="true">▥</span> Books</button></nav><p class="sidebar-note"><span class="status-dot"></span> Your private workspace</p></aside>
     <div class="workspace">
       <header class="topbar"><div class="topbar-brand"><a class="wordmark" href="/">pixelware<span>.</span></a></div><div class="topbar-actions"><a href="/" target="_blank" rel="noopener">View website ↗</a><button id="logout" class="text-button">Sign out ↗</button></div></header>
       <main id="links-view">
@@ -65,6 +65,20 @@
         <footer class="workspace-footer"><span><span class="status-dot"></span> One counted click per browser, per link, per hour.</span></footer>
         <p class="measurement-note">A short-lived anonymous cookie filters repeat clicks. Clearing or blocking cookies, switching browsers or devices, and bots can count separately. HEAD requests, explicit prefetches, and admin destination previews do not count. Times are shown in UTC.</p>
       </main>
+      <main id="books-view" hidden>
+        <div class="page-heading book-page-heading"><div><p class="eyebrow">YOUR READING SHELF</p><h1>Books<span>.</span></h1><p class="muted">Good ideas, always within reach.</p></div><button id="book-new" class="primary" type="button">＋ Upload books</button></div>
+        <p id="book-error" class="error" role="alert"></p>
+        <section class="panel book-panel" aria-label="Book library">
+          <div class="panel-heading"><div class="links-title"><h2>Your library</h2><span id="book-count" class="count-badge">0</span></div><div class="table-tools"><label class="sr-only" for="book-search">Search books</label><input id="book-search" type="search" placeholder="Search books…"><button id="book-refresh" class="secondary" type="button">↻ Refresh</button></div></div>
+          <div class="book-filter-bar"><span class="eyebrow">FILTER BY TAG</span><div id="book-filters" class="book-filters" role="group" aria-label="Filter books by tag"></div></div>
+          <div class="book-list-heading" aria-hidden="true"><span></span><span>BOOK NAME</span><span>PAGES</span><span>TAGS</span><span>ACTIONS</span></div>
+          <div id="book-rows" class="book-rows"></div>
+          <div id="book-empty" class="empty-state" hidden><span class="empty-symbol">▥</span><h3>A home for your next great read.</h3><p>Upload your PDFs and organize them with tags.</p><button id="book-empty-upload" class="secondary" type="button">＋ Upload your first book</button></div>
+          <p id="book-no-results" class="empty-state" hidden>No books match these filters.</p>
+          <p id="book-loading" class="empty-state" role="status" hidden>Loading your library…</p>
+        </section>
+        <footer class="workspace-footer"><span><span class="status-dot"></span> Private library · PDFs up to 100 MB each</span></footer>
+      </main>
       <main id="resumes-view" hidden>
         <div class="page-heading resume-page-heading"><h1>Resumes</h1><button id="resume-new" class="primary" type="button">＋ Upload resume</button></div>
         <p id="resume-error" class="error" role="alert"></p>
@@ -97,5 +111,8 @@
     <p id="delete-error" class="error" role="alert"></p>
     <div class="dialog-actions"><button id="cancel-delete" type="button" class="secondary" autofocus>Cancel</button><button id="confirm-delete" type="submit" class="primary">Delete permanently</button></div>
   </form></dialog>
+  <dialog id="book-upload-dialog" aria-labelledby="book-upload-title"><form id="book-upload-form"><div class="dialog-heading"><h2 id="book-upload-title">Add to your shelf<span>.</span></h2><button id="book-upload-close" type="button" class="icon-button" aria-label="Close book upload">×</button></div><p class="muted">Choose one or more PDFs. We’ll count the pages and create a cover from the first page.</p><label for="book-files">PDF files</label><input id="book-files" type="file" accept=".pdf,application/pdf" multiple required><label for="book-upload-name">Book name <span class="optional">optional · single PDF only</span></label><input id="book-upload-name" maxlength="200" placeholder="Defaults to the filename"><label for="book-upload-tag-input">Tags <span class="optional">optional</span></label><div id="book-upload-tags" class="book-tag-editor"></div><p class="field-note">Type a tag and press Enter. Choose existing tags or create your own.</p><p id="book-upload-error" class="error" role="alert"></p><p id="book-upload-progress" class="field-note" role="status"></p><div class="dialog-actions"><button id="book-upload-cancel" type="button" class="secondary">Cancel</button><button id="book-upload-submit" type="submit" class="primary">Upload books ↑</button></div></form></dialog>
+  <dialog id="book-edit-dialog" aria-labelledby="book-edit-title"><form id="book-edit-form"><div class="dialog-heading"><h2 id="book-edit-title">Make it yours<span>.</span></h2><button id="book-edit-close" type="button" class="icon-button" aria-label="Close book details">×</button></div><label for="book-edit-name">Book name</label><input id="book-edit-name" required maxlength="200"><label for="book-edit-tag-input">Tags</label><div id="book-edit-tags" class="book-tag-editor"></div><p class="field-note">Type a tag and press Enter. Click × to remove a tag.</p><p id="book-edit-error" class="error" role="alert"></p><div class="dialog-actions"><button id="book-edit-cancel" type="button" class="secondary">Cancel</button><button id="book-edit-submit" type="submit" class="primary">Save changes</button></div></form></dialog>
+  <dialog id="book-delete-dialog" aria-labelledby="book-delete-title"><form id="book-delete-form"><div class="dialog-heading"><h2 id="book-delete-title">Delete this book?</h2><button id="book-delete-close" type="button" class="icon-button" aria-label="Close book deletion">×</button></div><strong id="book-delete-name"></strong><p class="muted">This removes the PDF, its thumbnail, and tags from your library. Your original file on your computer is unaffected.</p><p id="book-delete-error" class="error" role="alert"></p><div class="dialog-actions"><button id="book-delete-cancel" type="button" class="secondary" autofocus>Cancel</button><button id="book-delete-submit" type="submit" class="primary">Delete book</button></div></form></dialog>
   <div id="toast" role="status" hidden></div>
 </body></html>

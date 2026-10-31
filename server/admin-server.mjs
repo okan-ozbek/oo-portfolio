@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { validatePasswordHash, verifyPassword } from "./security.mjs";
 import { HttpError, readJson } from "./http.mjs";
 import { createResumes } from "./resumes.mjs";
+import { createBooks } from "./books.mjs";
 
 const sha256 = value => createHash("sha256").update(value).digest("hex");
 const SESSION_SECONDS = 12 * 60 * 60;
@@ -18,6 +19,7 @@ const assets = new Map([
   ["/admin/assets/admin.js", ["admin.js", "text/javascript; charset=utf-8"]],
   ["/admin/assets/admin.css", ["admin.css", "text/css; charset=utf-8"]],
   ["/admin/assets/resumes.js", ["resumes.js", "text/javascript; charset=utf-8"]],
+  ["/admin/assets/books.js", ["books.js", "text/javascript; charset=utf-8"]],
 ]);
 
 function activityWindow(range, timestamp) {
@@ -98,6 +100,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
     return token;
   };
   const resumes = createResumes({ db, origin, now, send, visitor, compile: compileResume });
+  const books = createBooks({ db, now, send });
   function validateLink(body) {
     const { label, slug, destination, source = "", enabled = true } = body;
     if (typeof label !== "string" || !label.trim() || label.length > 100) throw new HttpError(400, "Enter a label of 1–100 characters.");
@@ -178,9 +181,10 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
         return res.end();
       }
       if (!path.startsWith("/api/admin/")) throw new HttpError(404, "Not found.");
-      if (req.method !== "GET") {
+      if (!["GET", "HEAD"].includes(req.method)) {
         if (req.headers.origin !== origin) throw new HttpError(403, "Request origin is not allowed.");
-        if (!/^application\/json(?:;|$)/i.test(req.headers["content-type"] ?? "")) throw new HttpError(415, "Send JSON.");
+        const pdfUpload = path === '/api/admin/books' && req.method === 'POST';
+        if (!(pdfUpload ? /^application\/pdf(?:;|$)/i : /^application\/json(?:;|$)/i).test(req.headers["content-type"] ?? "")) throw new HttpError(415, pdfUpload ? 'Send a PDF.' : 'Send JSON.');
       }
       if (path === "/api/admin/login" && req.method === "POST") {
         const body = await readJson(req);
@@ -207,7 +211,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
       }
       const current = session(req);
       if (!current) throw new HttpError(401, "Sign in to continue.");
-      if (req.method !== "GET") {
+      if (!["GET", "HEAD"].includes(req.method)) {
         const csrf = req.headers["x-csrf-token"];
         if (typeof csrf !== "string" || !/^[a-f0-9]{64}$/.test(csrf) || !timingSafeEqual(Buffer.from(csrf), Buffer.from(current.csrf))) {
           throw new HttpError(403, "Session verification failed. Refresh and try again.");
@@ -220,6 +224,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
         return send(res, 200, { ok: true });
       }
       if (await resumes.adminRoute(req, res, requestUrl)) return;
+      if (await books.adminRoute(req, res, requestUrl)) return;
       if (path === "/api/admin/links" && req.method === "GET") {
         const range = requestUrl.searchParams.get("range") ?? "30d";
         const { startDay, endDay } = activityWindow(range, now());
@@ -272,7 +277,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
       send(res, error instanceof HttpError ? error.status : 500, { error: error instanceof HttpError ? error.message : "Something went wrong. Please try again." });
     }
   });
-  server.requestTimeout = 10000;
+  server.requestTimeout = 120000;
   server.headersTimeout = 10000;
   const cleanup = setInterval(() => {
     try { pruneCooldowns.run(now()); resumes.prune(); }

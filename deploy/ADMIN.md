@@ -1,5 +1,8 @@
 # Private link studio
 
+The admin also includes a [private PDF book library](BOOKS.md) with uploads,
+first-page thumbnails, editable tags, filters, reading, and downloads.
+
 The portfolio stays static on NGINX. A private Node service handles `/admin`,
 `/api/admin/*`, and `/r/*`, with persistent SQLite storage and Caddy HTTPS.
 It uses [Node's built-in SQLite](https://nodejs.org/download/release/latest-jod/docs/api/sqlite.html)

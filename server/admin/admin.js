@@ -1,5 +1,6 @@
 /* The dashboard receives no password hash or secret configuration. */
 import { initResumes } from './resumes.js';
+import { initBooks } from './books.js';
 const $ = id => document.getElementById(id);
 const number = new Intl.NumberFormat();
 let csrf = "";
@@ -43,6 +44,7 @@ function openRangeMenu() {
 
 function showLogin() {
   resumeWorkspace.reset();
+  bookWorkspace.reset();
   selectSection('links');
   closeRangeMenu();
   $("loading").hidden = true;
@@ -77,11 +79,11 @@ function toast(message) {
   }, () => {});
 }
 
-async function api(path, { method = "GET", body } = {}) {
+async function api(path, { method = "GET", body, pdf = false } = {}) {
   const response = await fetch(`/api/admin/${path}`, {
     method, credentials: "same-origin", cache: "no-store",
-    headers: { ...(method !== "GET" ? { "Content-Type": "application/json", "X-CSRF-Token": csrf } : {}) },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    headers: { ...(method !== "GET" ? { "Content-Type": pdf ? "application/pdf" : "application/json", "X-CSRF-Token": csrf } : {}) },
+    body: body === undefined ? undefined : pdf ? body : JSON.stringify(body),
   });
   const data = await response.json();
   if (!response.ok) {
@@ -494,20 +496,23 @@ $("link-form").addEventListener("submit", async event => {
 });
 
 const resumeWorkspace = initResumes({ api, toast, refreshLinks: refresh });
+const bookWorkspace = initBooks({ api, toast });
 async function selectSection(section) {
-  const resumes = section === 'resumes';
-  $('links-view').hidden = resumes;
-  $('resumes-view').hidden = !resumes;
-  for (const name of ['links', 'resumes']) {
+  for (const name of ['links', 'resumes', 'books']) {
+    $(`${name}-view`).hidden = name !== section;
     if (name === section) $(`nav-${name}`).setAttribute('aria-current', 'page');
     else $(`nav-${name}`).removeAttribute('aria-current');
   }
-  if (resumes) {
+  if (section === 'resumes') {
     try { await resumeWorkspace.refresh(); } catch (error) { $('resume-error').textContent = error.message; }
+  }
+  if (section === 'books') {
+    try { await bookWorkspace.refresh(); } catch (error) { $('book-error').textContent = error.message; }
   }
 }
 $('nav-links').addEventListener('click', () => selectSection('links'));
 $('nav-resumes').addEventListener('click', () => selectSection('resumes'));
+$('nav-books').addEventListener('click', () => selectSection('books'));
 
 (async () => {
   try {
