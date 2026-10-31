@@ -22,8 +22,9 @@ export function initProjects({ api, toast }) {
       const row = node('tr', 'project-library-row');
       const artwork = artworkNode({ preset: project.thumbnail }, project.id, false, 'project-library-art');
       const copy = node('div', 'project-library-copy');
-      copy.append(node('strong', '', project.title), node('p', 'muted', project.caption || project.description));
-      if (project.state === 'published' && project.url) { const link = node('a', 'project-destination', project.url); link.href = project.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; copy.append(link); }
+      const titleLine=node('div','project-title-line');titleLine.append(node('strong','',project.title));
+      copy.append(titleLine,node('p','muted',project.caption || project.description));
+      if (project.state === 'published' && project.url) { const link = node('a', 'project-destination', `(${project.url})`); link.href = project.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; titleLine.append(link); }
       const state = node('span', `blog-status ${project.state}`, { draft: 'Draft', teaser: 'Coming soon', published: 'Published' }[project.state]);
       const edit = node('button', 'action-button');edit.append(icon('edit'));edit.title='Edit project'; edit.type = 'button'; edit.setAttribute('aria-label', `Edit ${project.title}`); edit.addEventListener('click', () => open(project));
       const identity=node('td','project-identity'),status=node('td','project-status-cell'),actions=node('td','project-actions-cell');const inner=node('div','project-identity-inner');inner.append(artwork,copy);identity.append(inner);status.append(state);actions.append(edit);row.append(identity,status,actions);$('project-rows').append(row);
