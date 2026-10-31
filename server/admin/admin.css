@@ -383,3 +383,5 @@ main{padding:28px 18px}
 @media(max-width:500px){.sidebar nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.sidebar .nav-item{min-width:0;font-size:11px;gap:8px;padding:11px 8px}}
 
 .wordmark{align-items:center;gap:10px;font-family:"Space Grotesk",Arial,sans-serif;font-size:22px;font-weight:600;letter-spacing:-.9px}.wordmark .brand-period{margin-left:-9px}.wordmark .brand-icon{width:30px;height:29px;flex:none;background:var(--red);mask:url(/pixelware-logo.svg) center/contain no-repeat}
+
+.sidebar-logout{align-self:flex-start;margin:16px 10px 0;font-size:11px}
