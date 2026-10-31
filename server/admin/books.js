@@ -15,7 +15,7 @@ const tagClass = tag => `book-tag tone-${[...tag.toLowerCase()].reduce((sum, cha
 const format = new Intl.NumberFormat();
 
 export function initBooks({ api, toast }) {
-  let books = [], allTags = [], activeTag = '', editing = null, deleting = null, version = 0;
+  let books = [], allTags = [], activeTag = '', editing = null, deleting = null, bookmarking = null, version = 0;
   let editSession = null, authVersion = 0;
   const editSessions = new Map();
   const pending = new Set();
@@ -85,7 +85,7 @@ export function initBooks({ api, toast }) {
           const { book } = await api(`books/${session.id}`, { method: 'PATCH', body: { name: session.name, tags: [...session.tags] } });
           if (session.authVersion !== authVersion) return;
           session.savedRevision = revision;
-          books = books.map(item => item.id === book.id ? book : item);
+          books = books.map(item => item.id === book.id ? { ...item, name: book.name, tags: book.tags } : item);
           allTags = [...new Set(books.flatMap(item => item.tags))].sort((a, b) => a.localeCompare(b));
           if (!allTags.includes(activeTag)) activeTag = '';
           render();
@@ -136,12 +136,20 @@ export function initBooks({ api, toast }) {
         if (event.target === row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); openEdit(book); }
       });
       const base = `/api/admin/books/${book.id}`;
-      const cover = el('a', 'book-cover'); cover.href = `${base}/pdf`; cover.target = '_blank'; cover.rel = 'noopener'; cover.setAttribute('aria-label', `Read ${book.name}`);
+      const previewUrl = `${base}/pdf#page=${book.bookmarkPage ?? 1}`;
+      const cover = el('a', 'book-cover'); cover.href = previewUrl; cover.target = '_blank'; cover.rel = 'noopener'; cover.setAttribute('aria-label', `Read ${book.name}`);
       const image = el('img'); image.src = `${base}/thumbnail`; image.alt = `First page of ${book.name}`; image.loading = 'lazy'; image.width = 48; image.height = 66; cover.append(image);
       const title = el('div', 'book-title');
-      const preview = el('a', 'book-name', book.name); preview.href = `${base}/pdf`; preview.target = '_blank'; preview.rel = 'noopener';
+      const preview = el('a', 'book-name', book.name); preview.href = previewUrl; preview.target = '_blank'; preview.rel = 'noopener';
+      if (book.bookmarkPage) { cover.title = preview.title = `Resume at PDF page ${book.bookmarkPage}`; }
       title.append(preview, el('span', 'book-file-meta', `PDF · ${(book.size / 1024 / 1024).toFixed(1)} MB`));
       const pages = el('span', 'book-pages', format.format(book.pages)); pages.setAttribute('aria-label', `${book.pages} pages`);
+      const pageInfo = el('div', 'book-page-info');
+      const bookmark = button('', () => openBookmark(book), `book-bookmark${book.bookmarkPage ? ' is-bookmarked' : ''}`);
+      bookmark.append(icon('bookmark'), el('span', '', book.bookmarkPage ? `p. ${format.format(book.bookmarkPage)}` : 'Set page'));
+      bookmark.setAttribute('aria-label', `Bookmark page for ${book.name}`);
+      bookmark.title = book.bookmarkPage ? `Saved at PDF page ${book.bookmarkPage} of ${book.pages}. Click to update.` : 'Save your current PDF page';
+      pageInfo.append(pages, bookmark);
       const tags = el('div', 'book-row-tags');
       for (const tag of book.tags) tags.append(button(tag, () => { activeTag = tag; render(); }, tagClass(tag)));
       const edit = button(book.tags.length ? '＋' : '＋ Add tags', () => openEdit(book), 'book-add-tags'); edit.setAttribute('aria-label', `Edit tags for ${book.name}`); tags.append(edit);
@@ -150,7 +158,7 @@ export function initBooks({ api, toast }) {
       const remove = button('', () => { deleting = book; $('book-delete-name').textContent = book.name; $('book-delete-error').textContent = ''; $('book-delete-dialog').showModal(); }, 'action-button destructive');
       remove.title = 'Delete book'; remove.setAttribute('aria-label', `Delete ${book.name}`); remove.append(icon('trash'));
       actions.append(download, remove);
-      for (const [className, node] of [['book-cover-cell', cover], ['book-title-cell', title], ['book-pages-cell', pages], ['book-tags-cell', tags], ['book-actions-cell', actions]]) {
+      for (const [className, node] of [['book-cover-cell', cover], ['book-title-cell', title], ['book-pages-cell', pageInfo], ['book-tags-cell', tags], ['book-actions-cell', actions]]) {
         const cell = el('td', className); cell.append(node); row.append(cell);
       }
       rows.append(row);
@@ -181,11 +189,34 @@ export function initBooks({ api, toast }) {
     editStatus(editSession, editSession.error ? 'Changes could not be saved.' : editSession.saving ? 'Saving changes…' : 'Changes save automatically.', Boolean(editSession.error));
     $('book-edit-dialog').showModal();
   }
+  function openBookmark(book) {
+    bookmarking = book;
+    $('book-bookmark-name').textContent = book.name;
+    $('book-bookmark-page').value = book.bookmarkPage ?? '';
+    $('book-bookmark-page').max = book.pages;
+    $('book-bookmark-hint').textContent = `Use the PDF page number, from 1 to ${format.format(book.pages)}.`;
+    $('book-bookmark-error').textContent = '';
+    $('book-bookmark-clear').hidden = book.bookmarkPage == null;
+    $('book-bookmark-dialog').showModal(); $('book-bookmark-page').focus(); $('book-bookmark-page').select();
+  }
+  async function saveBookmark(page) {
+    if (!bookmarking || pending.has('bookmark')) return;
+    const book = bookmarking, currentAuth = authVersion;
+    busy('bookmark', true); $('book-bookmark-error').textContent = '';
+    try {
+      const result = await api(`books/${book.id}/bookmark`, { method: 'PATCH', body: { page } });
+      if (currentAuth !== authVersion) return;
+      books = books.map(item => item.id === book.id ? { ...item, bookmarkPage: result.book.bookmarkPage } : item);
+      render(); $('book-bookmark-dialog').close();
+      toast(page == null ? 'Bookmark cleared.' : `Saved at PDF page ${page}. Click the cover or title to resume.`);
+    } catch (error) { if (currentAuth === authVersion) $('book-bookmark-error').textContent = error.message; }
+    finally { busy('bookmark', false); }
+  }
   function busy(prefix, value) {
     if (value) pending.add(prefix); else pending.delete(prefix);
     for (const control of $(`book-${prefix}-form`).elements) control.disabled = value;
   }
-  for (const prefix of ['upload', 'edit', 'delete']) {
+  for (const prefix of ['upload', 'edit', 'delete', 'bookmark']) {
     for (const action of ['close', 'cancel']) $(`book-${prefix}-${action}`).addEventListener('click', () => $(`book-${prefix}-dialog`).close());
     $(`book-${prefix}-dialog`).addEventListener('cancel', event => { if (pending.has(prefix)) event.preventDefault(); });
   }
@@ -231,6 +262,11 @@ export function initBooks({ api, toast }) {
   $('book-edit-name').addEventListener('change', commitName);
   $('book-edit-dialog').addEventListener('close', commitName);
   $('book-edit-retry').addEventListener('click', () => { if (editSession) void saveEdit(editSession); });
+  $('book-bookmark-form').addEventListener('submit', event => {
+    event.preventDefault();
+    if ($('book-bookmark-page').reportValidity()) void saveBookmark(Number($('book-bookmark-page').value));
+  });
+  $('book-bookmark-clear').addEventListener('click', () => { void saveBookmark(null); });
   $('book-delete-form').addEventListener('submit', async event => {
     event.preventDefault(); if (!deleting || pending.has('delete')) return;
     busy('delete', true); $('book-delete-error').textContent = '';
@@ -240,8 +276,8 @@ export function initBooks({ api, toast }) {
   });
   return { refresh, reset() {
     authVersion++; editSession = null; editSessions.clear();
-    version++; books = []; allTags = []; activeTag = ''; editing = null; deleting = null;
+    version++; books = []; allTags = []; activeTag = ''; editing = null; deleting = null; bookmarking = null;
     $('book-search').value = ''; $('book-rows').replaceChildren(); $('book-filters').replaceChildren();
-    for (const prefix of ['upload', 'edit', 'delete']) $(`book-${prefix}-dialog`).close();
+    for (const prefix of ['upload', 'edit', 'delete', 'bookmark']) $(`book-${prefix}-dialog`).close();
   } };
 }

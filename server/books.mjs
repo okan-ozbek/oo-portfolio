@@ -42,11 +42,15 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
   db.exec(`CREATE TABLE IF NOT EXISTS books (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, tags_json TEXT NOT NULL,
     pages INTEGER NOT NULL, size INTEGER NOT NULL, sha256 TEXT NOT NULL UNIQUE,
-    pdf BLOB NOT NULL, thumbnail BLOB NOT NULL, created_at TEXT NOT NULL
+    pdf BLOB NOT NULL, thumbnail BLOB NOT NULL, created_at TEXT NOT NULL,
+    bookmark_page INTEGER CHECK(bookmark_page >= 1)
   ) STRICT;`);
+  if (!db.prepare('PRAGMA table_info(books)').all().some(column => column.name === 'bookmark_page')) {
+    db.exec('ALTER TABLE books ADD COLUMN bookmark_page INTEGER CHECK(bookmark_page >= 1)');
+  }
   let processing = 0;
-  const fields = 'id, name, tags_json, pages, size, created_at';
-  const metadata = row => ({ id: row.id, name: row.name, tags: JSON.parse(row.tags_json), pages: row.pages, size: row.size, createdAt: row.created_at });
+  const fields = 'id, name, tags_json, pages, size, created_at, bookmark_page';
+  const metadata = row => ({ id: row.id, name: row.name, tags: JSON.parse(row.tags_json), pages: row.pages, size: row.size, createdAt: row.created_at, bookmarkPage: row.bookmark_page });
   function list() { return db.prepare(`SELECT ${fields} FROM books ORDER BY name COLLATE NOCASE, id`).all().map(metadata); }
   function canonicalTags(tags) {
     const existing = new Map(list().flatMap(book => book.tags).map(tag => [tag.toLowerCase(), tag]));
@@ -65,7 +69,7 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
       const { pages, thumbnail } = await inspect(pdf);
       if (duplicate()) throw new HttpError(409, 'This PDF is already in your library.');
       const id = randomUUID();
-      db.prepare('INSERT INTO books VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, identity.name, JSON.stringify(canonicalTags(identity.tags)), pages, pdf.length, hash, pdf, thumbnail, new Date(now()).toISOString());
+      db.prepare('INSERT INTO books (id, name, tags_json, pages, size, sha256, pdf, thumbnail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, identity.name, JSON.stringify(canonicalTags(identity.tags)), pages, pdf.length, hash, pdf, thumbnail, new Date(now()).toISOString());
       return metadata(db.prepare(`SELECT ${fields} FROM books WHERE id = ?`).get(id));
     } finally { processing--; }
   }
@@ -94,12 +98,21 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
         return true;
       }
     }
-    const match = /^\/api\/admin\/books\/([a-f0-9-]{36})(?:\/(pdf|thumbnail))?$/.exec(url.pathname);
+    const match = /^\/api\/admin\/books\/([a-f0-9-]{36})(?:\/(pdf|thumbnail|bookmark))?$/.exec(url.pathname);
     if (!match) return false;
     const [, id, asset] = match;
     const row = db.prepare(`SELECT ${fields} FROM books WHERE id = ?`).get(id);
     if (!row) throw new HttpError(404, 'Book not found.');
-    if (asset && ['GET', 'HEAD'].includes(req.method)) {
+    if (asset === 'bookmark' && req.method === 'PATCH') {
+      const body = await readJson(req);
+      if (Object.keys(body).length !== 1 || !Object.hasOwn(body, 'page') || (body.page !== null && (!Number.isSafeInteger(body.page) || body.page < 1 || body.page > row.pages))) {
+        throw new HttpError(400, `Choose a PDF page between 1 and ${row.pages}, or clear the bookmark.`);
+      }
+      db.prepare('UPDATE books SET bookmark_page = ? WHERE id = ?').run(body.page, id);
+      send(res, 200, { book: metadata(db.prepare(`SELECT ${fields} FROM books WHERE id = ?`).get(id)) });
+      return true;
+    }
+    if (['pdf', 'thumbnail'].includes(asset) && ['GET', 'HEAD'].includes(req.method)) {
       const body = db.prepare(`SELECT ${asset === 'pdf' ? 'pdf' : 'thumbnail'} AS body FROM books WHERE id = ?`).get(id).body;
       const download = url.searchParams.get('download') === '1';
       // As with resumes, CSP sandbox prevents Chromium's native PDF viewer loading.
