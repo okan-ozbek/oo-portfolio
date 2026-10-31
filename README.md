@@ -93,3 +93,11 @@ The Google Fonts stylesheet loads Space Grotesk and IBM Plex Mono. The animated 
 Vinext requires the React/RSC Vite plugins and `react-server-dom-webpack` indirectly. Keep those dependencies even though page components do not import them. The `next` package supplies metadata/configuration types and TypeScript tooling; no Next.js server runs on the VPS. The static build uses the prerender runner from the pinned Vinext version, so verify the export when upgrading it.
 
 Historical Sites metadata may remain under `.openai/`; it is not loaded by Vite or included in the Docker build. The active project no longer uses Sites/Cloudflare workers, D1, Drizzle, or ChatGPT sign-in.
+
+### Blog and project views
+
+The admin Blog and Project tables show unique device views, starting when analytics is installed. Opening a public article counts a blog view. Following a published project title opens a tracked redirect and counts a project view. Teaser cards, listings, private previews, HEAD requests, known bots, and explicit prefetches do not count.
+
+A first-party HttpOnly cookie identifies an anonymous browser; SQLite stores only its hash per item and its first view date. Repeat visits never increment that item again while the cookie is retained, including across server restarts. No IP addresses, names, or browser fingerprints are collected. Another browser, clearing cookies, private browsing, or cookie expiry can count as another device. Counts cannot identify individual people and earlier traffic cannot be reconstructed.
+
+Both workspaces include daily view graphs above their tables. Each line represents a published item or an item with historical views. The graph counts each device on its first-view date; it is not a cumulative total or a repeat-visit count. The same 7-day, 30-day, rolling-quarter, and rolling-year UTC ranges as Link analytics are available, along with hover details and keyboard navigation.

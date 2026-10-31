@@ -1,3 +1,4 @@
+import { initContentChart } from './content-chart.js';
 import { icon } from './icons.js';
 import { formatMarkdown } from './blog-format.js';
 import { enhanceContent } from '/blog/assets/reader.js';
@@ -14,6 +15,7 @@ const slugify=value=>value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u03
 const imagePattern=/!\[((?:\\.|[^\]])*)\]\((\/blog\/media\/[a-f0-9-]{36})(?: "((?:\\.|[^"])*)")?\)(?:\{width=(\d{1,3}) align=(left|center|right)\})?/g;
 
 export function initBlogs({api,toast}) {
+  const activity=initContentChart({api,kind:'blog',prefix:'blog-view-'});
   let posts=[],author=null,editor=null,epoch=0,loading=0,uploadTarget=null,imageEditing=null,publishAction='publish',authorBusy=false;
   const tagTone=tag=>`book-tag tone-${[...tag.toLowerCase()].reduce((sum,char)=>sum+char.codePointAt(0),0)%6}`;
   const tagChips=node('div','book-tag-chips'),tagInput=node('input'),tagSuggestions=node('div','book-tag-suggestions');
@@ -57,11 +59,11 @@ export function initBlogs({api,toast}) {
       const identity=node('td');identity.append(node('span','blog-table-title',post.title||'Untitled draft'),node('span','blog-table-summary',post.summary||'A thought waiting to take shape.'));
       const state=node('td');state.append(node('span',`blog-status ${post.status}`,post.status==='published'?'Published':'Draft'));if(post.hasUnpublishedChanges)state.append(node('span','blog-status-note','Unpublished changes'));
       const byline=node('td','blog-table-author');byline.append(rowAuthor());const date=node('td','blog-table-date',formatDate(post.updatedAt));
-      const actions=node('td');const edit=button('',()=>void openPost(post.id),'action-button');edit.append(icon('edit'));edit.setAttribute('aria-label',`Edit ${post.title}`);edit.title='Edit post';actions.append(edit);row.append(cover,identity,state,byline,date,actions);$('blog-rows').append(row);
+      const actions=node('td');const edit=button('',()=>void openPost(post.id),'action-button');edit.append(icon('edit'));edit.setAttribute('aria-label',`Edit ${post.title}`);edit.title='Edit post';actions.append(edit);const views=node('td','unique-views',new Intl.NumberFormat().format(post.uniqueViews??0));views.setAttribute('aria-label',`${post.uniqueViews??0} unique device views`);row.append(cover,identity,state,byline,date,views,actions);$('blog-rows').append(row);
     }
     enhanceArtwork($('blog-rows'));
   }
-  async function refresh(){const version=++loading,currentEpoch=epoch;const data=await api('blogs');if(version!==loading||currentEpoch!==epoch)return;posts=data.posts;author=data.author;renderList();}
+  async function refresh(){const version=++loading,currentEpoch=epoch;const [data]=await Promise.all([api('blogs'),activity.refresh()]);if(version!==loading||currentEpoch!==epoch)return;posts=data.posts;author=data.author;renderList();}
   function updatePost(post){posts=posts.some(item=>item.id===post.id)?posts.map(item=>item.id===post.id?post:item):[post,...posts];renderList();}
   function renderState(){if(!editor)return;const post=editor.post;$('blog-edit-state').textContent=post.status==='published'?(dirty()||post.hasUnpublishedChanges?'PUBLISHED · UNPUBLISHED CHANGES':'PUBLISHED'):'PRIVATE DRAFT';$('blog-publish').textContent=post.status==='published'?'Publish changes':'Publish';$('blog-unpublish').hidden=post.status!=='published';$('blog-preview-link').href=`/admin/blog-preview/${post.id}`;$('blog-slug').disabled=true;}
   async function save(){
@@ -176,7 +178,7 @@ export function initBlogs({api,toast}) {
   function openPublish(action){if(!editor)return;publishAction=action;$('blog-publish-note-field').hidden=action!=='publish'||!editor.post.publishedAt;$('blog-publish-title').textContent=action==='unpublish'?'Return to draft?':'Ready to share?';$('blog-publish-description').textContent=action==='unpublish'?'This removes the article from the website. Your writing, images, and history stay here.':editor.post.status==='published'?'Your saved changes will replace the live article.':'This article will appear on your website and in the reading list.';$('blog-publish-confirm').textContent=action==='unpublish'?'Unpublish article':'Publish article';$('blog-publish-note').value='';$('blog-publish-error').textContent='';$('blog-publish-dialog').showModal();}
   $('blog-publish').addEventListener('click',()=>openPublish('publish'));$('blog-unpublish').addEventListener('click',()=>openPublish('unpublish'));
   $('blog-publish-form').addEventListener('submit',async event=>{event.preventDefault();const active=editor;if(!active||active.publishing)return;active.publishing=true;for(const control of $('blog-publish-form').elements)control.disabled=true;
-    try{if(!(await save()))throw new Error('Save your draft successfully before continuing.');const {post}=await api(`blogs/${active.post.id}/${publishAction}`,{method:'POST',body:{version:active.post.version,note:$('blog-publish-note').value}});if(editor!==active)return;active.post=post;updatePost(post);renderState();status('All changes saved');$('blog-publish-dialog').close();if(publishAction==='publish')showLibrary();toast(publishAction==='publish'?'Article published.':'Article returned to draft.');}catch(error){$('blog-publish-error').textContent=error.message;}finally{active.publishing=false;for(const control of $('blog-publish-form').elements)control.disabled=false;}
+    try{if(!(await save()))throw new Error('Save your draft successfully before continuing.');const {post}=await api(`blogs/${active.post.id}/${publishAction}`,{method:'POST',body:{version:active.post.version,note:$('blog-publish-note').value}});if(editor!==active)return;active.post=post;updatePost(post);renderState();status('All changes saved');$('blog-publish-dialog').close();if(publishAction==='publish')showLibrary();void activity.refresh();toast(publishAction==='publish'?'Article published.':'Article returned to draft.');}catch(error){$('blog-publish-error').textContent=error.message;}finally{active.publishing=false;for(const control of $('blog-publish-form').elements)control.disabled=false;}
   });
   for(const dialog of ['blog-publish-dialog','blog-author-dialog'])$(dialog).addEventListener('cancel',event=>{if(dialog==='blog-publish-dialog'?editor?.publishing:authorBusy)event.preventDefault();});
   for(const control of document.querySelectorAll('[data-blog-close]'))control.addEventListener('click',()=>$(control.dataset.blogClose).close());
@@ -186,5 +188,5 @@ export function initBlogs({api,toast}) {
   $('blog-author-form').addEventListener('submit',async event=>{event.preventDefault();if(authorBusy)return;authorBusy=true;for(const control of $('blog-author-form').elements)control.disabled=true;try{const data=await api('blogs/author',{method:'PUT',body:{name:$('blog-author-name').value,linkedinUrl:$('blog-author-linkedin').value,avatarId:author.avatarId}});author=data.author;renderList();$('blog-author-dialog').close();toast('Author profile saved.');}catch(error){$('blog-author-error').textContent=error.message;}finally{authorBusy=false;for(const control of $('blog-author-form').elements)control.disabled=false;}});
   $('blog-linkedin-connect').addEventListener('click',async()=>{if(authorBusy)return;authorBusy=true;try{const saved=await api('blogs/author',{method:'PUT',body:{name:$('blog-author-name').value,linkedinUrl:$('blog-author-linkedin').value,avatarId:author.avatarId}});author=saved.author;const data=await api('blogs/author/linkedin',{method:'POST',body:{}});location.assign(data.url);}catch(error){$('blog-author-error').textContent=error.message;authorBusy=false;}});
   window.addEventListener('beforeunload',event=>{if(dirty()||editor?.saving){event.preventDefault();event.returnValue='';}});
-  return {refresh,leave,reset(){epoch++;loading++;if(editor){clearTimeout(editor.timer);clearTimeout(editor.previewTimer);}editor=null;posts=[];author=null;$('blog-editor').hidden=true;$('blog-library').hidden=false;$('blog-rows').replaceChildren();for(const id of ['blog-author-dialog','blog-publish-dialog','blog-image-dialog'])$(id).close();}};
+  return {refresh,leave,reset(){activity.reset();epoch++;loading++;if(editor){clearTimeout(editor.timer);clearTimeout(editor.previewTimer);}editor=null;posts=[];author=null;$('blog-editor').hidden=true;$('blog-library').hidden=false;$('blog-rows').replaceChildren();for(const id of ['blog-author-dialog','blog-publish-dialog','blog-image-dialog'])$(id).close();}};
 }

@@ -1,3 +1,4 @@
+import { initContentChart } from './content-chart.js';
 import { icon } from './icons.js';
 import { technicalPresets, projectPresets, artworkNode, enhanceArtwork } from '/blog/assets/visuals.js';
 const $ = id => document.getElementById(id);
@@ -6,6 +7,7 @@ const node = (tag, className, text) => { const item = document.createElement(tag
 const details = project => Object.fromEntries([...fields, 'thumbnail'].map(key => [key, project[key]]));
 
 export function initProjects({ api, toast }) {
+  const activity=initContentChart({api,kind:'project',prefix:'project-view-'});
   let projects = [], editor = null, baseline = '', busy = false, epoch = 0;
   const dirty = () => editor && JSON.stringify(details(editor)) !== baseline;
   const leave = async () => {
@@ -27,11 +29,11 @@ export function initProjects({ api, toast }) {
       if (project.state === 'published' && project.url) { const link = node('a', 'project-destination', `(${project.url})`); link.href = project.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; titleLine.append(link); }
       const state = node('span', `blog-status ${project.state}`, { draft: 'Draft', teaser: 'Coming soon', published: 'Published' }[project.state]);
       const edit = node('button', 'action-button');edit.append(icon('edit'));edit.title='Edit project'; edit.type = 'button'; edit.setAttribute('aria-label', `Edit ${project.title}`); edit.addEventListener('click', () => open(project));
-      const identity=node('td','project-identity'),status=node('td','project-status-cell'),actions=node('td','project-actions-cell');const inner=node('div','project-identity-inner');inner.append(artwork,copy);identity.append(inner);status.append(state);actions.append(edit);row.append(identity,status,actions);$('project-rows').append(row);
+      const identity=node('td','project-identity'),status=node('td','project-status-cell'),actions=node('td','project-actions-cell');const inner=node('div','project-identity-inner');inner.append(artwork,copy);identity.append(inner);status.append(state);actions.append(edit);const views=node('td','unique-views',new Intl.NumberFormat().format(project.uniqueViews??0));views.setAttribute('aria-label',`${project.uniqueViews??0} unique device views`);row.append(identity,status,views,actions);$('project-rows').append(row);
     }
     enhanceArtwork($('project-rows'));
   }
-  async function refresh() { const current = epoch; const data = await api('projects'); if (current !== epoch) return; projects = data.projects; renderList(); }
+  async function refresh() { const current = epoch; const [data] = await Promise.all([api('projects'),activity.refresh()]); if (current !== epoch) return; projects = data.projects; renderList(); }
   function renderState() {
     $('project-state-note').textContent = { draft: 'Only visible in this workspace.', teaser: 'Shown on the homepage as Coming soon. The destination stays private.', published: 'Visible on the homepage with a link to its destination.' }[editor.state];
     $('project-url').required = editor.state === 'published';
@@ -70,7 +72,7 @@ export function initProjects({ api, toast }) {
     try {
       const { project } = await api(active.id ? `projects/${active.id}` : 'projects', { method: active.id ? 'PUT' : 'POST', body: { project: details(active), version: active.version } });
       if (current !== epoch) return;
-      projects=projects.filter(item=>item.id!==project.id).concat(project).sort((a,b)=>a.position-b.position);renderList();showLibrary();toast('Project saved.');
+      projects=projects.filter(item=>item.id!==project.id).concat(project).sort((a,b)=>a.position-b.position);renderList();showLibrary();void activity.refresh();toast('Project saved.');
     } catch (error) { if (current === epoch) { $('project-error').textContent = error.message; $('project-save-status').textContent = 'Changes not saved'; } }
     finally { busy = false; $('project-save').disabled = false; controls.forEach(control => control.disabled = false); }
   }
@@ -80,10 +82,10 @@ export function initProjects({ api, toast }) {
   $('project-delete-dialog').addEventListener('cancel', event => { if (busy) event.preventDefault(); });
   $('project-delete-confirm').addEventListener('click', async () => {
     if (!editor?.id || busy) return; busy = true; const current = epoch; $('project-delete-confirm').disabled = true;
-    try { await api(`projects/${editor.id}`, { method: 'DELETE', body: { version: editor.version } }); if (current !== epoch) return; $('project-delete-dialog').close(); projects=projects.filter(item=>item.id!==editor.id);renderList();showLibrary();toast('Project deleted.'); }
+    try { await api(`projects/${editor.id}`, { method: 'DELETE', body: { version: editor.version } }); if (current !== epoch) return; $('project-delete-dialog').close(); projects=projects.filter(item=>item.id!==editor.id);renderList();showLibrary();void activity.refresh();toast('Project deleted.'); }
     catch (error) { if (current === epoch) $('project-delete-error').textContent = error.message; }
     finally { busy = false; $('project-delete-confirm').disabled = false; }
   });
   window.addEventListener('beforeunload', event => { if (dirty() || busy) { event.preventDefault(); event.returnValue = ''; } });
-  return { refresh, leave, reset() { epoch++; editor = null; projects = []; $('project-delete-dialog').close(); $('project-editor').hidden = true; $('project-library').hidden = false; $('project-rows').replaceChildren(); } };
+  return { refresh, leave, reset() { activity.reset();epoch++; editor = null; projects = []; $('project-delete-dialog').close(); $('project-editor').hidden = true; $('project-library').hidden = false; $('project-rows').replaceChildren(); } };
 }

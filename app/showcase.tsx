@@ -24,7 +24,7 @@ export function Showcase() {
       if(controller.signal.aborted)return;
       setProjects(data.projects.map((project:{id:string;title:string;caption:string;description:string;url:string;state:string;thumbnail:string})=>{
         const original=initialProjects.find(item=>'project-'+item.visual===project.thumbnail);
-        return {id:project.id,name:project.title,category:project.caption,description:project.description,href:project.state==='published'?project.url:undefined,visual:original?.visual,code:original?.code??'PXW / PROJECT',thumbnail:project.thumbnail};
+        return {id:project.id,name:project.title,category:project.caption,description:project.description,href:project.state==='published'?`/api/public/projects/${project.id}/visit`:undefined,visual:original?.visual,code:original?.code??'PXW / PROJECT',thumbnail:project.thumbnail};
       }));
     }).catch(()=>{/* Preserve the static showcase if the service is unavailable. */});
     return()=>controller.abort();

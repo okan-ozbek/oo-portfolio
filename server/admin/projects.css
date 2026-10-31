@@ -24,3 +24,5 @@
 .project-table th{text-transform:uppercase}
 .project-title-line{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 10px}
 .project-table .project-title-line .project-destination{display:inline;margin:0;max-width:100%;overflow-wrap:anywhere}
+
+.project-table th:nth-child(3){width:85px}@media(max-width:700px){.project-table td.unique-views{grid-column:1;grid-row:3}.project-table td.unique-views::before{content:"Views · ";color:var(--muted)}}

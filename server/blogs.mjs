@@ -12,7 +12,7 @@ const SLUG=/^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const positions=['center','top','bottom','left','right'];
 const fields=['title','slug','summary','tags','markdown','thumbnail','banner','relatedIds'];
 const fresh = () => ({title:'Untitled draft',slug:`post-${randomUUID().slice(0,8)}`,summary:'',tags:[],markdown:'',thumbnail:{preset:'terrain',assetId:null,position:'center'},banner:{preset:'terrain',assetId:null,position:'center'},relatedIds:[]});
-export function createBlogs({db,origin,now=Date.now,send,isAuthenticated}) {
+export function createBlogs({db,origin,now=Date.now,send,isAuthenticated,analytics}) {
   db.exec(`CREATE TABLE IF NOT EXISTS blog_posts (
     id TEXT PRIMARY KEY, draft_json TEXT NOT NULL, published_json TEXT, published_slug TEXT UNIQUE,
     version INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
@@ -36,7 +36,7 @@ export function createBlogs({db,origin,now=Date.now,send,isAuthenticated}) {
   const author=()=>JSON.parse(db.prepare('SELECT profile_json FROM blog_author WHERE id=1').get().profile_json);
   const rowFor=id=>{const row=db.prepare('SELECT * FROM blog_posts WHERE id=?').get(id);if(!row)throw new HttpError(404,'Post not found.');return row;};
   const profilePublic=()=>{const {name,linkedinUrl,avatarId}=author();return {name,linkedinUrl,avatarId};};
-  const entry=row=>({id:row.id,...JSON.parse(row.draft_json),version:row.version,createdAt:row.created_at,updatedAt:row.updated_at,publishedAt:row.published_at,status:row.published_json?'published':'draft',hasUnpublishedChanges:Boolean(row.published_json&&row.draft_json!==row.published_json),publicUrl:row.published_json?`/blog/${row.published_slug}`:null});
+  const entry=row=>({id:row.id,uniqueViews:analytics?.count('blog',row.id)??0,...JSON.parse(row.draft_json),version:row.version,createdAt:row.created_at,updatedAt:row.updated_at,publishedAt:row.published_at,status:row.published_json?'published':'draft',hasUnpublishedChanges:Boolean(row.published_json&&row.draft_json!==row.published_json),publicUrl:row.published_json?`/blog/${row.published_slug}`:null});
   const summary=row=>{const post=JSON.parse(row.published_json);return {id:row.id,title:post.title,slug:row.published_slug,summary:post.summary,tags:post.tags,thumbnailUrl:artUrl(post.thumbnail,row.id),thumbnailPosition:post.thumbnail.position,thumbnailPreset:post.thumbnail.assetId?null:post.thumbnail.preset,publishedAt:row.published_at,updatedAt:row.live_updated_at,author:profilePublic()};};
   function transaction(action) {db.exec('BEGIN IMMEDIATE');try{const result=action();db.exec('COMMIT');return result;}catch(error){db.exec('ROLLBACK');throw error;}}
   function listPublic(cursor=null,limit=5) {
@@ -199,7 +199,7 @@ export function createBlogs({db,origin,now=Date.now,send,isAuthenticated}) {
     const preview=/^\/admin\/blog-preview\/([a-f0-9-]{36})$/.exec(path);
     if(preview){if(!isAuthenticated(req))throw new HttpError(401,'Sign in to preview this draft.');const row=rowFor(preview[1]),post={...JSON.parse(row.draft_json),id:row.id};return bytes(articlePage(post,profilePublic(),suggestions(post),origin,{preview:true,publishedAt:row.published_at,updatedAt:row.updated_at}),'text/html; charset=utf-8',true);}
     const slug=/^\/blog\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(path);
-    if(slug){const row=db.prepare('SELECT * FROM blog_posts WHERE published_slug=? AND published_json IS NOT NULL').get(slug[1]);if(!row)throw new HttpError(404,'Article not found.');const post={...JSON.parse(row.published_json),id:row.id};return bytes(articlePage(post,profilePublic(),suggestions(post),origin,{publishedAt:row.published_at,updatedAt:row.live_updated_at,changelog:db.prepare("SELECT note,created_at FROM blog_revisions WHERE post_id=? AND kind='published' ORDER BY rowid DESC").all(row.id).map(rev=>({note:rev.note,createdAt:rev.created_at}))}),'text/html; charset=utf-8');}
+    if(slug){const row=db.prepare('SELECT * FROM blog_posts WHERE published_slug=? AND published_json IS NOT NULL').get(slug[1]);if(!row)throw new HttpError(404,'Article not found.');const post={...JSON.parse(row.published_json),id:row.id};analytics?.record(req,res,'blog',row.id);return bytes(articlePage(post,profilePublic(),suggestions(post),origin,{publishedAt:row.published_at,updatedAt:row.live_updated_at,changelog:db.prepare("SELECT note,created_at FROM blog_revisions WHERE post_id=? AND kind='published' ORDER BY rowid DESC").all(row.id).map(rev=>({note:rev.note,createdAt:rev.created_at}))}),'text/html; charset=utf-8');}
     throw new HttpError(404,'Not found.');
   }
   return {adminRoute,publicRoute};

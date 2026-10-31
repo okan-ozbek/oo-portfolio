@@ -1,10 +1,11 @@
 // Retain the select as the filter's value source; share the analytics picker UI.
-export function initFilterPicker(select) {
+export function initFilterPicker(select, { calendar=false } = {}) {
   const label=document.querySelector(`label[for="${select.id}"]`)?.textContent ?? 'Filter';
   const root=document.createElement('div');root.className='range-picker library-filter-picker';
   const trigger=document.createElement('button');trigger.type='button';trigger.className='range-trigger';trigger.setAttribute('aria-haspopup','listbox');trigger.setAttribute('aria-expanded','false');
   const text=document.createElement('span');
   const glyph=document.createElement('span');glyph.className='range-icon';glyph.setAttribute('aria-hidden','true');glyph.textContent='≡';
+  if(calendar){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 20 20');svg.setAttribute('fill','none');const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');for(const [key,value]of Object.entries({x:3,y:4.5,width:14,height:12.5,rx:2}))rect.setAttribute(key,value);const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d','M6.5 3v3M13.5 3v3M3 8.5h14M6.5 12h2M11.5 12h2');svg.append(rect,path);glyph.replaceChildren(svg);}
   const arrow=document.createElementNS('http://www.w3.org/2000/svg','svg');arrow.setAttribute('viewBox','0 0 16 16');arrow.setAttribute('class','range-chevron');arrow.setAttribute('fill','none');arrow.setAttribute('aria-hidden','true');
   const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d','m4 6 4 4 4-4');arrow.append(path);trigger.append(glyph,text,arrow);
   const menu=document.createElement('div');menu.className='range-menu';menu.id=select.id+'-menu';menu.hidden=true;menu.setAttribute('role','listbox');menu.setAttribute('aria-label',label);trigger.setAttribute('aria-controls',menu.id);
