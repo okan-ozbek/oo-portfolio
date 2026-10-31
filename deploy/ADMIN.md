@@ -98,9 +98,28 @@ The `Deploy portfolio and link studio` workflow runs automatically on every push
 to **master**, including merged pull requests. It can also be run manually from
 the Actions tab with `master` selected. Other branches and pull-request events
 cannot deploy. Before deployment it checks lint, types, static export, backend
-tests, and a Docker test that rebuilds/replaces the admin container across two
-release directories while preserving the database volume. Dependencies are
-pinned to official action release commits.
+tests, and three isolated Docker smoke tests. CI builds the admin and compiler
+images once, using separate GitHub Actions BuildKit caches that retain the
+expensive Poppler/TeX installation layers across runs. Every run still builds
+the current source; a cache hit only reuses unchanged layers. The compiler,
+NGINX upload/download, and deployment-persistence tests then run in parallel
+using these images, with separate containers, networks, volumes, and credentials.
+The persistence test replaces the admin container across two release directories
+while preserving its database volume. All three tests must finish successfully
+before deployment. Standalone smoke commands still build their own images.
+Dependencies are pinned to official action release commits. No registry account
+or additional secrets are required. The first run populates the caches and can
+still take longer; measure subsequent runs to assess the improvement.
+
+CI also packages and smoke-tests the generated frontend in the small
+`deploy/Dockerfile.prebuilt` NGINX image. Its static files pass to the deployment
+job as a commit-named artifact from the same workflow run (retained for one day).
+The release archive contains both tracked source and this verified `dist/client`
+directory. The installer selects the prebuilt Dockerfile and refuses a release
+missing that build. This removes the second npm install/frontend compilation
+from the VPS. The regular `Dockerfile` remains the default for manual local
+Compose builds. The dedicated prebuilt Docker ignore file includes only static
+assets and NGINX configuration; credentials and local databases stay excluded.
 
 Create an environment named `production`, restrict it to `master`,
 and configure these environment secrets (repository secrets also work):

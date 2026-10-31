@@ -11,11 +11,11 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const name = `pixelware-compiler-test-${randomBytes(6).toString('hex')}`;
 const directory = await mkdtemp(join(tmpdir(), name));
 const docker = (...args) => execFileSync('docker', args, { encoding: 'utf8', timeout: 300000 }).trim();
-const image = 'pixelware-resume-compiler:local';
+const image = process.env.PIXELWARE_TEST_COMPILER_IMAGE || 'pixelware-resume-compiler:local';
 const project = { mainFile: 'main.tex', files: await Promise.all(['main.tex', 'styles/resume.sty'].map(async path => ({ path, content: (await readFile(new URL(`../tests/fixtures/resume/${path}`, import.meta.url))).toString('base64') }))) };
 let started = false;
 try {
-  docker('build', '-f', 'deploy/Dockerfile.compiler', '-t', image, root);
+  if (!process.env.PIXELWARE_TEST_COMPILER_IMAGE) docker('build', '-f', 'deploy/Dockerfile.compiler', '-t', image, root);
   docker('network', 'create', '--internal', name);
   started = true;
   docker('run', '-d', '--name', name, '--network', name, '--read-only', '--tmpfs', '/tmp:size=128m,mode=1777', '--memory', '768m', '--cpus', '1', '--pids-limit', '64', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', image);
