@@ -3,10 +3,11 @@ import { formatMarkdown } from './blog-format.js';
 import { enhanceContent } from '/blog/assets/reader.js';
 import {technicalPresets,projectPresets,artworkNode,replaceArtwork,enhanceArtwork} from '/blog/assets/visuals.js';
 const $=id=>document.getElementById(id);
+// Keep legacy banner data intact when saving existing posts and revisions.
 const postFields=['title','slug','summary','tags','markdown','thumbnail','banner','relatedIds'];
 const node=(tag,className='',text)=>{const value=document.createElement(tag);value.className=className;if(text!==undefined)value.textContent=text;return value;};
 const button=(text,action,className='secondary')=>{const value=node('button',className,text);value.type='button';value.addEventListener('click',action);return value;};
-const art=(spec,id,wide=false)=>spec.assetId?`/blog/media/${spec.assetId}?size=${wide?'banner':'thumbnail'}`:`/blog/art/${spec.preset}.svg?seed=${encodeURIComponent(id)}${wide?'&wide=1':''}`;
+const art=(spec,id)=>spec.assetId?`/blog/media/${spec.assetId}?size=thumbnail`:`/blog/art/${spec.preset}.svg?seed=${encodeURIComponent(id)}`;
 const formatDate=value=>new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(new Date(value));
 const snapshot=post=>Object.fromEntries(postFields.map(key=>[key,structuredClone(post[key])]));
 const slugify=value=>value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,100).replace(/-$/,'');
@@ -118,15 +119,15 @@ export function initBlogs({api,toast}) {
   function renderArtwork(){if(!editor)return;const post=editor.post;
     for(const [container,collection]of [[$('blog-presets'),technicalPresets],[$('blog-project-presets'),projectPresets]]){
       container.replaceChildren();for(const preset of collection){
-        const choice=button('',()=>{editor.post.thumbnail={preset:preset.id,assetId:null,position:'center'};editor.post.banner={preset:preset.id,assetId:null,position:'center'};changed(false);renderArtwork();},'blog-preset');
-        choice.dataset.preset=preset.id;choice.setAttribute('aria-label',`Use ${preset.name} thumbnail and banner`);choice.setAttribute('aria-pressed',String(post.thumbnail.preset===preset.id&&post.banner.preset===preset.id&&!post.thumbnail.assetId&&!post.banner.assetId));
+        const choice=button('',()=>{editor.post.thumbnail={preset:preset.id,assetId:null,position:'center'};changed(false);renderArtwork();},'blog-preset');
+        choice.dataset.preset=preset.id;choice.setAttribute('aria-label',`Use ${preset.name} thumbnail`);choice.setAttribute('aria-pressed',String(post.thumbnail.preset===preset.id&&!post.thumbnail.assetId));
         const caption=node('div','blog-preset-caption');caption.append(node('strong','',preset.name),node('small','',preset.topic),node('i','blog-preset-check',choice.getAttribute('aria-pressed')==='true'?'✓':'↗'));
         choice.append(artworkNode({preset:preset.id},post.id),caption);container.append(choice);
       }enhanceArtwork(container);
     }
-    for(const key of ['thumbnail','banner']){replaceArtwork($(`blog-${key}-preview`),post[key],post.id,key==='banner');$(`blog-${key}-position`).value=post[key].position;$(`blog-${key}-crop`).hidden=!post[key].assetId;$(`blog-${key}-reset`).hidden=!post[key].assetId;}
+    for(const key of ['thumbnail']){replaceArtwork($(`blog-${key}-preview`),post[key],post.id,false);$(`blog-${key}-position`).value=post[key].position;$(`blog-${key}-crop`).hidden=!post[key].assetId;$(`blog-${key}-reset`).hidden=!post[key].assetId;}
   }
-  for(const key of ['thumbnail','banner']){$(`blog-${key}-upload`).addEventListener('click',()=>chooseUpload(key));$(`blog-${key}-reset`).addEventListener('click',()=>{editor.post[key].assetId=null;changed(false);renderArtwork();});$(`blog-${key}-position`).addEventListener('change',()=>{editor.post[key].position=$(`blog-${key}-position`).value;changed(false);renderArtwork();});}
+  for(const key of ['thumbnail']){$(`blog-${key}-upload`).addEventListener('click',()=>chooseUpload(key));$(`blog-${key}-reset`).addEventListener('click',()=>{editor.post[key].assetId=null;changed(false);renderArtwork();});$(`blog-${key}-position`).addEventListener('change',()=>{editor.post[key].position=$(`blog-${key}-position`).value;changed(false);renderArtwork();});}
   function renderMedia(){if(!editor)return;$('blog-media-library').replaceChildren();for(const asset of editor.assets){const item=button('',()=>openImage({asset}), 'blog-media-item'),image=node('img');image.src=asset.url;image.alt='';item.append(image,node('span','',asset.name));item.title=`Insert ${asset.name}`;$('blog-media-library').append(item);}}
   async function loadMedia(){const active=editor;try{const data=await api(`blogs/${active.post.id}/media`);if(editor!==active)return;active.assets=data.assets;renderMedia();}catch(error){if(editor===active)setError(error);}}
   function chooseUpload(target){uploadTarget=target;$('blog-image-file').value='';$('blog-image-file').click();}
@@ -138,7 +139,7 @@ export function initBlogs({api,toast}) {
     toast('Uploading image…');
     try{const {asset}=await api(target==='author'?`blogs/author/media?name=${encodeURIComponent(file.name)}`:`blogs/${active.post.id}/media?name=${encodeURIComponent(file.name)}`,{method:'POST',file});if(currentEpoch!==epoch)return;
       if(target==='author'){author.avatarId=asset.id;renderAuthorPhoto();toast('Photo ready. Save your profile to apply it.');return;}
-      if(editor!==active)return;active.assets.push(asset);renderMedia();if(['thumbnail','banner'].includes(target)){active.post[target].assetId=asset.id;changed(false);renderArtwork();toast('Image uploaded.');}else{selectTab('content');openImage({asset});}
+      if(editor!==active)return;active.assets.push(asset);renderMedia();if(target==='thumbnail'){active.post[target].assetId=asset.id;changed(false);renderArtwork();toast('Image uploaded.');}else{selectTab('content');openImage({asset});}
     }catch(error){toast(error.message);}
   }
   $('blog-image-file').addEventListener('change',()=>void upload($('blog-image-file').files[0],uploadTarget));$('blog-insert-image').addEventListener('click',()=>chooseUpload('inline'));$('blog-media-upload').addEventListener('click',()=>chooseUpload('inline'));

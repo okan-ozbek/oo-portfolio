@@ -11,6 +11,14 @@
   --site-sans: "Space Grotesk", "Arial", sans-serif;
   --site-mono: "IBM Plex Mono", "Courier New", monospace;
   --site-art-background: linear-gradient(145deg, #202024, #161619);
+  --content-surface: var(--site-surface);
+  --content-raised: #202024;
+  --content-border: #303035;
+  --content-text: var(--site-foreground);
+  --content-muted: var(--site-muted);
+  --content-accent: #ff6666;
+  --content-accent-soft: #ffb0b0;
+  --content-font-size: 13px;
 }
 
 .site-frame { width: min(100% - 112px, 1328px); margin-inline: auto; }

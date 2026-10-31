@@ -62,7 +62,7 @@ md.validateLink = value => /^(https?:\/\/|mailto:|#|\/(?!\/))/i.test(value);
 const defaultFence = md.renderer.rules.fence;
 md.renderer.rules.fence = (tokens, index, options, env, self) => {
   const token = tokens[index], language = token.info.trim().split(/\s/)[0].toLowerCase();
-  if (language === 'mermaid') return `<div class="blog-diagram" data-mermaid><pre>${escapeHtml(token.content)}</pre></div>`;
+  if (language === 'mermaid') return `<div class="blog-diagram" data-mermaid><div class="blog-code-heading"><span>mermaid</span><button type="button" data-copy-diagram>Copy source</button></div><div class="blog-diagram-body"><pre>${escapeHtml(token.content)}</pre></div></div>`;
   if (language === 'embed') {
     const url = embedUrl(token.content);
     if (!url) return `<p class="blog-embed-unavailable">Unsupported embed. Use a normal Markdown link, or a supported video/demo URL.</p>`;

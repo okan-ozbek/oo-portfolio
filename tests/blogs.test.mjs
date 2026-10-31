@@ -120,22 +120,22 @@ test('editor formatting renders headings, subtext, inline styles, and task lists
   assert.doesNotMatch(malicious,/<script|<img/);assert.match(malicious,/&lt;img/);assert.match(malicious,/\+\+literal\+\+/);
 });
 
-test('ten technical scenes and all six project visuals render in banners and preserve published selections',async t=>{
+test('ten technical scenes and all six project visuals preserve published thumbnails without article banners',async t=>{
   const app=await fixture(t);await app.login();let post=await app.create('Visual collection');
   assert.equal(technicalPresets.length,10);assert.equal(projectPresets.length,6);
   const catalog=[...technicalPresets,...projectPresets];assert.equal(new Set(catalog.map(item=>item.id)).size,16);
   for(const preset of catalog){
     const spec={preset:preset.id,assetId:null,position:'center'};
-    post=await app.save(post,{thumbnail:spec,banner:spec});
+    post=await app.save(post,{thumbnail:spec});
     const art=await app.request(`/blog/art/${preset.id}.svg?seed=${post.id}`,{anonymous:true});assert.equal(art.status,200);assert.equal(art.headers.get('content-type'),'image/svg+xml');assert.match(await art.text(),/<svg/);
-    const preview=await (await app.request(`/admin/blog-preview/${post.id}`)).text();assert.match(preview,new RegExp(`data-art-preset="${preset.id}"`));assert.ok(preview.indexOf('blog-site-header')<preview.indexOf('blog-hero-banner')&&preview.indexOf('blog-hero-banner')<preview.indexOf('blog-article-layout'),'The navigation must precede the full-width banner and article');
+    const preview=await (await app.request(`/admin/blog-preview/${post.id}`)).text();assert.doesNotMatch(preview,/blog-hero-banner/);assert.ok(preview.indexOf('blog-site-header')<preview.indexOf('blog-article-layout'),'Navigation must precede the article');
   }
   post=await app.action(post,'publish');const page=await (await app.request('/api/public/blogs',{anonymous:true})).json();assert.equal(page.posts[0].thumbnailPreset,'project-latency');assert.match(page.html,/data-art-preset="project-latency"/);
   for(const path of ['/blog',`/blog/${post.slug}`]){
     const html=await (await app.request(path,{anonymous:true})).text();
     assert.match(html,/class="site-wordmark"[^>]*aria-label="Pixelware, home"/);
     assert.match(html,/class="brand-icon"/);assert.match(html,/<nav aria-label="Website"><a href="\/blog">All posts<\/a><\/nav>/);
-    assert.doesNotMatch(html,/blog-back|href="\/#about"/);
+    assert.doesNotMatch(html,/blog-back|blog-hero-banner|href="\/#about"/);
   }
   const theme=await app.request('/blog/assets/theme.css',{anonymous:true});assert.equal(theme.status,200);assert.match(theme.headers.get('content-type'),/text\/css/);
   assert.equal((await app.request('/blog/art/unknown.svg')).status,404);

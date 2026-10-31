@@ -41,7 +41,7 @@ Use **Image**, paste a screenshot, or drop an image into the Markdown editor.
 PNG, JPEG, WebP, and GIF uploads are supported, up to **12 MB / 24 megapixels**.
 Animated GIFs use their first frame. Original uploads are retained; displayed
 images are re-encoded as WebP with metadata removed, at up to 3000 pixels.
-Thumbnail, banner, and avatar variants are generated and cached separately.
+Thumbnail and avatar variants are generated and cached separately.
 
 Choose alternative text, caption, width (10–100%), and alignment when inserting
 an image. Click an image in the live preview to edit those settings. Drag its
@@ -56,12 +56,12 @@ The Markdown sizing extension is:
 
 Images must be uploaded to the current post; arbitrary external image URLs are
 shown as an upload prompt. **Artwork & images** holds the post's media library,
-one shared panel for thumbnail/banner uploads and image alignment, and ten animated technical
+thumbnail uploads and image alignment, and ten animated technical
 presets: **Contour atlas, Fluid currents, Gravity playground, Inside the
 processor, Learning graph, Orbital mechanics, Reaction garden, Particle
 accelerator, Light laboratory, and Signal paths**. A second collection reuses
 the six original project animations: network, market, binary, stack, black hole,
-and latency. A preset applies both images; either can be overridden independently.
+and latency. Choose a preset or upload a custom thumbnail. Articles have no banner.
 Thumbnails use 16:9 throughout the editor and reading lists. Gravity playground
 simulates bouncing balls with gravity, wall impacts, and ball-to-ball collisions.
 
@@ -72,6 +72,8 @@ remain available for loading, disabled JavaScript, and social previews.
 The homepage and blog share `server/blog/theme.css` for page colors, fonts,
 the Pixelware wordmark, header spacing, and the project-thumbnail gradient.
 Animated blog canvases are transparent over that shared gradient.
+Code blocks and Mermaid diagrams share the content colors and monospace font
+from that stylesheet, along with matching containers, headings, and copy controls.
 
 ## Embedded content
 
@@ -153,7 +155,7 @@ application once configured.
 ## Public routes and storage
 
 - `/blog`: public reading list, with five posts per page.
-- `/blog/<slug>`: article HTML with navigation above a full-width banner,
+- `/blog/<slug>`: article HTML with navigation directly above the article,
   canonical URL, and sharing metadata.
 - `/blog/share/<slug>.jpg`: a 1200×630 JPEG preview from the published thumbnail.
 - `/api/public/blogs`: published summaries and cursor pagination.

@@ -1,8 +1,9 @@
 import {enhanceArtwork} from './visuals.js';
 export async function enhanceContent(root=document) {
   enhanceArtwork(root);
-  for(const button of root.querySelectorAll('[data-copy-code]:not([data-ready])')) {
-    button.dataset.ready='true';button.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(button.closest('.blog-code').querySelector('code').textContent);button.textContent='Copied';}catch{button.textContent='Select and copy the code';}setTimeout(()=>{button.textContent='Copy code';},2000);});
+  for(const button of root.querySelectorAll('[data-copy-code]:not([data-ready]),[data-copy-diagram]:not([data-ready])')) {
+    const original=button.textContent;
+    button.dataset.ready='true';button.addEventListener('click',async()=>{try{const block=button.closest('.blog-code,.blog-diagram');await navigator.clipboard.writeText(block.dataset.source??block.querySelector('code,pre').textContent);button.textContent='Copied';}catch{button.textContent='Select and copy the source';}setTimeout(()=>{button.textContent=original;},2000);});
   }
   if(root.querySelector('[data-mermaid]:not([data-rendered])')){
     try{const {renderDiagrams}=await import('./mermaid.js');await renderDiagrams(root);}
