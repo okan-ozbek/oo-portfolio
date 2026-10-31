@@ -63,7 +63,7 @@ export function initBlogs({api,toast}) {
   }
   async function refresh(){const version=++loading,currentEpoch=epoch;const data=await api('blogs');if(version!==loading||currentEpoch!==epoch)return;posts=data.posts;author=data.author;renderList();}
   function updatePost(post){posts=posts.some(item=>item.id===post.id)?posts.map(item=>item.id===post.id?post:item):[post,...posts];renderList();}
-  function renderState(){if(!editor)return;const post=editor.post;$('blog-edit-state').textContent=post.status==='published'?(dirty()||post.hasUnpublishedChanges?'PUBLISHED · UNPUBLISHED CHANGES':'PUBLISHED'):'PRIVATE DRAFT';$('blog-publish').textContent=post.status==='published'?'Publish changes':'Publish';$('blog-unpublish').hidden=post.status!=='published';$('blog-preview-link').href=`/admin/blog-preview/${post.id}`;$('blog-slug').readOnly=true;}
+  function renderState(){if(!editor)return;const post=editor.post;$('blog-edit-state').textContent=post.status==='published'?(dirty()||post.hasUnpublishedChanges?'PUBLISHED · UNPUBLISHED CHANGES':'PUBLISHED'):'PRIVATE DRAFT';$('blog-publish').textContent=post.status==='published'?'Publish changes':'Publish';$('blog-unpublish').hidden=post.status!=='published';$('blog-preview-link').href=`/admin/blog-preview/${post.id}`;$('blog-slug').disabled=true;}
   async function save(){
     const active=editor;if(!active)return true;
     clearTimeout(active.timer);
@@ -104,7 +104,15 @@ export function initBlogs({api,toast}) {
     if(key==='title'&&editor.autoSlug){editor.post.slug=slugify(value)||editor.post.slug;$('blog-slug').value=editor.post.slug;}
     changed(key==='markdown'||key==='title'||key==='summary');
   });
-  $('blog-back').addEventListener('click',async()=>{if(!(await leave()))return;clearTimeout(editor?.previewTimer);editor=null;$('blog-editor').hidden=true;$('blog-library').hidden=false;await refresh();});
+  function showLibrary(){clearTimeout(editor?.timer);clearTimeout(editor?.previewTimer);editor=null;$('blog-editor').hidden=true;$('blog-library').hidden=false;$('blog-new').focus();}
+  $('blog-save-draft').addEventListener('click',async()=>{
+    const active=editor,control=$('blog-save-draft');
+    if(!active||active.publishing||control.disabled)return;
+    control.disabled=true;$('blog-publish').disabled=true;
+    try{if(!(await save())||editor!==active)return;showLibrary();toast('Draft saved.');}
+    finally{control.disabled=false;$('blog-publish').disabled=false;}
+  });
+  $('blog-back').addEventListener('click',async()=>{if(!(await leave()))return;showLibrary();await refresh();});
   $('blog-new').addEventListener('click',()=>void create());$('blog-empty-new').addEventListener('click',()=>void create());$('blog-search').addEventListener('input',renderList);$('blog-status').addEventListener('change',renderList);$('blog-refresh').addEventListener('click',()=>refresh().catch(error=>{$('blog-library-error').textContent=error.message;}));$('blog-save-retry').addEventListener('click',()=>void save());
   $('blog-preview-link').addEventListener('click',event=>{if(dirty()||editor?.saving){event.preventDefault();void save().then(ok=>{if(ok)toast('Draft saved. Click Preview article to open it.');});}});
   const insert=(text)=>{const input=$('blog-markdown');input.setRangeText(text,input.selectionStart,input.selectionEnd,'end');editor.post.markdown=input.value;changed();input.focus();};
@@ -168,7 +176,7 @@ export function initBlogs({api,toast}) {
   function openPublish(action){if(!editor)return;publishAction=action;$('blog-publish-note-field').hidden=action!=='publish'||!editor.post.publishedAt;$('blog-publish-title').textContent=action==='unpublish'?'Return to draft?':'Ready to share?';$('blog-publish-description').textContent=action==='unpublish'?'This removes the article from the website. Your writing, images, and history stay here.':editor.post.status==='published'?'Your saved changes will replace the live article.':'This article will appear on your website and in the reading list.';$('blog-publish-confirm').textContent=action==='unpublish'?'Unpublish article':'Publish article';$('blog-publish-note').value='';$('blog-publish-error').textContent='';$('blog-publish-dialog').showModal();}
   $('blog-publish').addEventListener('click',()=>openPublish('publish'));$('blog-unpublish').addEventListener('click',()=>openPublish('unpublish'));
   $('blog-publish-form').addEventListener('submit',async event=>{event.preventDefault();const active=editor;if(!active||active.publishing)return;active.publishing=true;for(const control of $('blog-publish-form').elements)control.disabled=true;
-    try{if(!(await save()))throw new Error('Save your draft successfully before continuing.');const {post}=await api(`blogs/${active.post.id}/${publishAction}`,{method:'POST',body:{version:active.post.version,note:$('blog-publish-note').value}});if(editor!==active)return;active.post=post;updatePost(post);renderState();status('All changes saved');$('blog-publish-dialog').close();toast(publishAction==='publish'?'Article published.':'Article returned to draft.');}catch(error){$('blog-publish-error').textContent=error.message;}finally{active.publishing=false;for(const control of $('blog-publish-form').elements)control.disabled=false;}
+    try{if(!(await save()))throw new Error('Save your draft successfully before continuing.');const {post}=await api(`blogs/${active.post.id}/${publishAction}`,{method:'POST',body:{version:active.post.version,note:$('blog-publish-note').value}});if(editor!==active)return;active.post=post;updatePost(post);renderState();status('All changes saved');$('blog-publish-dialog').close();if(publishAction==='publish')showLibrary();toast(publishAction==='publish'?'Article published.':'Article returned to draft.');}catch(error){$('blog-publish-error').textContent=error.message;}finally{active.publishing=false;for(const control of $('blog-publish-form').elements)control.disabled=false;}
   });
   for(const dialog of ['blog-publish-dialog','blog-author-dialog'])$(dialog).addEventListener('cancel',event=>{if(dialog==='blog-publish-dialog'?editor?.publishing:authorBusy)event.preventDefault();});
   for(const control of document.querySelectorAll('[data-blog-close]'))control.addEventListener('click',()=>$(control.dataset.blogClose).close());

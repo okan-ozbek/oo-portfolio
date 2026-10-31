@@ -28,3 +28,17 @@
 
 #blogs-view .blog-composer-toolbar{background:var(--panel)}
 #blogs-view .table-tools select{appearance:none;padding-right:30px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m3 4 3 3 3-3' fill='none' stroke='%2393939f'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+
+/* Compact, full-width revision rows beneath the editor. */
+#blog-panel-history{width:100%;margin-top:24px}
+#blog-panel-history .blog-settings-intro{max-width:none;margin:0 0 12px}
+#blog-panel-history .blog-settings-intro h2{font-size:18px;margin-bottom:6px}
+#blog-panel-history .blog-settings-intro p{font-size:11px;line-height:1.5}
+#blog-history{max-width:none;width:100%}
+#blog-history .blog-revision{padding:12px 0;gap:16px;align-items:center}
+#blog-history .blog-revision>div{flex:1;min-width:0;display:grid;grid-template-columns:120px minmax(0,1fr) auto;gap:12px;align-items:center}
+#blog-history .blog-revision strong{font-size:12px}
+#blog-history .blog-revision p,#blog-history .blog-revision time{margin:0}
+#blog-history .blog-revision button{padding:7px 10px;font-size:10px}
+#blog-slug:disabled{cursor:not-allowed}
+@media(max-width:700px){#blog-history .blog-revision>div{grid-template-columns:minmax(0,1fr);gap:4px}}

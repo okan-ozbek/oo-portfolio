@@ -49,3 +49,5 @@ html:has(body.blog-reader)::-webkit-scrollbar, html:has(#top.site-frame)::-webki
 
 .site-header nav > a:not(.nav-contact) { color: #b7b7c0; }
 .site-header nav > a:not(.nav-contact):hover { color: #fff; }
+
+.site-header{position:sticky;top:0;z-index:50;background:var(--site-background)}

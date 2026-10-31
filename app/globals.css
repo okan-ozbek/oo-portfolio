@@ -173,3 +173,8 @@ h1 > span { color: #92929d; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 [data-motion="off"] *, [data-motion="off"] *::before, [data-motion="off"] *::after { animation-play-state: paused !important; }
+
+.home-blog-copy .home-blog-summary{margin:6px 0 10px}
+
+/* The final post already supplies the spacing before the contact divider. */
+.home-blog-section + .contact-strip{margin-top:0}

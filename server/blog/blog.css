@@ -46,3 +46,5 @@ body.blog-reader{-webkit-font-smoothing:antialiased}body.blog-reader ::selection
 .blog-reading-progress::-moz-progress-bar{background:var(--site-red)}
 @media(max-width:1050px){.blog-article-layout.site-frame{grid-template-columns:minmax(0,1fr) 220px}}
 @media(max-width:800px){.blog-article-layout.site-frame{grid-template-columns:minmax(0,1fr)}}
+
+@media(min-width:801px){.blog-suggestions-inner{top:120px;max-height:calc(100dvh - 140px)}}
