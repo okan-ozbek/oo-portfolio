@@ -51,3 +51,10 @@ html:has(body.blog-reader)::-webkit-scrollbar, html:has(#top.site-frame)::-webki
 .site-header nav > a:not(.nav-contact):hover { color: #fff; }
 
 .site-header{position:sticky;top:0;z-index:50;background:var(--site-background)}
+
+.nav-blog span{color:#72727d;font:11px var(--site-mono)}
+.site-footer{display:flex;align-items:center;gap:24px;padding:26px 0 30px;color:#757580;font:11px/1.5 var(--site-sans)}
+.site-footer>p{margin:0;font:9px/1.5 var(--site-mono);letter-spacing:.04em}
+.footer-links{display:flex;gap:22px;margin-left:auto}.footer-links a{display:flex;align-items:center;gap:5px}.footer-links a:hover{color:#dddde3}
+@media(max-width:760px){.site-footer{gap:16px;flex-wrap:wrap;padding-block:20px}.footer-links{gap:15px}}
+@media(max-width:380px){.site-header nav{gap:12px}.site-header nav a{gap:6px}.nav-blog span{font-size:9px}.footer-links{gap:12px}}
