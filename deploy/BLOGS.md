@@ -10,7 +10,20 @@ conflict instead of silently overwriting the newer version.
 - Set the title, summary, and URL slug. Tags work like Books: press Enter to
   create a chip, select an existing suggestion, or remove a chip with ×.
   Tag changes save automatically.
-- Switch between **Write**, **Split**, and **Preview**. **Preview article** opens
+- **Live** is the default: write Markdown in one surface with headings, emphasis,
+  lists, tasks, code, tables, diagrams, and uploaded images formatted in place.
+  Markdown markers appear around the text you're editing; move the cursor away
+  to see the formatting. Code and Mermaid source stays open, including its fences,
+  until you choose **Done editing**, press **Esc**, or use **Ctrl/Cmd+Enter**.
+  In both Live and Markdown modes, Up/Down moves one source line at a time, including blank lines and the fences,
+  and stays within the block. Shift+Up/Down extends the selection by one line.
+  Use **Edit source** on a rendered block to reopen its Markdown.
+  Click a rendered block or choose **Select block**, then press Delete or Backspace
+  to remove the whole block, including its Markdown fences. Ctrl/Cmd+Z restores it.
+  Pressing Backspace/Delete beside a rendered block selects it before deleting it.
+  Ctrl/Cmd+B and Ctrl/Cmd+I format the selection, and Ctrl/Cmd+Z undoes edits.
+  **Markdown** shows the source and **Preview** shows a read-only article view.
+  **Preview article** opens
   a private, full-page preview of the saved draft using the public article layout.
 - Use Markdown headings, lists, quotes, tables, links, and fenced code blocks.
   A code fence's language controls highlighting, for example `cpp`, `go`, `rust`,
@@ -44,7 +57,7 @@ images are re-encoded as WebP with metadata removed, at up to 3000 pixels.
 Thumbnail and avatar variants are generated and cached separately.
 
 Choose alternative text, caption, width (10–100%), and alignment when inserting
-an image. Click an image in the live preview to edit those settings. Drag its
+an image. Click a rendered image in Live or Preview to edit those settings. Drag its
 right-hand resize handle, or focus the handle and use Left/Right to change width
 by 5%. The image keeps its aspect ratio and fits narrow screens.
 

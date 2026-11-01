@@ -5,9 +5,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { HttpError, readJson } from './http.mjs';
+import { renderMarkdown } from './blog-markdown.mjs';
 
 const run = promisify(execFile);
 export const MAX_BOOK_BYTES = 100 * 1024 * 1024;
+const MAX_NOTE_LENGTH = 100000;
+
+async function readNote(req) {
+  const body = await readJson(req, 650000);
+  if (Object.keys(body).length !== 1 || typeof body.markdown !== 'string' || body.markdown.length > MAX_NOTE_LENGTH) {
+    throw new HttpError(400, `Use a Markdown note of up to ${MAX_NOTE_LENGTH.toLocaleString('en-US')} characters.`);
+  }
+  return body.markdown;
+}
 
 export function bookIdentity(name, tags = []) {
   if (typeof name !== 'string' || !name.trim() || name.length > 200) throw new HttpError(400, 'Enter a book name of 1–200 characters.');
@@ -48,9 +58,12 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
   if (!db.prepare('PRAGMA table_info(books)').all().some(column => column.name === 'bookmark_page')) {
     db.exec('ALTER TABLE books ADD COLUMN bookmark_page INTEGER CHECK(bookmark_page >= 1)');
   }
+  if (!db.prepare('PRAGMA table_info(books)').all().some(column => column.name === 'notes_markdown')) {
+    db.exec("ALTER TABLE books ADD COLUMN notes_markdown TEXT NOT NULL DEFAULT ''");
+  }
   let processing = 0;
-  const fields = 'id, name, tags_json, pages, size, created_at, bookmark_page';
-  const metadata = row => ({ id: row.id, name: row.name, tags: JSON.parse(row.tags_json), pages: row.pages, size: row.size, createdAt: row.created_at, bookmarkPage: row.bookmark_page });
+  const fields = "id, name, tags_json, pages, size, created_at, bookmark_page, (length(trim(notes_markdown)) > 0) AS has_notes";
+  const metadata = row => ({ id: row.id, name: row.name, tags: JSON.parse(row.tags_json), pages: row.pages, size: row.size, createdAt: row.created_at, bookmarkPage: row.bookmark_page, hasNotes: Boolean(row.has_notes) });
   function list() { return db.prepare(`SELECT ${fields} FROM books ORDER BY name COLLATE NOCASE, id`).all().map(metadata); }
   function canonicalTags(tags) {
     const existing = new Map(list().flatMap(book => book.tags).map(tag => [tag.toLowerCase(), tag]));
@@ -98,11 +111,25 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
         return true;
       }
     }
-    const match = /^\/api\/admin\/books\/([a-f0-9-]{36})(?:\/(pdf|thumbnail|bookmark))?$/.exec(url.pathname);
+    const match = /^\/api\/admin\/books\/([a-f0-9-]{36})(?:\/(pdf|thumbnail|bookmark|notes|notes\/preview))?$/.exec(url.pathname);
     if (!match) return false;
     const [, id, asset] = match;
     const row = db.prepare(`SELECT ${fields} FROM books WHERE id = ?`).get(id);
     if (!row) throw new HttpError(404, 'Book not found.');
+    if (asset === 'notes' && req.method === 'GET') {
+      send(res, 200, { markdown: db.prepare('SELECT notes_markdown FROM books WHERE id = ?').get(id).notes_markdown });
+      return true;
+    }
+    if (asset === 'notes' && req.method === 'PATCH') {
+      const markdown = await readNote(req);
+      db.prepare('UPDATE books SET notes_markdown = ? WHERE id = ?').run(markdown, id);
+      send(res, 200, { hasNotes: Boolean(markdown.trim()) });
+      return true;
+    }
+    if (asset === 'notes/preview' && req.method === 'POST') {
+      send(res, 200, { html: renderMarkdown(await readNote(req)) });
+      return true;
+    }
     if (asset === 'bookmark' && req.method === 'PATCH') {
       const body = await readJson(req);
       if (Object.keys(body).length !== 1 || !Object.hasOwn(body, 'page') || (body.page !== null && (!Number.isSafeInteger(body.page) || body.page < 1 || body.page > row.pages))) {

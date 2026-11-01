@@ -2,6 +2,7 @@ import { initContentChart } from './content-chart.js';
 import { icon } from './icons.js';
 import { formatMarkdown } from './blog-format.js';
 import { enhanceContent } from '/blog/assets/reader.js';
+import { createMarkdownEditor } from '/blog/assets/markdown-editor.js';
 import {technicalPresets,projectPresets,artworkNode,replaceArtwork,enhanceArtwork} from '/blog/assets/visuals.js';
 const $=id=>document.getElementById(id);
 // Keep legacy banner data intact when saving existing posts and revisions.
@@ -17,6 +18,7 @@ const imagePattern=/!\[((?:\\.|[^\]])*)\]\((\/blog\/media\/[a-f0-9-]{36})(?: "((
 export function initBlogs({api,toast}) {
   const activity=initContentChart({api,kind:'blog',prefix:'blog-view-'});
   let posts=[],author=null,editor=null,epoch=0,loading=0,uploadTarget=null,imageEditing=null,publishAction='publish',authorBusy=false;
+  const markdownInput=createMarkdownEditor($('blog-markdown'),{enhance:enhanceContent,onRender:attachImageControls,onLimit:toast});
   const tagTone=tag=>`book-tag tone-${[...tag.toLowerCase()].reduce((sum,char)=>sum+char.codePointAt(0),0)%6}`;
   const tagChips=node('div','book-tag-chips'),tagInput=node('input'),tagSuggestions=node('div','book-tag-suggestions');
   tagInput.id='blog-tag-input';tagInput.maxLength=60;tagInput.placeholder='Add a tag…';tagInput.autocomplete='off';
@@ -93,15 +95,15 @@ export function initBlogs({api,toast}) {
     try{const {post}=await api(`blogs/${id}`);if(currentEpoch!==epoch)return;
       if(editor){clearTimeout(editor.timer);clearTimeout(editor.previewTimer);}
       editor={post,sequence:0,savedSequence:0,saving:null,sessionId:crypto.randomUUID(),previewSequence:0,assets:[],autoSlug:!post.publishedAt&&post.slug.startsWith('post-')};
-      $('blog-library').hidden=true;$('blog-editor').hidden=false;$('blog-title').value=post.title;$('blog-summary').value=post.summary;$('blog-slug').value=post.slug;tagInput.value='';tagInput.setCustomValidity('');renderTags();$('blog-markdown').value=post.markdown;setError('');status('All changes saved');renderState();selectTab('content');renderArtwork();void loadMedia();void loadHistory();void preview();$('blog-title').focus();if(post.title==='Untitled draft')$('blog-title').select();
+      $('blog-library').hidden=true;$('blog-editor').hidden=false;$('blog-title').value=post.title;$('blog-summary').value=post.summary;$('blog-slug').value=post.slug;tagInput.value='';tagInput.setCustomValidity('');renderTags();markdownInput.value=post.markdown;setError('');status('All changes saved');renderState();selectTab('content');renderArtwork();void loadMedia();void loadHistory();void preview();$('blog-title').focus();if(post.title==='Untitled draft')$('blog-title').select();
     }catch(error){$('blog-library-error').textContent=error.message;}
   }
   async function create(){if(!(await leave()))return;$('blog-new').disabled=true;try{const {post}=await api('blogs',{method:'POST',body:{}});updatePost(post);await openPost(post.id);}catch(error){$('blog-library-error').textContent=error.message;}finally{$('blog-new').disabled=false;}}
   function selectTab(name){for(const tab of document.querySelectorAll('[data-blog-tab]')){const active=tab.dataset.blogTab===name;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;$(`blog-panel-${tab.dataset.blogTab}`).hidden=!active;}if(name==='history')void loadHistory();if(name==='suggestions')renderSuggestions();if(name==='artwork')renderArtwork();}
   for(const tab of document.querySelectorAll('[data-blog-tab]')){tab.addEventListener('click',()=>selectTab(tab.dataset.blogTab));tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const tabs=[...document.querySelectorAll('[data-blog-tab]')],index=tabs.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;selectTab(tabs[next].dataset.blogTab);tabs[next].focus();});}
-  for(const mode of document.querySelectorAll('[data-blog-mode]'))mode.addEventListener('click',()=>{$('blog-composer-panes').dataset.mode=mode.dataset.blogMode;for(const button of document.querySelectorAll('[data-blog-mode]'))button.setAttribute('aria-pressed',String(button===mode));});
-  for(const key of ['title','summary','markdown'])$(`blog-${key}`).addEventListener('input',()=>{
-    if(!editor)return;const value=$(`blog-${key}`).value;editor.post[key]=value;
+  for(const mode of document.querySelectorAll('[data-blog-mode]'))mode.addEventListener('click',()=>{$('blog-composer-panes').dataset.mode=mode.dataset.blogMode;markdownInput.setMode(mode.dataset.blogMode);for(const button of document.querySelectorAll('[data-blog-mode]'))button.setAttribute('aria-pressed',String(button===mode));});
+  for(const key of ['title','summary','markdown'])(key==='markdown'?markdownInput:$(`blog-${key}`)).addEventListener('input',()=>{
+    if(!editor)return;const value=key==='markdown'?markdownInput.value:$(`blog-${key}`).value;editor.post[key]=value;
     
     if(key==='title'&&editor.autoSlug){editor.post.slug=slugify(value)||editor.post.slug;$('blog-slug').value=editor.post.slug;}
     changed(key==='markdown'||key==='title'||key==='summary');
@@ -117,15 +119,15 @@ export function initBlogs({api,toast}) {
   $('blog-back').addEventListener('click',async()=>{if(!(await leave()))return;showLibrary();await refresh();});
   $('blog-new').addEventListener('click',()=>void create());$('blog-empty-new').addEventListener('click',()=>void create());$('blog-search').addEventListener('input',renderList);$('blog-status').addEventListener('change',renderList);$('blog-refresh').addEventListener('click',()=>refresh().catch(error=>{$('blog-library-error').textContent=error.message;}));$('blog-save-retry').addEventListener('click',()=>void save());
   $('blog-preview-link').addEventListener('click',event=>{if(dirty()||editor?.saving){event.preventDefault();void save().then(ok=>{if(ok)toast('Draft saved. Click Preview article to open it.');});}});
-  const insert=(text)=>{const input=$('blog-markdown');input.setRangeText(text,input.selectionStart,input.selectionEnd,'end');editor.post.markdown=input.value;changed();input.focus();};
+  const insert=(text)=>{const input=markdownInput;input.setRangeText(text,input.selectionStart,input.selectionEnd,'end');editor.post.markdown=input.value;changed();input.focus();};
   const snippets={heading:'\n## A closer look\n\n',code:'\n```cpp\n// Your code here\n```\n',mermaid:'\n```mermaid\nflowchart LR\n  A[Request] --> B[Service]\n  B --> C[(Database)]\n```\n',embed:'\n```embed\nhttps://codepen.io/your-name/pen/your-demo\n```\n',link:'[Link text](https://example.com)'};
   for(const tool of document.querySelectorAll('[data-blog-icon]'))tool.append(icon(tool.dataset.blogIcon));
   for(const tool of document.querySelectorAll('[data-blog-insert]'))tool.addEventListener('click',()=>{
-    if(!editor)return;const input=$('blog-markdown'),edit=formatMarkdown(input.value,input.selectionStart,input.selectionEnd,tool.dataset.blogInsert);
+    if(!editor)return;const input=markdownInput,edit=formatMarkdown(input.value,input.selectionStart,input.selectionEnd,tool.dataset.blogInsert);
     if(edit){input.focus();input.setRangeText(edit.text,edit.start,edit.end,'end');input.setSelectionRange(edit.selectionStart,edit.selectionEnd);editor.post.markdown=input.value;changed();}
     else insert(snippets[tool.dataset.blogInsert]);
   });
-  $('blog-markdown').addEventListener('keydown',event=>{if(event.key==='Tab'){event.preventDefault();insert('  ');}if((event.ctrlKey||event.metaKey)&&event.key==='s'){event.preventDefault();void save();}});
+  markdownInput.addEventListener('keydown',event=>{if(event.key==='Tab'){event.preventDefault();insert('  ');}if((event.ctrlKey||event.metaKey)&&event.key==='s'){event.preventDefault();void save();}});
   function renderArtwork(){if(!editor)return;const post=editor.post;
     for(const [container,collection]of [[$('blog-presets'),technicalPresets],[$('blog-project-presets'),projectPresets]]){
       container.replaceChildren();for(const preset of collection){
@@ -153,16 +155,16 @@ export function initBlogs({api,toast}) {
     }catch(error){toast(error.message);}
   }
   $('blog-image-file').addEventListener('change',()=>void upload($('blog-image-file').files[0],uploadTarget));$('blog-insert-image').addEventListener('click',()=>chooseUpload('inline'));$('blog-media-upload').addEventListener('click',()=>chooseUpload('inline'));
-  $('blog-markdown').addEventListener('paste',event=>{const file=[...event.clipboardData.items].find(item=>item.kind==='file'&&item.type.startsWith('image/'))?.getAsFile();if(file){event.preventDefault();void upload(file,'inline');}});
-  $('blog-markdown').addEventListener('dragover',event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault();});$('blog-markdown').addEventListener('drop',event=>{const file=event.dataTransfer.files[0];if(file){event.preventDefault();void upload(file,'inline');}});
+  markdownInput.addEventListener('paste',event=>{const file=[...event.clipboardData.items].find(item=>item.kind==='file'&&item.type.startsWith('image/'))?.getAsFile();if(file){event.preventDefault();void upload(file,'inline');}});
+  markdownInput.addEventListener('dragover',event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault();});markdownInput.addEventListener('drop',event=>{const file=event.dataTransfer.files[0];if(file){event.preventDefault();void upload(file,'inline');}});
   const imageMatches=()=>[...editor.post.markdown.matchAll(imagePattern)];
   function imageText({src,alt,caption,width,align}){const escape=value=>value.replace(/\\/g,'\\\\').replace(/[\[\]"]/g,char=>`\\${char}`).replace(/\n/g,' ');return `![${escape(alt)}](${src}${caption?` "${escape(caption)}"`:''}){width=${width} align=${align}}`;}
-  function replaceImage(match,spec){const input=$('blog-markdown');input.setRangeText(imageText(spec),match.index,match.index+match[0].length,'end');editor.post.markdown=input.value;changed();}
+  function replaceImage(match,spec){const input=markdownInput;input.setRangeText(imageText(spec),match.index,match.index+match[0].length,'end');editor.post.markdown=input.value;changed();}
   function openImage({asset,match}){imageEditing={asset,match};$('blog-image-preview').src=asset.url;$('blog-image-alt').value=match?match[1].replace(/\\(.)/g,'$1'):'';$('blog-image-caption').value=match?(match[3]??'').replace(/\\(.)/g,'$1'):'';$('blog-image-width').value=match?.[4]??'100';$('blog-image-align').value=match?.[5]??'center';$('blog-image-dialog').showModal();$('blog-image-alt').focus();}
   $('blog-image-form').addEventListener('submit',event=>{event.preventDefault();if(!editor||!imageEditing)return;const spec={src:imageEditing.asset.url,alt:$('blog-image-alt').value,caption:$('blog-image-caption').value,width:Number($('blog-image-width').value),align:$('blog-image-align').value};if(imageEditing.match)replaceImage(imageEditing.match,spec);else insert(`\n${imageText(spec)}\n`);$('blog-image-dialog').close();});
-  function attachImageControls(){
-    const counts=new Map();for(const image of $('blog-live-preview').querySelectorAll('[data-image-src]')){
-      const src=image.dataset.imageSrc,index=counts.get(src)??0;counts.set(src,index+1);const matching=()=>imageMatches().filter(match=>match[2]===src)[index];
+  function attachImageControls(root=$('blog-live-preview'),range=null){
+    const counts=new Map();for(const image of root.querySelectorAll('[data-image-src]')){
+      const src=image.dataset.imageSrc,index=counts.get(src)??0;counts.set(src,index+1);const matching=()=>imageMatches().filter(match=>match[2]===src&&(!range||(match.index>=range.from&&match.index<range.to)))[index];
       image.tabIndex=0;image.setAttribute('role','button');image.setAttribute('aria-label','Edit image size and caption');const edit=()=>{const match=matching();if(match)openImage({asset:{url:src},match});};image.addEventListener('click',event=>{if(!event.target.closest('.blog-image-resize'))edit();});image.addEventListener('keydown',event=>{if(event.target===image&&['Enter',' '].includes(event.key)){event.preventDefault();edit();}});
       const handle=node('button','blog-image-resize');handle.type='button';handle.setAttribute('aria-label','Resize image');image.append(handle);
       handle.addEventListener('click',event=>event.stopPropagation());handle.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight'].includes(event.key))return;event.preventDefault();const match=matching();if(match)replaceImage(match,{src,alt:match[1].replace(/\\(.)/g,'$1'),caption:(match[3]??'').replace(/\\(.)/g,'$1'),width:Math.max(10,Math.min(100,Number(match[4]??100)+(event.key==='ArrowRight'?5:-5))),align:match[5]??'center'});});

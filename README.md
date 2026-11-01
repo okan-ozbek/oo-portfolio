@@ -20,6 +20,13 @@ their compiled hyperlinks, creates tracking links per variant, and provides
 downloadable PDFs. Start its isolated compiler with `npm run resume:compiler`
 (Docker required). See [the resume workflow and deployment notes](deploy/RESUMES.md).
 
+In **Books**, the written-page button opens a private Markdown note for each book.
+It reuses the blog's single-surface Live editor: Markdown formats in place as you
+write. Markdown source and Preview views are also available. Notes autosave;
+**Save & done** saves before closing, and **Clear
+note** removes the contents. Notes persist in SQLite with the book and are removed
+when the book is deleted.
+
 The **Blogs** workspace supports autosaved Markdown drafts, highlighted code,
 Mermaid diagrams, resizable images, paired artwork presets, publishing, and
 revision history. Published articles are served by the Node/SQLite service at
