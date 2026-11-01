@@ -24,6 +24,7 @@ const paths = {
   download: ['M10 2v10', 'm6 8 4 4 4-4', 'M3 13v4h14v-4'],
   verified: ['M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z', 'm6 10 3 3 5-6'],
   bookmark: ['M5 3h10v15l-5-4-5 4V3Z'],
+  notes: ['M4 2h8l4 4v12H4V2Z', 'M12 2v4h4', 'M7 9h6M7 12h6M7 15h4'],
 };
 
 export function icon(name) {

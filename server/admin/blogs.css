@@ -1,4 +1,53 @@
 #blogs-view select,#blogs-view textarea,#blog-author-dialog select,#blog-image-dialog select{font:inherit;background:#131316;border:1px solid #38383e;border-radius:5px;color:var(--text);padding:10px 12px;max-width:100%;outline-color:var(--red)}
+#book-notes-dialog{width:min(100% - 32px,1200px);max-height:calc(100dvh - 32px);overflow:auto}
+#book-notes-dialog .dialog-heading{margin-bottom:12px}
+#book-notes-dialog .blog-composer{margin-top:20px}
+#book-notes-dialog .blog-composer-panes{min-height:min(380px,42dvh)}
+.blog-composer-panes[data-mode=live],.blog-composer-panes[data-mode=source]{grid-template-columns:1fr}
+.blog-composer-panes[data-mode=live]>.blog-preview-pane,.blog-composer-panes[data-mode=source]>.blog-preview-pane{display:none}
+.blog-composer-panes[data-mode=live]>.blog-source-pane,.blog-composer-panes[data-mode=source]>.blog-source-pane{border:0;background:transparent}
+.markdown-editor{flex:1;min-width:0;min-height:380px;color:#d3d3d8}
+.markdown-editor .cm-editor{min-height:inherit;background:transparent;font:15px/1.85 var(--font,sans-serif)}
+.markdown-editor .cm-editor.cm-focused,.markdown-editor .cm-content:focus{outline:none}
+.markdown-editor .cm-scroller{font:inherit;overflow:visible}
+.markdown-editor .cm-content{padding:28px 36px;caret-color:#eeeeee;min-height:inherit;overflow-wrap:anywhere}
+.markdown-editor .cm-line{padding:0;min-height:1.85em}
+.markdown-editor .cm-placeholder{color:#74747c;font-size:13px}
+.markdown-editor .cm-cursor{border-left-color:#eeeeee}
+.markdown-editor .cm-selectionBackground,.markdown-editor .cm-focused .cm-selectionBackground{background:#58506766!important}
+.markdown-editor .md-heading{font-weight:600;letter-spacing:-.035em;line-height:1.4;padding-top:12px;padding-bottom:8px}
+.markdown-editor .md-h1{font-size:32px}.markdown-editor .md-h2{font-size:26px}.markdown-editor .md-h3{font-size:22px}.markdown-editor .md-h4{font-size:19px}.markdown-editor .md-h5,.markdown-editor .md-h6{font-size:17px}
+.markdown-editor .md-strong{font-weight:700;color:#ededed}.markdown-editor .md-emphasis{font-style:italic}.markdown-editor .md-strike{text-decoration:line-through}.markdown-editor .md-underline{text-decoration:underline;text-underline-offset:3px}
+.markdown-editor .md-subtext{font-size:12px;color:#8e8e98}.markdown-editor .md-link{color:#b8b0df;text-decoration:underline;text-underline-offset:3px}
+.markdown-editor .md-inline-code{font:13px/1.7 var(--mono);background:#26262c;color:#dbbd9c;border-radius:3px;padding:2px 3px}
+.markdown-editor .md-quote{border-left:3px solid #766d86;padding-left:18px;color:#a8a8b3}
+.markdown-editor .md-code-line,.markdown-editor .md-table-source{background:#131315;font:12px/1.9 var(--mono);padding:0 15px}
+.markdown-editor .md-rule{border-bottom:1px solid var(--line);height:20px}.markdown-editor .md-rule-text{opacity:0}
+.markdown-editor .md-task{display:inline-flex;vertical-align:middle;margin-right:5px}.markdown-editor .md-task input{width:14px;height:14px;margin:0;accent-color:#b2a4ca;cursor:pointer}
+.markdown-editor .md-bullet{color:#a298b8;margin-right:3px}
+.markdown-editor .md-rendered-block{margin:12px 0;cursor:text;max-width:100%;overflow-x:auto;font-size:15px}
+.markdown-editor .md-rendered-block{border:1px solid #38383f;border-radius:6px;cursor:pointer}
+.markdown-editor .md-rendered-block.is-block-selected{border-color:#b1a1d2;box-shadow:0 0 0 2px #b1a1d244;background:#292331}
+.markdown-editor .md-block-content{padding:0 12px}
+.markdown-editor .md-block-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;border-bottom:1px solid #38383f;background:#202024;color:#96929e;font:10px/1.6 var(--mono);white-space:normal}
+.markdown-editor .md-block-toolbar button{background:transparent;border:1px solid #44414b;border-radius:4px;color:#ccc5d8;padding:5px 9px;font:inherit;white-space:nowrap;cursor:pointer}
+.markdown-editor .md-block-toolbar button:hover,.markdown-editor .md-block-toolbar button[aria-pressed=true]{background:#3a3148;color:#f1e9ff;border-color:#8b789f}
+.markdown-editor .md-editing-toolbar{border:1px solid #4b4355;border-radius:6px 6px 0 0;margin-top:12px}
+.markdown-editor .md-editing-line{border-left:1px solid #4b4355;border-right:1px solid #4b4355}
+.markdown-editor .md-source-controls[hidden]{display:none}
+.markdown-editor .md-rendered-block:focus-visible{outline:1px dashed #766d86;outline-offset:4px}
+.markdown-editor .md-rendered-block .blog-image{position:relative;cursor:pointer}
+.markdown-editor .md-rendered-block .blog-image:hover .blog-image-resize,.markdown-editor .blog-image-resize:focus{opacity:1}
+.markdown-editor.is-source .cm-editor{font:12px/1.9 var(--mono)}
+#book-notes-dialog .markdown-editor{min-height:min(380px,42dvh)}
+@media(max-width:700px){.markdown-editor .cm-content{padding:22px 18px}.markdown-editor .md-h1{font-size:28px}.markdown-editor .md-h2{font-size:23px}}
+#book-notes-markdown{width:100%;flex:1;min-height:min(380px,42dvh);border:0;border-radius:0;background:transparent;color:var(--text);resize:vertical;padding:24px;font:12px/1.9 var(--mono);tab-size:2;outline:none}
+#book-notes-form .dialog-actions{align-items:center;flex-wrap:wrap}
+#book-notes-status{margin:0 auto 0 0}
+.book-actions .has-notes{color:#d4bf8d}
+.book-table .book-actions{flex-wrap:nowrap}
+.book-table th:nth-child(5){width:170px}
+@media(max-width:700px){#book-notes-dialog{padding:22px 18px}#book-notes-markdown{min-height:280px}#book-notes-dialog .blog-composer-panes{min-height:280px}#book-notes-status{flex-basis:100%}}
 #blogs-view .table-tools select{font-size:11px;height:34px;padding:5px 10px}#blogs-view .table-tools .secondary{height:34px}
 .blog-heading-actions,.blog-editor-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.blog-heading-actions .secondary{font-size:11px}
 .blog-table th:first-child{width:100px}.blog-table td:first-child{padding-right:0}.blog-table th:last-child{width:85px}.blog-table tr{cursor:pointer}.blog-table tr:focus-visible{outline:2px solid var(--red);outline-offset:-3px}
