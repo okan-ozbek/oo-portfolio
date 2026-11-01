@@ -1,6 +1,7 @@
 import { icon } from './icons.js';
 import { formatMarkdown } from './blog-format.js';
 import { enhanceContent } from '/blog/assets/reader.js';
+import { createMarkdownEditor } from '/blog/assets/markdown-editor.js';
 const $ = id => document.getElementById(id);
 const el = (tag, className, text) => {
   const node = document.createElement(tag);
@@ -22,7 +23,7 @@ export function initBooks({ api, toast }) {
   const editSessions = new Map();
   const pending = new Set();
   let noteSession = null;
-  const noteInput = $('book-notes-markdown');
+  const noteInput = createMarkdownEditor($('book-notes-markdown'), { enhance: enhanceContent, onLimit: toast });
   const noteDirty = () => noteSession && noteSession.markdown !== noteSession.saved;
   function noteStatus(text, failed = false) {
     $('book-notes-status').textContent = text;
@@ -120,6 +121,7 @@ export function initBooks({ api, toast }) {
   }
   for (const mode of document.querySelectorAll('[data-note-mode]')) mode.addEventListener('click', () => {
     $('book-notes-panes').dataset.mode = mode.dataset.noteMode;
+    noteInput.setMode(mode.dataset.noteMode);
     for (const control of document.querySelectorAll('[data-note-mode]')) control.setAttribute('aria-pressed', String(control === mode));
   });
   noteInput.addEventListener('keydown', event => {

@@ -12,7 +12,7 @@
     "books:import": "node scripts/import-books.mjs",
     "resume:compiler": "docker compose -p pixelware-resume-dev -f compose.compiler-dev.yaml up -d --build --wait --wait-timeout 90",
     "test:resumes:compiler": "node scripts/smoke-resume-compiler.mjs",
-    "test:admin": "node scripts/build-home.mjs && node --test tests/admin.test.mjs tests/resumes.test.mjs tests/books.test.mjs tests/blogs.test.mjs tests/projects.test.mjs tests/view-analytics.test.mjs",
+    "test:admin": "node scripts/build-home.mjs && node --test tests/admin.test.mjs tests/resumes.test.mjs tests/books.test.mjs tests/blogs.test.mjs tests/markdown-editor.test.mjs tests/projects.test.mjs tests/view-analytics.test.mjs",
     "build:blog": "node scripts/build-blog.mjs",
     "test:admin:container": "node scripts/smoke-admin-container.mjs",
     "test:deploy": "node scripts/smoke-deploy.mjs",
@@ -26,6 +26,12 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/highlight": "^1.2.5",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "highlight.js": "^11.12.0",
