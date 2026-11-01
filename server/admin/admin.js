@@ -275,7 +275,7 @@ function openEditor(link = null) {
   $("link-form").reset();
   $("form-error").textContent = "";
   $("dialog-title").textContent = link ? "Edit your link." : "Create a link.";
-  $("save-link").textContent = link ? "Save changes ↗" : "Create link ↗";
+  $("save-link").textContent = link ? "Save changes ↗︎" : "Create link ↗︎";
   for (const name of ["slug", "destination", "source"]) $(name).value = link?.[name] ?? "";
   $("slug").disabled = Boolean(link);
   $("enabled").checked = link?.enabled ?? true;
