@@ -16,5 +16,5 @@ export function BlogArtwork({src,position='center',preset,seed='',playing=true}:
     return()=>{cancelled=true;instance?.dispose();canvas?.remove();if(controller.current===instance)controller.current=null;};
   },[preset,seed]);
   // This image is present in server HTML and remains visible if JS fails.
-  return <div className="blog-art" ref={host}><img src={src} alt="" loading="lazy" style={{objectPosition:position}}/></div>;
+  return <div className="blog-art" data-art-preset={preset||undefined} ref={host}><img src={src} alt="" loading="lazy" style={{objectPosition:position}}/></div>;
 }

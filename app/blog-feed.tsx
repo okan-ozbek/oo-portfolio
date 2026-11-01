@@ -6,10 +6,10 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import { BlogArtwork } from './blog-artwork';
 export type BlogPost = {id:string;slug:string;title:string;summary:string;tags:string[];thumbnailUrl:string;thumbnailPosition:string;thumbnailPreset:string|null;publishedAt:string;author:{name:string;linkedinUrl:string;avatarId:string|null}};
-export type BlogPage = {posts:BlogPost[];nextCursor:string|null};
-export function BlogFeed({initialPage,playing=true}:{initialPage?:BlogPage;playing?:boolean}) {
+export type BlogPage = {posts:BlogPost[];nextCursor:string|null;total?:number};
+export function BlogFeed({initialPage,playing=true,onTotalChange}:{initialPage?:BlogPage;playing?:boolean;onTotalChange?:(total:number)=>void}) {
   const [posts,setPosts]=useState<BlogPost[]>(initialPage?.posts??[]),[cursor,setCursor]=useState<string|null>(initialPage?.nextCursor??null);
-  useEffect(()=>{if(initialPage)return;const controller=new AbortController();fetch('/api/public/blogs',{signal:controller.signal,cache:'no-store'}).then(response=>{if(!response.ok)throw new Error();return response.json();}).then((page:BlogPage)=>{setPosts(page.posts);setCursor(page.nextCursor);}).catch(()=>{ /* Keep an unavailable or empty blog off the homepage. */ });return()=>controller.abort();},[initialPage]);
+  useEffect(()=>{if(initialPage){onTotalChange?.(initialPage.total??initialPage.posts.length);return;}const controller=new AbortController();fetch('/api/public/blogs',{signal:controller.signal,cache:'no-store'}).then(response=>{if(!response.ok)throw new Error();return response.json();}).then((page:BlogPage)=>{setPosts(page.posts);setCursor(page.nextCursor);onTotalChange?.(page.total??page.posts.length);}).catch(()=>{ /* Keep an unavailable or empty blog off the homepage. */ });return()=>controller.abort();},[initialPage,onTotalChange]);
   if(!posts.length)return null;
   return <section className="home-blog-section" id="blog" aria-labelledby="home-blog-title">
     <div className="home-blog-heading"><h2 id="home-blog-title">Blog</h2></div>

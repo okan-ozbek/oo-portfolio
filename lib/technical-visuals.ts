@@ -113,8 +113,8 @@ export function mountTechnicalArt(host:HTMLElement,preset:string,seed='',playing
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
   const offset=[...seed].reduce((n,c)=>(n+c.charCodeAt(0))%73,0)*.13;
   const draw=()=>{
-    if(!w||!h)return;const logicalH=390,logicalW=Math.max(520,w/h*logicalH),scale=h/logicalH;
-    ctx.save();ctx.scale(scale,scale);ctx.clearRect(0,0,logicalW,logicalH);
+    if(!w||!h)return;const logicalH=390,logicalW=Math.max(520,w/h*logicalH),scale=Math.min(w/logicalW,h/logicalH);
+    ctx.save();ctx.clearRect(0,0,w,h);ctx.translate((w-logicalW*scale)/2,(h-logicalH*scale)/2);ctx.scale(scale,scale);
     // Keep the canvas transparent: the shared CSS supplies the project thumbnail background.
     const t=time+offset;
     if(projectKind)drawProjectVisual(ctx,logicalW,logicalH,t,pointer,projectKind,feed?.(t));

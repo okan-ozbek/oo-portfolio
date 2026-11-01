@@ -2,7 +2,7 @@
 
 A static project showcase built with React, TypeScript, Vite/Vinext, and Tailwind CSS. A graphite palette, red accents, and a compact grid put the projects first. The six-card grid starts with the Visual Hardware IDE and includes five clearly labeled placeholders, with animated candlestick, network, and binary visuals; the market data is simulated. The homepage is rendered from live SQLite data by the Node service; Vite still produces a static fallback and the shared stylesheet. A private Node/SQLite service now powers the password-protected link studio at `/admin` and tracked redirects at `/r/<slug>`.
 
-Native Canvas 2D renders the animated visuals without an animation dependency. Motion can be paused globally, respects reduced-motion preferences, and stops when canvases are outside the viewport or the tab is hidden.
+Native Canvas 2D renders the animated visuals without an animation dependency. Motion respects reduced-motion preferences, and stops when canvases are outside the viewport or the tab is hidden.
 
 ## Local development
 
@@ -78,7 +78,7 @@ See [the deployment guide](deploy/README.md) for DNS, certificate storage, verif
 | --- | --- |
 | `app/project-content.ts` | Placeholder projects and contact links |
 | `app/page.tsx` | Static page entry point |
-| `app/showcase.tsx` | Project grid, navigation, contact, and motion control |
+| `app/showcase.tsx` | Project grid, navigation, contact, and footer |
 | `app/globals.css` | Palette, typography, responsive layout, and animations |
 | `app/data-visual.tsx` | Animated signal terrain, candlesticks, network cube, scrolling assembly and registers, 3D stack, black hole, and simulated P50/P99 latency chart |
 | `app/market-feed.ts` | Deterministic simulated trades, evolving OHLC candles, volume, and changing bullish/bearish phases |
@@ -106,4 +106,4 @@ The selected website resume is indexable at /resume.pdf, with an HTTP canonical 
 
 Published articles emit server-rendered BlogPosting JSON-LD with their live headline, description, author profile, canonical URL, share image, publication date, and last published modification date. Draft autosaves do not change this metadata, and previews and the blog index do not emit article markup. JSON is escaped for safe embedding and its exact content is authorized by a CSP hash.
 
-The homepage uses a shared React renderer and hydration entry built by scripts/build-home.mjs. Production serves its compiled stylesheet and client bundle from /blog/assets/home.css and /blog/assets/home-client.js. Development watches the renderer and client while Vite handles the stylesheet. The admin image builds and includes these artifacts. Blog listings expose canonical /blog?page=N URLs and automatically load the next page near the bottom. A Load more posts button supports manual loading and retry; numbered page links remain available without JavaScript or if loading fails. Public preset SVG fallbacks are generated deterministically, cached in a bounded server cache, and served with browser caching. Thumbnail canvases are created only after JavaScript loads; animation respects reduced motion and pauses offscreen. The homepage motion control applies to both the hero and thumbnails.
+The homepage uses a shared React renderer and hydration entry built by scripts/build-home.mjs. Production serves its compiled stylesheet and client bundle from /blog/assets/home.css and /blog/assets/home-client.js. Development watches the renderer and client while Vite handles the stylesheet. The admin image builds and includes these artifacts. Blog listings expose canonical /blog?page=N URLs and automatically load the next page near the bottom. A Load more posts button supports manual loading and retry; numbered page links remain available without JavaScript or if loading fails. Public preset SVG fallbacks are generated deterministically, cached in a bounded server cache, and served with browser caching. Thumbnail canvases are created only after JavaScript loads; animation respects reduced motion and pauses offscreen. The homepage and blog pages share the same footer and navigation counts.

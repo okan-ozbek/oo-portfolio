@@ -105,8 +105,6 @@ h1 > span { color: #92929d; }
 .footer-links { display: flex; gap: 22px; margin-left: auto; }
 .footer-links a { display: flex; align-items: center; gap: 5px; }
 .footer-links a:hover { color: #dddde3; }
-.motion-control { display: flex; align-items: center; gap: 7px; background: transparent; border: 0; border-left: 1px solid var(--line); padding: 0 0 0 22px; color: #92929e; font: 10px var(--mono); min-height: 30px; }
-.motion-control:hover { color: var(--foreground); }
 .intro-copy, .intro-visual { animation: enter 800ms ease both; }
 .intro-visual { animation-delay: 100ms; }
 .project-card { animation: enter 800ms ease both; }
@@ -156,7 +154,6 @@ h1 > span { color: #92929d; }
   .contact-strip > a { font-size: 17px; gap: 12px; white-space: nowrap; }
   .site-footer { gap: 16px; flex-wrap: wrap; padding-block: 20px; }
   .footer-links { gap: 15px; }
-  .motion-control { width: 100%; border: 0; padding: 0; justify-content: flex-end; margin-top: -10px; }
 }
 @media (max-width: 430px) {
   .site-frame { width: calc(100% - 36px); }
@@ -202,3 +199,4 @@ h1 > span { color: #92929d; }
 @media(hover:hover){.home-blog-row:hover{background:#ffffff04}.home-blog-row:hover .blog-art{transform:scale(1.035)}.home-blog-row:hover h3 svg{color:var(--red);transform:translate(2px,-2px)}}
 @media(max-width:600px){.home-blog-row{grid-template-columns:112px minmax(0,1fr);gap:16px;align-items:center}.home-blog-image>.blog-art{aspect-ratio:1;min-height:112px}.home-blog-copy h3 a{overflow-wrap:anywhere}.home-blog-meta{gap:6px 10px}.home-blog-meta time{font-size:8px}.home-blog-author{font-size:10px}}
 @media(prefers-reduced-motion:reduce){.home-blog-row,.home-blog-image>.blog-art,.home-blog-copy h3 svg,.home-blog-more>a{transition:none}}
+@media(max-width:900px){.home-blog-row{grid-template-columns:clamp(112px,24vw,200px) minmax(0,1fr);align-items:center}.home-blog-image{place-self:center;width:100%}.home-blog-image>.blog-art{aspect-ratio:1;min-height:0}.home-blog-image .blog-art[data-art-preset]>img{object-fit:contain;object-position:center}}
