@@ -45,7 +45,7 @@ export function initProjects({ api, toast }) {
       $(id).replaceChildren();
       for (const preset of collection) {
         const choice = node('button', 'blog-preset'); choice.type = 'button'; choice.setAttribute('aria-label', `Use ${preset.name} thumbnail`); choice.setAttribute('aria-pressed', String(editor.thumbnail === preset.id));
-        const caption = node('div', 'blog-preset-caption'); caption.append(node('strong', '', preset.name), node('small', '', preset.topic), node('i', 'blog-preset-check', editor.thumbnail === preset.id ? '✓' : '↗'));
+        const caption = node('div', 'blog-preset-caption'); caption.append(node('strong', '', preset.name), node('small', '', preset.topic), node('i', 'blog-preset-check', editor.thumbnail === preset.id ? '✓' : '↗︎'));
         choice.append(artworkNode({ preset: preset.id }, editor.id ?? 'new-project'), caption);
         choice.addEventListener('click', () => { editor.thumbnail = preset.id; renderArtwork(); renderState(); }); $(id).append(choice);
       }
