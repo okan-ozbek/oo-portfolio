@@ -1,0 +1,149 @@
+/* Activity details live in the tooltip, keeping the chart itself quiet. */
+.chart-legend{display:none}
+.activity .chart-wrap{margin-top:8px}
+.activity.is-empty .chart-labels{justify-content:center;padding-top:0;font-size:12px}
+.activity.is-empty .chart-labels>span:first-child,.activity.is-empty .chart-labels>span:last-child{display:none}
+.chart-tooltip{width:340px;max-width:calc(100% - 24px);padding:14px;border-color:#555560;background:#202025;box-shadow:0 10px 32px #0009}
+.chart-tooltip-date{margin-bottom:12px;color:#c2c2cc;line-height:1.5}
+.chart-tooltip-row{display:grid;grid-template-columns:9px minmax(0,1fr) auto;gap:10px;align-items:center}
+.chart-tooltip-row+.chart-tooltip-row{margin-top:0;padding-top:9px;margin-top:9px;border-top:1px solid #ffffff0e}
+.chart-tooltip-identity{max-width:none;min-width:0;overflow:hidden}
+.chart-tooltip-identity strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:1.5}
+.chart-tooltip-count{margin:0;text-align:right;font-variant-numeric:tabular-nums;color:#f4f4f7;font-size:11px}
+.chart-tooltip-empty{font-size:12px;color:var(--muted)}
+.ui-arrow{display:inline-block;width:16px;height:16px;vertical-align:middle;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.nav-label-short{display:none}
+.sidebar .nav-item>.nav-label-long,.sidebar .nav-item>.nav-label-short{width:auto;font-size:inherit;color:inherit}
+
+@media(max-width:800px){
+  html{scroll-padding-top:124px}
+  .app-shell .sidebar{position:sticky;top:0;z-index:20;padding:12px 12px 8px;background:#151517f5;backdrop-filter:blur(16px);border-bottom:1px solid #38383e}
+  .app-shell .sidebar>.wordmark{font-size:20px;margin:0 0 10px;padding:0 4px;height:28px}
+  .app-shell .sidebar .brand-icon{width:26px;height:26px}
+  .app-shell .sidebar-logout{position:absolute;right:16px;top:8px;margin:0;min-height:36px;font-size:11px}
+  .app-shell .sidebar nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+  .app-shell .sidebar .nav-item{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;min-width:0;min-height:56px;padding:7px 2px;margin:0;font-size:10px;line-height:1.2;border-radius:6px}
+  .app-shell .sidebar .nav-item>span[aria-hidden]{font-size:18px;line-height:20px;margin:0}
+  .nav-label-long{display:none}.nav-label-short{display:inline}
+  .app-shell main{padding:24px 16px;min-width:0}
+  .workspace{min-width:0}
+  .app-shell .page-heading{align-items:flex-start;flex-wrap:wrap;gap:18px;margin-bottom:24px}
+  .app-shell .page-heading .muted{font-size:12px;max-width:38ch}
+  .app-shell .section-heading h1{font-size:30px}
+  .app-shell button.primary,.app-shell button.secondary,.app-shell .action-button,.app-shell .link-button{min-height:44px}
+  .app-shell .action-button{width:44px;height:44px}
+  .app-shell input:not([type=checkbox]):not([type=file]),.app-shell select,.app-shell textarea{font-size:16px!important}
+  .app-shell .table-tools input,.app-shell .table-tools .secondary,.app-shell .range-trigger,.app-shell .filter-trigger{min-height:44px}
+  .app-shell .library-filter-picker .range-trigger{font-size:12px}
+  .app-shell .library-panel>.panel-heading{align-items:stretch;flex-direction:column;gap:14px}
+  .app-shell .library-panel .table-tools{display:flex;flex-wrap:wrap;align-items:center;width:100%;margin:0;gap:8px}
+  .app-shell .library-panel .table-tools input{flex:1 1 150px;max-width:none;min-width:0;width:auto}
+  .app-shell .library-panel .table-tools>.library-filter-picker{flex:1 1 130px;min-width:0}
+  .app-shell .library-panel .table-tools>.library-filter-picker .range-trigger{width:100%}
+  .app-shell .link-table-tools #refresh{height:44px}
+  .app-shell .link-bulk-actions{gap:8px}
+  .app-shell .activity>.panel-heading{align-items:flex-start;flex-wrap:wrap;gap:14px}
+  .app-shell .activity>.panel-heading>div:first-child{flex:1 1 150px}
+  .app-shell .activity .panel-heading .muted{max-width:34ch;font-size:11px}
+  .app-shell .chart-wrap{padding:0 14px;grid-template-columns:20px minmax(0,1fr);gap:8px}
+  .app-shell .chart-labels{padding:10px 14px 20px;gap:10px;font-size:9px}
+  .app-shell .chart-labels>span:nth-child(2){text-align:center;line-height:1.6}
+  .app-shell .workspace-footer{flex-wrap:wrap;line-height:1.7}
+  .app-shell .metrics article{padding:16px;min-height:100px}
+  .app-shell .metrics article strong{font-size:28px;margin:12px 0 6px}
+  .app-shell .blog-editor-top{margin-bottom:24px;gap:14px}
+  .app-shell .blog-editor-actions{width:100%;justify-content:flex-start;gap:8px}
+  .app-shell .blog-editor-actions>span{flex-basis:100%}
+  .app-shell .blog-heading-actions{justify-content:flex-start}
+  .app-shell .blog-editor-tabs button{min-height:44px}
+  .app-shell .blog-insert-tools button{min-width:40px;min-height:44px}
+  .app-shell .blog-revision{flex-wrap:wrap}
+  dialog{max-height:calc(100dvh - 24px);overflow:auto;padding:22px 18px;overscroll-behavior:contain}
+  dialog input:not([type=checkbox]),dialog select,dialog textarea{font-size:16px!important}
+  dialog button,dialog .secondary{min-height:44px}
+  dialog .dialog-actions{flex-wrap:wrap;gap:10px}
+  .app-shell .resume-card-actions{flex-wrap:wrap}
+}
+
+@media(max-width:1100px){
+  /* Preserve table semantics in markup, while laying each record out as a card. */
+  .app-shell .library-table,.app-shell .library-table tbody{display:block;width:100%}
+  .app-shell .library-table thead{position:absolute;width:1px;height:1px;clip-path:inset(50%);overflow:hidden;white-space:nowrap}
+  .app-shell .library-table tbody tr{height:auto;padding:18px 16px;border-top:1px solid var(--line);gap:12px}
+  .app-shell .library-table td,.app-shell .library-table td:first-child,.app-shell .library-table td:last-child{display:block;min-width:0;padding:0;border:0;text-align:left}
+  .app-shell .library-table .action-button{width:44px;height:44px}
+  .app-shell .library-table td.unique-views::before{content:'Views · ';color:var(--muted)}
+  .app-shell .library-panel>.panel-heading{flex-wrap:wrap}
+  .app-shell .library-panel .table-tools{flex-wrap:wrap}
+
+  .app-shell .table-wrap .links-table tr{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:16px 12px}
+  .app-shell .links-table .link-select-cell{grid-column:1;grid-row:1;align-self:start;padding-top:3px}
+  .app-shell .links-table .link-select-cell input{width:20px;height:20px;margin:0}
+  .app-shell .links-table .link-identity-cell{grid-column:2;grid-row:1}
+  .app-shell .links-table .link-action-cell{grid-column:3;grid-row:1;justify-self:end}
+  .app-shell .links-table td:nth-child(3){grid-column:2;grid-row:2}
+  .app-shell .links-table td:nth-child(4){grid-column:3;grid-row:2;align-self:center}
+  .app-shell .links-table td:nth-child(5){grid-column:2;grid-row:3}
+  .app-shell .links-table td:nth-child(6){grid-column:3;grid-row:3;max-width:120px}
+  .app-shell .links-table .destination{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;line-height:1.6}
+  .app-shell .links-table td::before{font-size:9px;margin-bottom:6px}
+  .app-shell .links-table td[data-label]::before{content:attr(data-label);display:block;font:9px var(--mono);color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+  .app-shell .links-table .link-identity-cell::before{display:none}
+  .app-shell .links-table .link-action-cell::before,.app-shell .links-table .link-select-cell::before{display:none}
+  .app-shell .links-table .link-name{font-size:15px}
+
+  .app-shell .book-table tr{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px 16px}
+  .app-shell .book-table .book-cover-cell{grid-column:1;grid-row:1/3;place-self:center}
+  .app-shell .book-cover{width:64px;height:88px;margin-inline:auto}
+  .app-shell .book-table .book-title-cell{grid-column:2;grid-row:1}
+  .app-shell .book-table .book-tags-cell{grid-column:2;grid-row:2}
+  .app-shell .book-table .book-pages-cell{grid-column:1/-1;grid-row:3}
+  .app-shell .book-page-info{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding-top:12px}
+  .app-shell .book-page-info .book-pages::after{content:' pages';color:var(--muted);font-size:11px}
+  .app-shell .book-bookmark{min-height:44px;padding:10px 14px;border:1px solid #5e5140;border-radius:5px;background:#30291e;color:#e4c992;font-size:12px;gap:8px}
+  .app-shell .book-bookmark .action-icon{width:16px;height:16px}
+  .app-shell .book-table .book-actions-cell{grid-column:1/-1;grid-row:4}
+  .app-shell .library-table .book-actions{justify-content:flex-end;gap:8px}
+  .app-shell .library-table .book-name{font-size:15px}
+  .app-shell .book-row-tags .book-tag,.app-shell .book-add-tags{min-height:36px;padding:7px 10px}
+  .app-shell .book-file-meta{font-size:10px}
+
+  .app-shell .blog-table tr{display:grid;grid-template-columns:76px minmax(0,1fr) 44px;gap:10px 12px}
+  .app-shell .blog-table td:first-child{grid-column:1;grid-row:1/5;place-self:center}
+  .app-shell .blog-table .blog-table-thumbnail{width:76px;aspect-ratio:1;margin-inline:auto}
+  .app-shell .blog-table td:nth-child(2){grid-column:2;grid-row:1}
+  .app-shell .blog-table td:nth-child(3){grid-column:2;grid-row:2}
+  .app-shell .blog-table td.blog-table-author{display:none}
+  .app-shell .blog-table td.blog-table-date{grid-column:2;grid-row:3;white-space:normal;line-height:1.6}
+  .app-shell .blog-table td.unique-views{grid-column:2;grid-row:4;font-size:11px}
+  .app-shell .blog-table td:last-child{grid-column:3;grid-row:1;align-self:start}
+  .app-shell .blog-table .blog-table-title{font-size:15px;line-height:1.5}
+  .app-shell .blog-table .blog-table-summary{-webkit-line-clamp:2;line-height:1.6;color:#9b9ba5}
+
+  .app-shell .project-table .project-library-row{display:grid;grid-template-columns:76px minmax(0,1fr) auto 44px;gap:14px 12px}
+  .app-shell .project-table td.project-identity,.app-shell .project-table .project-identity-inner{display:contents}
+  .app-shell .project-table .project-status-cell{grid-column:2;grid-row:2;align-self:center}
+  .app-shell .project-table td.unique-views{grid-column:3;grid-row:2;align-self:center}
+  .app-shell .project-table .project-actions-cell{grid-column:4;grid-row:2}
+  .app-shell .project-table .project-library-art{grid-column:1;grid-row:1/3;place-self:center;width:76px;aspect-ratio:1;margin-inline:auto}
+  .app-shell .project-table .project-library-copy{grid-column:2/-1;grid-row:1}
+  .app-shell .project-table .project-library-copy strong{font-size:15px;line-height:1.5}
+  .app-shell .project-table .project-library-copy p{font-size:12px;line-height:1.6}
+  .app-shell .project-table .project-destination{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+}
+
+@media(max-width:480px){
+  .app-shell .project-table .project-library-row{grid-template-columns:60px minmax(0,1fr) 44px;gap:12px}
+  .app-shell .project-table .project-library-art{width:60px;grid-row:1/4}
+  .app-shell .project-table td.unique-views{grid-column:2;grid-row:3}
+  .app-shell .project-table .project-actions-cell{grid-column:3;grid-row:2/4;align-self:center}
+}
+
+@media(max-width:380px){
+  .app-shell main{padding:22px 12px}
+  .app-shell .library-table tbody tr{padding:16px 12px}
+  .app-shell .sidebar .nav-item{font-size:9px}
+  .app-shell .blog-table tr{grid-template-columns:60px minmax(0,1fr) 44px;gap:10px}
+  .app-shell .blog-table .blog-table-thumbnail{width:60px}
+  .app-shell .metrics{gap:10px}.app-shell .metrics article{padding:16px 12px}
+}

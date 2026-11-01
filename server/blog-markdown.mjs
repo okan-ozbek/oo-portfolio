@@ -66,7 +66,7 @@ md.renderer.rules.fence = (tokens, index, options, env, self) => {
   if (language === 'embed') {
     const url = embedUrl(token.content);
     if (!url) return `<p class="blog-embed-unavailable">Unsupported embed. Use a normal Markdown link, or a supported video/demo URL.</p>`;
-    return `<figure class="blog-embed"><iframe src="${escapeHtml(url)}" title="Embedded content" loading="lazy" sandbox="allow-scripts allow-same-origin allow-presentation allow-forms" allow="fullscreen" referrerpolicy="no-referrer"></iframe><figcaption><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open embedded content ↗</a></figcaption></figure>`;
+    return `<figure class="blog-embed"><iframe src="${escapeHtml(url)}" title="Embedded content" loading="lazy" sandbox="allow-scripts allow-same-origin allow-presentation allow-forms" allow="fullscreen" referrerpolicy="no-referrer"></iframe><figcaption><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open embedded content <svg class="site-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 7h10v10M7 17 17 7"/></svg></a></figcaption></figure>`;
   }
   if (token.content.length > 100000) return defaultFence(tokens, index, options, env, self);
   const highlighted = hljs.getLanguage(language) ? hljs.highlight(token.content, { language, ignoreIllegals: true }).value : escapeHtml(token.content);

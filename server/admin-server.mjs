@@ -31,6 +31,7 @@ const assets = new Map([
   ["/admin/", ["index.html", "text/html; charset=utf-8"]],
   ["/admin/assets/admin.js", ["admin.js", "text/javascript; charset=utf-8"]],
   ["/admin/assets/admin.css", ["admin.css", "text/css; charset=utf-8"]],
+  ["/admin/assets/mobile.css", ["mobile.css", "text/css; charset=utf-8"]],
   ["/admin/assets/resumes.js", ["resumes.js", "text/javascript; charset=utf-8"]],
   ["/admin/assets/books.js", ["books.js", "text/javascript; charset=utf-8"]],
   ["/admin/assets/blogs.js", ["blogs.js", "text/javascript; charset=utf-8"]],

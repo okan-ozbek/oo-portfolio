@@ -106,7 +106,7 @@ export function initResumes({ api, toast, refreshLinks }) {
       card.append(stats);
       const url = el('p', 'resume-public-url', `/resumes/${resume.slug}.pdf`); url.title = resume.url; card.append(url);
       const actions = el('div', 'resume-card-actions');
-      actions.append(button('Manage ↗', () => loadDetail(resume.id).catch(error => toast(error.message))));
+      actions.append(button('Manage ↗︎', () => loadDetail(resume.id).catch(error => toast(error.message))));
       actions.append(button('Duplicate', () => {
         copying = resume; $('resume-copy-name').value = `${resume.name.slice(0, 70)} copy`; $('resume-copy-slug').value = `${resume.slug.slice(0, 50)}-copy`; $('resume-copy-error').textContent = ''; $('resume-copy-dialog').showModal();
       }, 'text-button'));
@@ -172,7 +172,7 @@ export function initResumes({ api, toast, refreshLinks }) {
     perform($('resumes-view'), async () => {
       $('resume-build').textContent = 'Building PDF…';
       try { const { resume } = await api(`resumes/${selected.id}/compile`, { method: 'POST', body: { links } }); showDetail(resume); await refresh(); await refreshLinks(); toast('Tracking saved. The downloadable PDF is updated.'); }
-      finally { $('resume-build').textContent = 'Save tracking & update PDF ↗'; }
+      finally { $('resume-build').textContent = 'Save tracking & update PDF ↗︎'; }
     }, 'resume-build-error');
   });
   $('resume-default').addEventListener('change', () => {

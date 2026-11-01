@@ -8,7 +8,7 @@ import sharp from 'sharp';
 import { createAdminServer } from '../server/admin-server.mjs';
 import { hashPassword } from '../server/security.mjs';
 import { renderMarkdown } from '../server/blog-markdown.mjs';
-import { indexPage } from '../server/blog-pages.mjs';
+import { indexPage, articlePage, feedRow } from '../server/blog-pages.mjs';
 import { formatMarkdown } from '../server/admin/blog-format.js';
 import {technicalPresets,projectPresets} from '../lib/art-catalog.mjs';
 
@@ -184,7 +184,7 @@ test('homepage serves current projects and articles in HTML and blog pagination 
   html=await (await app.request('/',{anonymous:true})).text();assert.doesNotMatch(html,/Server rendered project/);
   for(let i=0;i<6;i++){app.advance(1000);const post=await app.create('Pagination entry '+i);await app.action(post,'publish');}
   html=markup(await (await app.request('/',{anonymous:true})).text());
-  assert.match(html,/<div class="home-blog-more"><a href="\/blog">Read more<\/a><\/div>/);
+  assert.match(html,/<div class="home-blog-more"><a href="\/blog">Read more<svg[^]*?<\/svg><\/a><\/div>/);
   assert.doesNotMatch(html,/Next page|Read more ↓/);
   const first=await (await app.request('/blog',{anonymous:true})).text(),second=await (await app.request('/blog?page=2',{anonymous:true})).text();
   assert.doesNotMatch(first+second,/blog-load-area|data-blog-more|Read more ↓/);
@@ -192,7 +192,7 @@ test('homepage serves current projects and articles in HTML and blog pagination 
   assert.match(second,/href="\/blog\?page=2" aria-label="Page 2" aria-current="page"/);
   assert.match(first,/aria-disabled="true">« First/);assert.match(second,/href="\/blog">« First/);
   assert.match(first,/href="\/blog\?page=2">Last »/);assert.match(second,/aria-disabled="true">Last »/);
-  assert.match(first,/aria-disabled="true">← Previous/);assert.match(second,/aria-disabled="true">Next →/);
+  assert.match(first,/aria-disabled="true">←︎ Previous/);assert.match(second,/aria-disabled="true">Next →︎/);
   assert.match(first,/rel="next"[^>]*href="\/blog\?page=2"/);assert.match(second,/rel="prev" href="\/blog"/);assert.match(second,/<link rel="canonical" href="https:\/\/pixelware.test\/blog\?page=2"/);
   const links=page=>[...page.matchAll(/class="blog-feed-image" href="([^"]+)"/g)].map(match=>match[1]);
   assert.match(await (await app.request('/sitemaps/pages.xml',{anonymous:true})).text(),/\/blog\?page=2/);
@@ -208,6 +208,21 @@ test('numbered blog pagination stays compact for large archives and omits single
   assert.equal((nav.match(/blog-pagination-gap/g)??[]).length,2);
   assert.match(nav,/rel="prev" href="\/blog\?page=49"/);assert.match(nav,/rel="next" href="\/blog\?page=51"/);
   assert.doesNotMatch(indexPage([],null,origin),/class="blog-pagination"/);
+});
+
+test('reading lists show title, caption, then author and omit tags; empty recommendations stay hidden',()=>{
+  const author={name:'A writer',linkedinUrl:'',avatarId:null};
+  const post={id:'reading-post',slug:'reading-post',title:'Readable title',summary:'A useful caption',tags:['List-only tag'],thumbnailUrl:'/cover.png',publishedAt:'2026-10-31T00:00:00Z',author,markdown:'A short article.'};
+  const row=feedRow(post);
+  assert.ok(row.indexOf('Readable title')<row.indexOf('A useful caption'));
+  assert.ok(row.indexOf('A useful caption')<row.indexOf('A writer'));
+  assert.doesNotMatch(row,/List-only tag|blog-feed-tags/);
+  const html=articlePage(post,author,[],origin,{publishedAt:post.publishedAt,changelog:[{createdAt:post.publishedAt,note:'Clarified the example'}]});
+  assert.doesNotMatch(html,/<aside|KEEP EXPLORING|Suggested for you/);
+  assert.match(html,/without-suggestions/);
+  assert.match(html,/<footer class="blog-changelog"[^]*?Clarified the example/);
+  assert.doesNotMatch(html,/<h2>Changelog/);
+  assert.match(articlePage(post,author,[{...post,id:'other',slug:'other'}],origin),/<aside class="blog-suggestions"/);
 });
 
 test('BlogPosting metadata matches the live article, safely serializes text, and retains publication dates',async t=>{
