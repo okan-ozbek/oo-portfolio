@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { ArrowDownRight, ArrowUpRight, Pause, Play } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { DataVisual } from "./data-visual";
 import { BlogArtwork } from './blog-artwork';
 import { BlogFeed } from './blog-feed';
 import { about, contact, projects as initialProjects } from "./project-content";
+import { SiteFooter } from '../lib/site-footer.mjs';
 
 function subscribeMotion(callback: () => void) {
   const query = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -31,7 +32,7 @@ export function Showcase({initialData}:{initialData?:HomeData}={}) {
     return()=>controller.abort();
   },[initialData]);
   const reducedMotion = useSyncExternalStore(subscribeMotion, getReducedMotion, () => false);
-  const [motionOverride, setMotionOverride] = useState<boolean | null>(null);
+  const [blogCount, setBlogCount] = useState(initialData?.blogPage.total ?? initialData?.blogPage.posts.length ?? 0);
   const [resumeAvailable, setResumeAvailable] = useState(initialData?.resumeAvailable??false);
   useEffect(() => {
     const controller = new AbortController();
@@ -41,7 +42,7 @@ export function Showcase({initialData}:{initialData?:HomeData}={}) {
       .catch(() => { /* The portfolio remains usable when no resume is published. */ });
     return () => controller.abort();
   }, [initialData]);
-  const playing = motionOverride ?? !reducedMotion;
+  const playing = !reducedMotion;
   const projectCount = String(projects.length).padStart(2, "0");
 
   return (
@@ -53,7 +54,7 @@ export function Showcase({initialData}:{initialData?:HomeData}={}) {
         </a>
         <nav aria-label="Main navigation">
           <a className="nav-projects" href="#projects">Projects <span>{projectCount}</span></a>
-          <a href="/blog">Blog</a>
+          <a className="nav-blog" href="/blog">Blog <span>{String(blogCount).padStart(2,'0')}</span></a>
           <a className="nav-contact" href={`mailto:${contact.email}`}>Let’s talk <ArrowUpRight size={15} aria-hidden="true" /></a>
         </nav>
       </header>
@@ -105,7 +106,7 @@ export function Showcase({initialData}:{initialData?:HomeData}={}) {
           <div className="about-copy">{about.map(paragraph => <p key={paragraph}>{paragraph}</p>)}</div>
         </section>
 
-        <BlogFeed initialPage={initialData?.blogPage} playing={playing} />
+        <BlogFeed initialPage={initialData?.blogPage} playing={playing} onTotalChange={setBlogCount} />
 
         <section className="contact-strip" id="contact" aria-labelledby="contact-title">
           <div><span className="eyebrow">AN OPEN CHANNEL</span><h2 id="contact-title">Have something in mind?</h2></div>
@@ -113,11 +114,7 @@ export function Showcase({initialData}:{initialData?:HomeData}={}) {
         </section>
       </main>
 
-      <footer className="site-footer">
-        <p className="mono">© {new Date().getFullYear()} PIXELWARE</p>
-        <div className="footer-links">{resumeAvailable && <a href="/resume.pdf" download>Resume PDF <ArrowDownRight size={13} aria-hidden="true" /></a>}<a href={contact.github} target="_blank" rel="noreferrer">GitHub <ArrowUpRight size={13} aria-hidden="true" /></a><a href={`mailto:${contact.email}`}>Email <ArrowUpRight size={13} aria-hidden="true" /></a></div>
-        <button className="motion-control" type="button" aria-label={playing ? "Pause animations" : "Play animations"} aria-pressed={!playing} onClick={() => setMotionOverride(!playing)}>{playing ? <Pause size={12} aria-hidden="true" /> : <Play size={12} aria-hidden="true" />}<span>Motion {playing ? "on" : "off"}</span></button>
-      </footer>
+      <SiteFooter resumeAvailable={resumeAvailable}/>
     </div>
   );
 }

@@ -10,7 +10,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 COPY --chown=node:node server/ ./server/
-COPY --chown=node:node lib/art-catalog.mjs ./lib/art-catalog.mjs
+COPY --chown=node:node lib/art-catalog.mjs lib/site-footer.mjs ./lib/
 COPY --from=blog-build --chown=node:node /app/node_modules ./node_modules
 COPY --from=blog-build --chown=node:node /app/server/blog/vendor/ ./server/blog/vendor/
 COPY --from=blog-build --chown=node:node /app/server/home/vendor/ ./server/home/vendor/

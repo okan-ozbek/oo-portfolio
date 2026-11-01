@@ -100,7 +100,7 @@ test('feed pagination handles equal dates without duplicates; suggestions exclud
   const app=await fixture(t);await app.login();const posts=[];
   for(let i=0;i<12;i++)posts.push(await app.action(await app.create(`Public post ${i}`),'publish'));
   const draft=await app.create('Secret suggestion');let cursor=null,ids=[];
-  for(const count of [5,5,2]){const page=await (await app.request(`/api/public/blogs${cursor?`?cursor=${cursor}`:''}`,{anonymous:true})).json();assert.equal(page.posts.length,count);ids.push(...page.posts.map(post=>post.id));cursor=page.nextCursor;assert.doesNotMatch(JSON.stringify(page),/Secret suggestion/);}
+  for(const count of [5,5,2]){const page=await (await app.request(`/api/public/blogs${cursor?`?cursor=${cursor}`:''}`,{anonymous:true})).json();assert.equal(page.posts.length,count);assert.equal(page.total,12);ids.push(...page.posts.map(post=>post.id));cursor=page.nextCursor;assert.doesNotMatch(JSON.stringify(page),/Secret suggestion/);}
   assert.equal(cursor,null);assert.equal(new Set(ids).size,12);assert.equal((await app.request('/api/public/blogs?cursor=broken')).status,400);
   let post=posts[0];let html=await (await app.request(`/blog/${post.slug}`)).text();assert.match(html,/KEEP EXPLORING/);assert.doesNotMatch(html,/Secret suggestion/);
   post=await app.save(post,{relatedIds:[posts[2].id,draft.id,posts[1].id]});post=await app.action(post,'publish');html=await (await app.request(`/blog/${post.slug}`)).text();const aside=html.split('<aside')[1];assert.ok(aside.indexOf('Public post 2')<aside.indexOf('Public post 1'));assert.doesNotMatch(aside,/Secret suggestion/);assert.doesNotMatch(aside,/Public post 3/);
@@ -141,7 +141,7 @@ test('ten technical scenes and all six project visuals preserve published thumbn
   for(const path of ['/blog',`/blog/${post.slug}`]){
     const html=await (await app.request(path,{anonymous:true})).text();
     assert.match(html,/class="site-wordmark"[^>]*aria-label="Pixelware, home"/);
-    assert.match(html,/class="brand-icon"/);assert.match(html,/<nav aria-label="Main navigation">/);assert.match(html,/href="\/#projects"/);assert.match(html,/<a href="\/blog">Blog<\/a>/);assert.match(html,/id="contact"/);if(path!=='/blog')assert.match(html,/aria-label="Article changelog"/);
+    assert.match(html,/class="brand-icon"/);assert.match(html,/<nav aria-label="Main navigation">/);assert.match(html,/href="\/#projects"/);assert.match(html,/<a class="nav-blog" href="\/blog">Blog <span data-blog-count>01<\/span><\/a>/);assert.match(html,/id="contact"/);if(path!=='/blog')assert.match(html,/aria-label="Article changelog"/);
     assert.doesNotMatch(html,/blog-back|blog-hero-banner|href="\/#about"/);
   }
   const theme=await app.request('/blog/assets/theme.css',{anonymous:true});assert.equal(theme.status,200);assert.match(theme.headers.get('content-type'),/text\/css/);
@@ -185,9 +185,15 @@ test('homepage serves current projects and articles in HTML and blog pagination 
   for(let i=0;i<6;i++){app.advance(1000);const post=await app.create('Pagination entry '+i);await app.action(post,'publish');}
   html=markup(await (await app.request('/',{anonymous:true})).text());
   assert.match(html,/<div class="home-blog-more"><a href="\/blog">Read more<svg[^]*?<\/svg><\/a><\/div>/);
-  assert.doesNotMatch(html,/Next page|Read more ↓/);
+  assert.doesNotMatch(html,/Next page|Read more ↓|motion-control|Pause animations/);
+  assert.match(html,/class="nav-blog" href="\/blog">Blog <span>07<\/span>/);
   const first=await (await app.request('/blog',{anonymous:true})).text(),second=await (await app.request('/blog?page=2',{anonymous:true})).text();
   assert.doesNotMatch(first+second,/blog-load-area|data-blog-more|Read more ↓/);
+  assert.match(first,/<h1>All blog posts<\/h1>/);
+  for(const page of [first,second])assert.match(page,/data-blog-count>07<\/span>/);
+  const footer=page=>page.match(/<footer class="site-footer(?: site-frame)?">([^]*?)<\/footer>/)?.[1];
+  assert.ok(footer(html));assert.equal(footer(first),footer(html));assert.equal(footer(second),footer(html));
+  assert.doesNotMatch(first+second,/Back to the website|motion-control/);
   assert.match(first,/aria-label="Page 1" aria-current="page"/);
   assert.match(second,/href="\/blog\?page=2" aria-label="Page 2" aria-current="page"/);
   assert.match(first,/aria-disabled="true">« First/);assert.match(second,/href="\/blog">« First/);

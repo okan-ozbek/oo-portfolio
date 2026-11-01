@@ -118,7 +118,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
   const books = createBooks({ db, now, send });
   const analytics = createViewAnalytics({ db, now, secureCookies });
   const projects = createProjects({ db, now, send, analytics, origin, acceptOrigin:value=>allowedOrigins.has(value), onPublicChange:()=>seo.touch('home') });
-  const blogs = createBlogs({ db, origin, now, send, isAuthenticated: session, analytics, onPublicChange:()=>{seo.touch('blogs');seo.touch('home');} });
+  const blogs = createBlogs({ db, origin, now, send, isAuthenticated: session, analytics, publicChrome:()=>({resumeAvailable:resumes.websiteAvailable(),projectCount:projects.visible().length}), onPublicChange:()=>{seo.touch('blogs');seo.touch('home');} });
   const home = createHome({origin,projects,blogs,resumes,development:localNoLogin});
   function validateLink(body) {
     const { slug, label = `/r/${slug}`, destination, source = "", enabled = true } = body;
