@@ -1,13 +1,13 @@
-import { Compartment, EditorState, StateEffect, StateField } from '@codemirror/state';
+import { Compartment, EditorState, StateEffect, StateField, countColumn, findColumn } from '@codemirror/state';
 import { Decoration, EditorView, WidgetType, drawSelection, dropCursor, keymap, placeholder } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, isolateHistory } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { renderMarkdown } from '../blog-markdown.mjs';
 import { formatMarkdown } from './blog-format.js';
 
-const changeMode = StateEffect.define();
+export const changeMode = StateEffect.define();
 const liveMode = StateField.define({
   create: () => true,
   update(value, transaction) {
@@ -16,18 +16,177 @@ const liveMode = StateField.define({
   },
 });
 
+export const blockAction = StateEffect.define();
+const blockLineGoal = StateEffect.define();
+const blockLineColumn = StateField.define({
+  create: () => null,
+  update(value, transaction) {
+    for (const effect of transaction.effects) if (effect.is(blockLineGoal)) return effect.value;
+    return transaction.docChanged || transaction.selection || transaction.effects.some(effect => effect.is(blockAction) || effect.is(changeMode)) ? null : value;
+  },
+});
+
+// The default vertical command uses screen coordinates. Mixed heading sizes and
+// block widgets make that unreliable for code, so source blocks use document lines.
+export function moveBlockLine(view, direction, extend = false) {
+  const state = view.state;
+  if (state.selection.ranges.length !== 1) return false;
+  const selection = state.selection.main;
+  const editing = state.field(blockInteraction).editing.find(item => selection.head >= item.from && selection.head <= item.to);
+  const block = editing ?? (!state.field(liveMode) ? codeBlocks(state).find(item => selection.head >= item.from && selection.head <= item.to) : null);
+  // Markdown mode also needs logical line movement. It has no rendered widget
+  // to enter first, so code sessions are opened by ordinary caret movement.
+  if (!block && state.field(liveMode)) return false;
+  const current = state.doc.lineAt(selection.head);
+  const from = block?.from ?? 0, to = block?.to ?? state.doc.length;
+  const first = state.doc.lineAt(from).number, last = state.doc.lineAt(to).number;
+  const next = state.doc.line(Math.max(first, Math.min(last, current.number + direction)));
+  const column = state.field(blockLineColumn) ?? countColumn(current.text, state.tabSize, selection.head - current.from);
+  const head = Math.max(from, Math.min(to, next.from + findColumn(next.text, column, state.tabSize)));
+  if (head !== selection.head || (!selection.empty && !extend) || (block && !editing)) {
+    const effects = [blockLineGoal.of(column)];
+    if (block && !editing) effects.push(blockAction.of({ kind: 'edit', from: block.from, to: block.to }));
+    view.dispatch({ selection: { anchor: extend ? selection.anchor : head, head }, effects, userEvent: 'select', scrollIntoView: true });
+  }
+  return true;
+}
+
+function codeBlocks(state) {
+  const blocks = [];
+  syntaxTree(state).iterate({ enter(node) {
+    if (node.name !== 'FencedCode' && node.name !== 'CodeBlock') return;
+    blocks.push({ from: node.from, to: node.to }); return false;
+  } });
+  return blocks;
+}
+
+// Source editing is a session, rather than a consequence of where the caret is.
+// Map its boundaries through edits so typing/removing a fence cannot collapse it.
+export const blockInteraction = StateField.define({
+  create(state) {
+    const caret = state.selection.main;
+    return { editing: caret.empty ? codeBlocks(state).filter(block => caret.head >= block.from && caret.head < block.to) : [], selected: null };
+  },
+  update(value, transaction) {
+    const state = transaction.state, codes = codeBlocks(state);
+    const treeChanged = syntaxTree(transaction.startState) !== syntaxTree(state);
+    const map = block => {
+      const from = transaction.changes.mapPos(block.from, -1), to = transaction.changes.mapPos(block.to, 1);
+      if (from === to) return { from, to };
+      return codes.find(code => code.from === from) ?? { from, to };
+    };
+    let editing = transaction.docChanged || treeChanged ? value.editing.map(map).filter(block => block.to > block.from) : [...value.editing];
+    let selected = transaction.docChanged && value.selected ? map(value.selected) : value.selected;
+    if (selected && (selected.from === selected.to || !state.selection.ranges.some(range => range.from === selected.from && range.to === selected.to))) selected = null;
+    let explicit = false;
+    for (const effect of transaction.effects) {
+      if (!effect.is(blockAction)) continue;
+      explicit = true;
+      const { kind, from, to } = effect.value;
+      if (kind === 'edit') {
+        editing = [...editing.filter(block => block.from !== from), { from, to }]; selected = null;
+      } else if (kind === 'finish') editing = editing.filter(block => block.from !== from);
+      else if (kind === 'select') {
+        editing = editing.filter(block => block.from !== from); selected = { from, to };
+      } else if (kind === 'clear') selected = null;
+    }
+    if (!explicit && !selected && (transaction.docChanged || transaction.selection || treeChanged)) {
+      const caret = state.selection.main;
+      for (const block of codes) {
+        let touched = caret.empty && caret.head >= block.from && caret.head < block.to;
+        if (transaction.docChanged && caret.empty) transaction.changes.iterChangedRanges((_from, _to, from, to) => { if (from < block.to && to > block.from) touched = true; });
+        if (touched && !editing.some(item => item.from === block.from)) editing.push(block);
+      }
+    }
+    return { editing, selected };
+  },
+});
+
+function editBlock(view, from, to) {
+  view.dispatch({ effects: blockAction.of({ kind: 'edit', from, to }), selection: { anchor: from }, scrollIntoView: true }); view.focus();
+}
+
+function selectBlock(view, from, to) {
+  view.dispatch({ effects: blockAction.of({ kind: 'select', from, to }), selection: { anchor: from, head: to }, scrollIntoView: true }); view.focus();
+}
+
+export function finishBlockEditing(view, block) {
+  block ??= view.state.field(blockInteraction).editing.find(item => view.state.selection.main.head >= item.from && view.state.selection.main.head <= item.to)
+    ?? view.state.field(blockInteraction).editing.at(-1);
+  if (!block) return false;
+  const anchor = block.to < view.state.doc.length ? block.to + 1 : block.to;
+  view.dispatch({ effects: blockAction.of({ kind: 'finish', from: block.from }), selection: { anchor }, scrollIntoView: true }); view.focus?.();
+  return true;
+}
+
+export function deleteSelectedBlock(view) {
+  const block = view.state.field(blockInteraction).selected;
+  if (!block || view.state.readOnly) return false;
+  let { from, to } = block;
+  if (view.state.doc.sliceString(to, to + 1) === '\n') to++;
+  else if (from > 0 && view.state.doc.sliceString(from - 1, from) === '\n') from--;
+  view.dispatch({ changes: { from, to, insert: '' }, selection: { anchor: from }, effects: blockAction.of({ kind: 'clear' }), userEvent: 'delete.selection', annotations: isolateHistory.of('full') });
+  return true;
+}
+
+export function selectAdjacentBlock(view, direction) {
+  const state = view.state, caret = state.selection.main;
+  if (!state.field(liveMode) || !caret.empty) return false;
+  for (const set of state.facet(EditorView.decorations)) {
+    // Other extensions (including syntax highlighting) supply decorations as
+    // view callbacks. Our block widgets are in a directly provided range set.
+    if (typeof set === 'function') continue;
+    let found = null;
+    set.between(0, state.doc.length, (from, to, decoration) => {
+      if (!decoration.spec.widget?.source) return;
+      if (direction < 0 ? caret.head === to || (caret.head === to + 1 && state.doc.sliceString(to, to + 1) === '\n')
+        : caret.head === from || (caret.head + 1 === from && state.doc.sliceString(caret.head, from) === '\n')) found = { from, to };
+    });
+    if (found) { selectBlock(view, found.from, found.to); return true; }
+  }
+  return false;
+}
+
+function blockButton(label, action) {
+  const button = document.createElement('button'); button.type = 'button'; button.textContent = label;
+  button.addEventListener('click', event => { event.stopPropagation(); action(); }); return button;
+}
+
+class EditingToolbar extends WidgetType {
+  constructor(from, to) { super(); this.from = from; this.to = to; }
+  eq(other) { return this.from === other.from && this.to === other.to; }
+  toDOM(view) {
+    const root = document.createElement('div'); root.className = 'md-block-toolbar md-editing-toolbar';
+    const label = document.createElement('span'); label.textContent = 'Editing Markdown block · Esc or Ctrl/⌘+Enter to finish';
+    root.append(label, blockButton('Done editing', () => finishBlockEditing(view, { from: this.from, to: this.to })));
+    return root;
+  }
+  ignoreEvent() { return true; }
+}
+
 class MarkdownBlock extends WidgetType {
-  constructor(source, from, to, options) { super(); Object.assign(this, { source, from, to, options }); }
-  eq(other) { return this.source === other.source && this.from === other.from && this.to === other.to; }
+  constructor(source, from, to, options, selected = false) { super(); Object.assign(this, { source, from, to, options, selected }); }
+  eq(other) { return this.source === other.source && this.from === other.from && this.to === other.to && this.selected === other.selected; }
   toDOM(view) {
     const root = document.createElement('div');
-    root.className = 'md-rendered-block blog-content';
-    root.innerHTML = renderMarkdown(this.source);
+    root.className = `md-rendered-block blog-content${this.selected ? ' is-block-selected' : ''}`;
+    const toolbar = document.createElement('div'); toolbar.className = 'md-block-toolbar';
+    const select = blockButton('Select block', () => selectBlock(view, this.from, this.to)); select.setAttribute('aria-pressed', String(this.selected));
+    toolbar.append(select, blockButton('Edit source', () => editBlock(view, this.from, this.to)));
+    const content = document.createElement('div'); content.className = 'md-block-content'; content.innerHTML = renderMarkdown(this.source);
+    root.append(toolbar, content);
     root.tabIndex = 0; root.setAttribute('role', 'group');
-    root.setAttribute('aria-label', 'Markdown block. Press Enter to edit source.');
-    const edit = () => { view.dispatch({ selection: { anchor: this.from }, scrollIntoView: true }); view.focus(); };
-    root.addEventListener('click', event => { if (!event.target.closest(this.options.onRender ? 'a,button,input,[data-image-src]' : 'a,button,input')) edit(); });
-    root.addEventListener('keydown', event => { if (event.target === root && event.key === 'Enter') { event.preventDefault(); edit(); } });
+    root.setAttribute('aria-label', `${this.selected ? 'Selected Markdown block' : 'Markdown block'}. Enter to edit, Delete to remove selected block.`);
+    root.addEventListener('click', event => { if (!event.target.closest(this.options.onRender ? 'a,button,input,[data-image-src]' : 'a,button,input')) selectBlock(view, this.from, this.to); });
+    root.addEventListener('dblclick', event => { if (!event.target.closest('a,button,input,[data-image-src]')) editBlock(view, this.from, this.to); });
+    root.addEventListener('keydown', event => {
+      if (event.target !== root) return;
+      if (event.key === 'Enter') { event.preventDefault(); editBlock(view, this.from, this.to); }
+      else if ([' ', 'Backspace', 'Delete'].includes(event.key)) {
+        event.preventDefault();
+        if (this.selected && event.key !== ' ') deleteSelectedBlock(view); else selectBlock(view, this.from, this.to);
+      }
+    });
     // Diagram rendering can change block height after CodeMirror's layout pass.
     queueMicrotask(async () => {
       if (!root.isConnected) return;
@@ -62,38 +221,65 @@ export function liveMarkdown(options = {}) {
   const field = StateField.define({
     create: state => decorate(state, options),
     update(value, transaction) {
-      return transaction.docChanged || transaction.selection || transaction.effects.some(effect => effect.is(changeMode)) || syntaxTree(transaction.startState) !== syntaxTree(transaction.state)
+      return transaction.docChanged || transaction.selection || transaction.effects.some(effect => effect.is(changeMode) || effect.is(blockAction)) || syntaxTree(transaction.startState) !== syntaxTree(transaction.state)
         ? decorate(transaction.state, options) : value;
     },
     provide: value => EditorView.decorations.from(value),
   });
-  return [liveMode, field];
+  return [liveMode, blockInteraction, blockLineColumn, field, keymap.of([
+    { key: 'ArrowUp', run: view => moveBlockLine(view, -1), shift: view => moveBlockLine(view, -1, true) },
+    { key: 'ArrowDown', run: view => moveBlockLine(view, 1), shift: view => moveBlockLine(view, 1, true) },
+    { key: 'Backspace', run: view => deleteSelectedBlock(view) || selectAdjacentBlock(view, -1) },
+    { key: 'Delete', run: view => deleteSelectedBlock(view) || selectAdjacentBlock(view, 1) },
+    { key: 'Enter', run: view => {
+      const block = view.state.field(blockInteraction).selected;
+      if (!block) return false;
+      editBlock(view, block.from, block.to); return true;
+    } },
+    { key: 'Mod-Enter', run: view => finishBlockEditing(view) },
+    { key: 'Escape', run: view => {
+      const selected = view.state.field(blockInteraction).selected;
+      if (!selected) return finishBlockEditing(view);
+      view.dispatch({ effects: blockAction.of({ kind: 'clear' }), selection: { anchor: selected.to } }); return true;
+    } },
+  ])];
 }
 
 function decorate(state, options) {
   if (!state.field(liveMode)) return Decoration.none;
   const ranges = [], blocks = [], literals = [], doc = state.doc;
+  const interaction = state.field(blockInteraction);
+  const selected = (from, to) => interaction.selected?.from === from && interaction.selected?.to === to;
+  const blockActive = (from, to) => state.selection.ranges.some(range => range.empty ? range.head >= from && range.head < to : range.from < to && range.to > from);
   const active = (from, to) => state.selection.ranges.some(range => range.from <= to && range.to >= from);
   const hide = (from, to) => { if (to > from) ranges.push(Decoration.replace({}).range(from, to)); };
   const mark = (from, to, className) => { if (to > from) ranges.push(Decoration.mark({ class: className }).range(from, to)); };
   const lineClass = (from, className) => ranges.push(Decoration.line({ class: className }).range(doc.lineAt(from).from));
   const codeLines = new Set();
+  for (const block of interaction.editing) {
+    const first = doc.lineAt(block.from), last = doc.lineAt(block.to);
+    ranges.push(Decoration.widget({ widget: new EditingToolbar(block.from, block.to), block: true, side: -1, editingControls: true }).range(first.from));
+    for (let number = first.number; number <= last.number; number++) {
+      const line = doc.line(number); codeLines.add(number); lineClass(line.from, 'md-code-line md-editing-line');
+    }
+  }
   syntaxTree(state).iterate({ enter(node) {
     const { from, to, name } = node;
     const start = doc.lineAt(from), end = doc.lineAt(to);
+    if (name !== 'Document' && interaction.editing.some(block => from >= block.from && from < block.to)) return false;
     if (['InlineCode', 'URL', 'Image'].includes(name)) literals.push({ from, to });
     // Images inserted by the existing toolbar may share a paragraph with the
     // preceding text. Render their own line without making that text a widget.
-    if (name === 'Image' && /^\s*!\[/.test(start.text) && !active(start.from, start.to)) {
+    if (name === 'Image' && /^\s*!\[/.test(start.text) && (selected(start.from, start.to) || !blockActive(start.from, start.to))) {
       if (!blocks.some(block => block.from === start.from)) {
-        ranges.push(Decoration.replace({ widget: new MarkdownBlock(start.text, start.from, start.to, options), block: true }).range(start.from, start.to));
+        ranges.push(Decoration.replace({ widget: new MarkdownBlock(start.text, start.from, start.to, options, selected(start.from, start.to)), block: true }).range(start.from, start.to));
         blocks.push({ from: start.from, to: start.to });
       }
       return false;
     }
     if (['FencedCode', 'CodeBlock', 'Table'].includes(name)) {
-      if (!active(start.from, end.to) && from === start.from && to === end.to) {
-        ranges.push(Decoration.replace({ widget: new MarkdownBlock(doc.sliceString(from, to), from, to, options), block: true }).range(from, to));
+      if ((selected(from, to) || !blockActive(start.from, end.to)) && from === start.from && to === end.to) {
+        ranges.push(Decoration.replace({ widget: new MarkdownBlock(doc.sliceString(from, to), from, to, options, selected(from, to)), block: true }).range(from, to));
         blocks.push({ from, to });
         return false;
       }
@@ -173,6 +359,16 @@ function formatSelection(view, kind) {
 export function createMarkdownEditor(textarea, options = {}) {
   const host = document.createElement('div'); host.className = 'markdown-editor';
   textarea.before(host); textarea.hidden = true;
+  // Keep Source-mode controls outside CodeMirror. Inserting a block widget on
+  // caret entry would shift the very line being clicked during mouse selection.
+  const sourceControls = document.createElement('div'); sourceControls.className = 'md-block-toolbar md-source-controls'; sourceControls.hidden = true;
+  const sourceLabel = document.createElement('span'); sourceLabel.textContent = 'Markdown source · Esc or Ctrl/⌘+Enter to finish code';
+  const sourceDone = blockButton('Done editing', () => finishBlockEditing(view)); sourceDone.disabled = true;
+  sourceControls.append(sourceLabel, sourceDone); host.append(sourceControls);
+  const syncSourceControls = state => {
+    sourceControls.hidden = state.field(liveMode);
+    sourceDone.disabled = state.field(blockInteraction).editing.length === 0;
+  };
   const readOnly = new Compartment();
   let programmatic = false, live = true, disabled = textarea.disabled;
   const maxLength = textarea.maxLength > 0 ? textarea.maxLength : 300000;
@@ -196,6 +392,7 @@ export function createMarkdownEditor(textarea, options = {}) {
       options.onLimit?.(`Use up to ${maxLength.toLocaleString()} characters.`); return [];
     }),
     EditorView.updateListener.of(update => {
+      syncSourceControls(update.state);
       if (!update.docChanged) return;
       textarea.value = update.state.doc.toString();
       if (!programmatic) textarea.dispatchEvent(new Event('input', { bubbles: true }));
@@ -211,6 +408,7 @@ export function createMarkdownEditor(textarea, options = {}) {
         view.setState(EditorState.create({ doc: value, extensions: extensions() }));
         if (!live) view.dispatch({ effects: changeMode.of(false) });
         textarea.value = value;
+        syncSourceControls(view.state);
       } finally { programmatic = false; }
     },
     get selectionStart() { return view.state.selection.main.from; },

@@ -13,7 +13,14 @@ conflict instead of silently overwriting the newer version.
 - **Live** is the default: write Markdown in one surface with headings, emphasis,
   lists, tasks, code, tables, diagrams, and uploaded images formatted in place.
   Markdown markers appear around the text you're editing; move the cursor away
-  to see the formatting. Click a rendered code block or table to edit its source.
+  to see the formatting. Code and Mermaid source stays open, including its fences,
+  until you choose **Done editing**, press **Esc**, or use **Ctrl/Cmd+Enter**.
+  In both Live and Markdown modes, Up/Down moves one source line at a time, including blank lines and the fences,
+  and stays within the block. Shift+Up/Down extends the selection by one line.
+  Use **Edit source** on a rendered block to reopen its Markdown.
+  Click a rendered block or choose **Select block**, then press Delete or Backspace
+  to remove the whole block, including its Markdown fences. Ctrl/Cmd+Z restores it.
+  Pressing Backspace/Delete beside a rendered block selects it before deleting it.
   Ctrl/Cmd+B and Ctrl/Cmd+I format the selection, and Ctrl/Cmd+Z undoes edits.
   **Markdown** shows the source and **Preview** shows a read-only article view.
   **Preview article** opens

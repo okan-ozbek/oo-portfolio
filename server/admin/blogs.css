@@ -26,6 +26,15 @@
 .markdown-editor .md-task{display:inline-flex;vertical-align:middle;margin-right:5px}.markdown-editor .md-task input{width:14px;height:14px;margin:0;accent-color:#b2a4ca;cursor:pointer}
 .markdown-editor .md-bullet{color:#a298b8;margin-right:3px}
 .markdown-editor .md-rendered-block{margin:12px 0;cursor:text;max-width:100%;overflow-x:auto;font-size:15px}
+.markdown-editor .md-rendered-block{border:1px solid #38383f;border-radius:6px;cursor:pointer}
+.markdown-editor .md-rendered-block.is-block-selected{border-color:#b1a1d2;box-shadow:0 0 0 2px #b1a1d244;background:#292331}
+.markdown-editor .md-block-content{padding:0 12px}
+.markdown-editor .md-block-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;border-bottom:1px solid #38383f;background:#202024;color:#96929e;font:10px/1.6 var(--mono);white-space:normal}
+.markdown-editor .md-block-toolbar button{background:transparent;border:1px solid #44414b;border-radius:4px;color:#ccc5d8;padding:5px 9px;font:inherit;white-space:nowrap;cursor:pointer}
+.markdown-editor .md-block-toolbar button:hover,.markdown-editor .md-block-toolbar button[aria-pressed=true]{background:#3a3148;color:#f1e9ff;border-color:#8b789f}
+.markdown-editor .md-editing-toolbar{border:1px solid #4b4355;border-radius:6px 6px 0 0;margin-top:12px}
+.markdown-editor .md-editing-line{border-left:1px solid #4b4355;border-right:1px solid #4b4355}
+.markdown-editor .md-source-controls[hidden]{display:none}
 .markdown-editor .md-rendered-block:focus-visible{outline:1px dashed #766d86;outline-offset:4px}
 .markdown-editor .md-rendered-block .blog-image{position:relative;cursor:pointer}
 .markdown-editor .md-rendered-block .blog-image:hover .blog-image-resize,.markdown-editor .blog-image-resize:focus{opacity:1}
