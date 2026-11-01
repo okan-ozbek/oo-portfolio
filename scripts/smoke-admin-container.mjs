@@ -51,11 +51,11 @@ try {
   const port = docker("port", `${id}-nginx`, "8080/tcp").split(":").at(-1);
   const base = `http://127.0.0.1:${port}`;
   let ready = false;
-  for (let attempt = 0; attempt < 30; attempt++) {
-    try { if ((await fetch(`${base}/healthz`, { signal: AbortSignal.timeout(1000) })).ok) { ready = true; break; } } catch { /* Startup race. */ }
+  for (let attempt = 0; attempt < 100; attempt++) {
+    try { if ((await fetch(`${base}/healthz`, { signal: AbortSignal.timeout(1000) })).ok && (await fetch(`${base}/`, { signal: AbortSignal.timeout(1000) })).ok) { ready = true; break; } } catch { /* Startup race. */ }
     await setTimeout(200);
   }
-  assert.ok(ready, "NGINX must become ready");
+  assert.ok(ready, "NGINX and the admin upstream must become ready");
   assert.equal((await fetch(`${base}/`)).status, 200);
   const page = await fetch(`${base}/admin`);
   assert.equal(page.status, 200);
