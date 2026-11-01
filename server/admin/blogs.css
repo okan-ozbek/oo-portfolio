@@ -1,4 +1,15 @@
 #blogs-view select,#blogs-view textarea,#blog-author-dialog select,#blog-image-dialog select{font:inherit;background:#131316;border:1px solid #38383e;border-radius:5px;color:var(--text);padding:10px 12px;max-width:100%;outline-color:var(--red)}
+#book-notes-dialog{width:min(100% - 32px,1200px);max-height:calc(100dvh - 32px);overflow:auto}
+#book-notes-dialog .dialog-heading{margin-bottom:12px}
+#book-notes-dialog .blog-composer{margin-top:20px}
+#book-notes-dialog .blog-composer-panes{min-height:min(380px,42dvh)}
+#book-notes-markdown{width:100%;flex:1;min-height:min(380px,42dvh);border:0;border-radius:0;background:transparent;color:var(--text);resize:vertical;padding:24px;font:12px/1.9 var(--mono);tab-size:2;outline:none}
+#book-notes-form .dialog-actions{align-items:center;flex-wrap:wrap}
+#book-notes-status{margin:0 auto 0 0}
+.book-actions .has-notes{color:#d4bf8d}
+.book-table .book-actions{flex-wrap:nowrap}
+.book-table th:nth-child(5){width:170px}
+@media(max-width:700px){#book-notes-dialog{padding:22px 18px}#book-notes-markdown{min-height:280px}#book-notes-dialog .blog-composer-panes{min-height:280px}#book-notes-status{flex-basis:100%}}
 #blogs-view .table-tools select{font-size:11px;height:34px;padding:5px 10px}#blogs-view .table-tools .secondary{height:34px}
 .blog-heading-actions,.blog-editor-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.blog-heading-actions .secondary{font-size:11px}
 .blog-table th:first-child{width:100px}.blog-table td:first-child{padding-right:0}.blog-table th:last-child{width:85px}.blog-table tr{cursor:pointer}.blog-table tr:focus-visible{outline:2px solid var(--red);outline-offset:-3px}
