@@ -1,8 +1,9 @@
-import { AnnotationMode, getDocument, GlobalWorkerOptions } from 'pdfjs-dist/build/pdf.mjs';
-import { EventBus, PDFFindController, PDFLinkService, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs';
+import { AnnotationMode, getDocument, GlobalWorkerOptions, PDFDataRangeTransport } from 'pdfjs-dist/build/pdf.mjs';
+import { EventBus, PDFFindController, PDFLinkService, PDFViewer, RenderingStates } from 'pdfjs-dist/web/pdf_viewer.mjs';
 import { readApiResponse } from './api-response.js';
 import { initFilterPicker } from './filter-picker.js';
 import { initReadingColors } from './reader-colors.js';
+import { createBookRangeTransport } from './pdf-ranges.js';
 
 const $ = id => document.getElementById(id);
 const bookId = new URL(location.href).searchParams.get('book');
@@ -73,6 +74,7 @@ function updatePage(page) {
   $('original-pdf').href = `/api/admin/books/${bookId}/pdf#page=${page}`;
   history.replaceState(null, '', `${location.pathname}${location.search}#page=${page}`);
   readingColors.pageChanged();
+  if (viewer.getPageView(page - 1)?.renderingState === RenderingStates.FINISHED) readingColors.pageRendered(page);
 }
 $('page-number').addEventListener('change', () => goToPage(Number($('page-number').value)));
 $('page-number').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); goToPage(Number(event.target.value)); event.target.blur(); } });
@@ -101,7 +103,10 @@ async function openBook() {
     status('');
   });
   eventBus.on('pagechanging', ({ pageNumber }) => updatePage(pageNumber));
-  eventBus.on('pagerendered', ({ error }) => { if (error) status('This page could not be rendered. Use Original PDF to open it in your browser.', true); });
+  eventBus.on('pagerendered', ({ pageNumber, error }) => {
+    if (error) status('This page could not be rendered. Use Original PDF to open it in your browser.', true);
+    else readingColors.pageRendered(pageNumber);
+  });
   eventBus.on('scalechanging', ({ scale, presetValue }) => {
     const value = presetValue || String(scale);
     const known = [...$('zoom').options].some(option => option.value === value);
@@ -129,9 +134,13 @@ async function openBook() {
     if (event.key === 'Escape' && !$('find-bar').hidden) { $('find-bar').hidden = true; $('find-toggle').setAttribute('aria-expanded', 'false'); $('viewer-container').focus(); }
   });
   window.addEventListener('hashchange', () => goToPage(hashPage()));
-  const loadingTask = getDocument({ url: `/api/admin/books/${bookId}/pdf`, cMapUrl: '/admin/pdfjs/cmaps/', cMapPacked: true, standardFontDataUrl: '/admin/pdfjs/standard_fonts/', wasmUrl: '/admin/pdfjs/wasm/', isEvalSupported: false, enableXfa: false });
-  loadingTask.onProgress = ({ loaded, total }) => { if (total && !pdfDocument) status(`Loading book… ${Math.min(100, Math.round(loaded / total * 100))}%`); };
-  pdfDocument = await loadingTask.promise;
+  let loadingTask, rangeError;
+  const range = createBookRangeTransport({ PDFDataRangeTransport, url: `/api/admin/books/${bookId}/pdf`, length: book.size,
+    onError(error) { rangeError = error; status(error.message, true); void loadingTask?.destroy(); },
+  });
+  loadingTask = getDocument({ range, rangeChunkSize: 256 * 1024, disableAutoFetch: true, disableStream: true, cMapUrl: '/admin/pdfjs/cmaps/', cMapPacked: true, standardFontDataUrl: '/admin/pdfjs/standard_fonts/', wasmUrl: '/admin/pdfjs/wasm/', isEvalSupported: false, enableXfa: false });
+  window.addEventListener('pagehide', event => { if (!event.persisted) { range.abort(); void loadingTask.destroy(); } });
+  try { pdfDocument = await loadingTask.promise; } catch (error) { throw rangeError ?? error; }
   $('page-count').textContent = `/ ${pdfDocument.numPages}`; $('page-number').max = pdfDocument.numPages;
   linkService.setDocument(pdfDocument); viewer.setDocument(pdfDocument);
   new ResizeObserver(() => { revealToolbar(); if (pdfDocument && ['page-width', 'page-fit'].includes($('zoom').value)) viewer.currentScaleValue = $('zoom').value; }).observe(container);

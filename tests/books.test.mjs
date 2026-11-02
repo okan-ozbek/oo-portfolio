@@ -76,6 +76,34 @@ test('notes load and autosave never read or rewrite the PDF-containing table rec
   } finally { db.close(); }
 });
 
+test('PDF HEAD reads metadata only and range responses transfer just the requested bytes to Node', async () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    const queries = [];
+    const books = createBooks({
+      db: { exec: sql => db.exec(sql), prepare: sql => { queries.push(sql); return db.prepare(sql); } },
+      send: () => {}, inspect: async () => ({ pages: 2, thumbnail: Buffer.from('cover') }),
+    });
+    const pdf = Buffer.from('%PDF-' + 'x'.repeat(20 * 1024 * 1024));
+    const book = await books.add(pdf, 'Range fixture', []);
+    const url = new URL(`https://pixelware.test/api/admin/books/${book.id}/pdf`);
+    let body, headers;
+    const res = { setHeader() {}, writeHead(_status, value) { headers = value; }, end(value) { body = value; } };
+    queries.length = 0;
+    await books.adminRoute({ method: 'HEAD', headers: {} }, res, url);
+    assert.equal(body, undefined); assert.equal(headers['Content-Length'], pdf.length);
+    assert.equal(queries.some(sql => /SELECT (?:pdf|substr\(pdf)/.test(sql)), false);
+    for (const [range, start, end] of [['bytes=0-65535', 0, 65536], ['bytes=-65536', pdf.length - 65536, pdf.length]]) {
+      queries.length = 0;
+      await books.adminRoute({ method: 'GET', headers: { range } }, res, url);
+      assert.deepEqual(Buffer.from(body), pdf.subarray(start, end));
+      assert.equal(headers['Content-Length'], 65536);
+      assert.equal(queries.some(sql => /SELECT pdf AS/.test(sql)), false);
+      assert.equal(queries.filter(sql => sql.includes('SELECT substr(pdf')).length, 1);
+    }
+  } finally { db.close(); }
+});
+
 test('legacy notes migrate once, preserving text and PDFs without resurrecting cleared notes', async () => {
   const db = new DatabaseSync(':memory:');
   try {
@@ -135,6 +163,10 @@ test('the PDF reader serves local worker assets with scoped permissions and no p
   assert.match(worker.headers.get('content-type'), /javascript/);
   assert.ok(Number(worker.headers.get('content-length')) > 0);
   assert.equal((await worker.arrayBuffer()).byteLength, 0);
+  const etag = worker.headers.get('etag'); assert.ok(etag);
+  assert.equal(worker.headers.get('cache-control'), 'public, max-age=0, must-revalidate');
+  const cached = await fetch(`${app.base}/admin/pdfjs/build/pdf.worker.mjs`, { headers: { 'If-None-Match': etag } });
+  assert.equal(cached.status, 304); assert.equal((await cached.arrayBuffer()).byteLength, 0);
   assert.equal((await fetch(`${app.base}/admin/pdfjs/package.json`)).status, 404);
   assert.equal((await app.request('books')).status, 401);
 });

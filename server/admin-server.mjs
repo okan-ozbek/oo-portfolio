@@ -123,6 +123,7 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
   const projects = createProjects({ db, now, send, analytics, origin, acceptOrigin:value=>allowedOrigins.has(value), onPublicChange:()=>seo.touch('home') });
   const blogs = createBlogs({ db, origin, now, send, isAuthenticated: session, analytics, publicChrome:()=>({resumeAvailable:resumes.websiteAvailable(),projectCount:projects.visible().length}), onPublicChange:()=>{seo.touch('blogs');seo.touch('home');} });
   const home = createHome({origin,projects,blogs,resumes,development:localNoLogin});
+  const pdfAssets = new Map();
   function validateLink(body) {
     const { slug, label = `/r/${slug}`, destination, source = "", enabled = true } = body;
     if (typeof label !== "string" || !label.trim() || label.length > 100) throw new HttpError(400, "Enter a label of 1–100 characters.");
@@ -176,9 +177,22 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
       }
       const pdfAsset = /^\/admin\/pdfjs\/(build\/pdf\.worker\.mjs|web\/pdf_viewer\.css|web\/images\/[\w.-]+\.(?:svg|png|gif)|cmaps\/[\w.-]+\.bcmap|standard_fonts\/[\w.-]+\.(?:pfb|ttf)|wasm\/[\w.-]+\.(?:wasm|js))$/.exec(path);
       if (pdfAsset && ['GET', 'HEAD'].includes(req.method)) {
-        let body;
-        try { body = readFileSync(new URL(`../node_modules/pdfjs-dist/${pdfAsset[1]}`, import.meta.url)); }
+        let cached = pdfAssets.get(pdfAsset[1]);
+        try {
+          if (!cached) {
+            const body = readFileSync(new URL(`../node_modules/pdfjs-dist/${pdfAsset[1]}`, import.meta.url));
+            cached = { body, etag: `"${sha256(body)}"` }; pdfAssets.set(pdfAsset[1], cached);
+          }
+        }
         catch { throw new HttpError(404, 'PDF reader asset not found.'); }
+        const { body, etag } = cached;
+        // Public package files can be revalidated across visits/deployments;
+        // private PDFs and API responses retain their no-store policy.
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+        res.setHeader('ETag', etag);
+        if ((req.headers['if-none-match'] ?? '').split(',').some(value => value.trim().replace(/^W\//, '') === etag || value.trim() === '*')) {
+          res.writeHead(304); res.end(); return;
+        }
         const extension = pdfAsset[1].split('.').at(-1);
         const type = { mjs: 'text/javascript', js: 'text/javascript', css: 'text/css', wasm: 'application/wasm', svg: 'image/svg+xml', png: 'image/png', gif: 'image/gif', ttf: 'font/ttf' }[extension] ?? 'application/octet-stream';
         res.writeHead(200, { 'Content-Type': type, 'Content-Length': body.length });

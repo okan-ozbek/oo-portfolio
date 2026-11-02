@@ -188,7 +188,12 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
       return true;
     }
     if (['pdf', 'thumbnail'].includes(asset) && ['GET', 'HEAD'].includes(req.method)) {
-      const body = db.prepare(asset === 'pdf' ? 'SELECT pdf AS body FROM books WHERE id = ?' : 'SELECT thumbnail AS body FROM books INDEXED BY books_thumbnails WHERE id = ?').get(id).body;
+      if (asset === 'thumbnail') {
+        const body = db.prepare('SELECT thumbnail AS body FROM books INDEXED BY books_thumbnails WHERE id = ?').get(id).body;
+        res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': body.length });
+        res.end(req.method === 'HEAD' ? undefined : body);
+        return true;
+      }
       const download = url.searchParams.get('download') === '1';
       // As with resumes, CSP sandbox prevents Chromium's native PDF viewer loading.
       if (asset === 'pdf') {
@@ -196,17 +201,22 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
         res.setHeader('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="book.pdf"; filename*=UTF-8''${encodeURIComponent(row.name + '.pdf').replace(/['()*]/g, char => '%' + char.charCodeAt(0).toString(16))}`);
         res.setHeader('Accept-Ranges', 'bytes');
       }
-      let start = 0, end = body.length - 1, status = 200;
+      let start = 0, end = row.size - 1, status = 200;
       if (asset === 'pdf' && req.headers.range) {
         const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range);
-        if (!range || (!range[1] && !range[2])) { res.setHeader('Content-Range', `bytes */${body.length}`); throw new HttpError(416, 'Invalid byte range.'); }
-        start = range[1] ? Number(range[1]) : Math.max(0, body.length - Number(range[2]));
+        if (!range || (!range[1] && !range[2])) { res.setHeader('Content-Range', `bytes */${row.size}`); throw new HttpError(416, 'Invalid byte range.'); }
+        start = range[1] ? Number(range[1]) : Math.max(0, row.size - Number(range[2]));
         end = range[1] && range[2] ? Math.min(Number(range[2]), end) : end;
-        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= body.length) { res.setHeader('Content-Range', `bytes */${body.length}`); throw new HttpError(416, 'Invalid byte range.'); }
-        status = 206; res.setHeader('Content-Range', `bytes ${start}-${end}/${body.length}`);
+        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= row.size) { res.setHeader('Content-Range', `bytes */${row.size}`); throw new HttpError(416, 'Invalid byte range.'); }
+        status = 206; res.setHeader('Content-Range', `bytes ${start}-${end}/${row.size}`);
       }
-      res.writeHead(status, { 'Content-Type': asset === 'pdf' ? 'application/pdf' : 'image/png', 'Content-Length': end - start + 1 });
-      res.end(req.method === 'HEAD' ? undefined : body.subarray(start, end + 1));
+      // HEAD needs metadata only. Slice ranges inside SQLite so Node does not
+      // allocate/copy the entire PDF for every small reader request.
+      const body = req.method === 'HEAD' ? undefined : status === 206
+        ? db.prepare('SELECT substr(pdf, ?, ?) AS body FROM books WHERE id = ?').get(start + 1, end - start + 1, id).body
+        : db.prepare('SELECT pdf AS body FROM books WHERE id = ?').get(id).body;
+      res.writeHead(status, { 'Content-Type': 'application/pdf', 'Content-Length': end - start + 1 });
+      res.end(body);
       return true;
     }
     if (!asset && req.method === 'PATCH') {
