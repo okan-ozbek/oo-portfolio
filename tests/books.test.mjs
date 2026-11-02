@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
+import { Readable } from 'node:stream';
 import { createAdminServer } from '../server/admin-server.mjs';
 import { hashPassword } from '../server/security.mjs';
 import { bookPdf } from './fixtures/book.mjs';
@@ -35,6 +36,71 @@ test('library and thumbnail queries avoid reading large PDF table records', asyn
       assert.equal(instructions.some(op => op.opcode === 'Column' && tableCursors.includes(op.p1)), false, `Must read the index rather than the PDF-containing table: ${sql}`);
       assert.match(db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...bindings).map(op => op.detail).join('\n'), /USING (?:COVERING )?INDEX/);
     }
+  } finally { db.close(); }
+});
+
+test('notes load and autosave never read or rewrite the PDF-containing table record', async () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    db.exec('PRAGMA foreign_keys = ON');
+    const queries = [];
+    let response;
+    const books = createBooks({
+      db: { exec: sql => db.exec(sql), prepare: sql => { queries.push(sql); return db.prepare(sql); } },
+      send: (_res, _status, body) => { response = body; },
+      inspect: async () => ({ pages: 2, thumbnail: Buffer.from('cover') }),
+    });
+    const pdf = Buffer.from('%PDF-' + 'x'.repeat(20 * 1024 * 1024));
+    const book = await books.add(pdf, 'Large book with notes', []);
+    db.exec(`CREATE TRIGGER prevent_pdf_rewrite BEFORE UPDATE ON books BEGIN
+      SELECT RAISE(FAIL, 'A note save must not rewrite the PDF record'); END;`);
+    queries.length = 0;
+    const url = new URL(`https://pixelware.test/api/admin/books/${book.id}/notes`);
+    const markdown = '# Small note\n\nChanged without rewriting a large book.';
+    const request = Readable.from([Buffer.from(JSON.stringify({ markdown }))]); request.method = 'PATCH'; request.headers = { 'content-type': 'application/json' };
+    await books.adminRoute(request, {}, url);
+    assert.deepEqual(response, { hasNotes: true });
+    await books.adminRoute({ method: 'GET' }, {}, url);
+    assert.deepEqual(response, { markdown });
+    assert.equal(books.list()[0].hasNotes, true);
+    const tableRoot = db.prepare("SELECT rootpage FROM sqlite_schema WHERE name = 'books' AND type = 'table'").get().rootpage;
+    for (const sql of queries.filter(sql => /^SELECT /.test(sql))) {
+      const bindings = sql.includes('?') ? [book.id] : [];
+      const instructions = db.prepare(`EXPLAIN ${sql}`).all(...bindings);
+      const cursors = instructions.filter(op => op.opcode === 'OpenRead' && op.p2 === tableRoot).map(op => op.p1);
+      assert.equal(instructions.some(op => op.opcode === 'Column' && cursors.includes(op.p1)), false, `Notes must not traverse the PDF: ${sql}`);
+    }
+    assert.deepEqual(Buffer.from(db.prepare('SELECT pdf FROM books WHERE id = ?').get(book.id).pdf), pdf);
+    await books.adminRoute({ method: 'DELETE' }, {}, new URL(`https://pixelware.test/api/admin/books/${book.id}`));
+    assert.equal(db.prepare('SELECT count(*) AS count FROM book_notes').get().count, 0);
+  } finally { db.close(); }
+});
+
+test('legacy notes migrate once, preserving text and PDFs without resurrecting cleared notes', async () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    // Reproduce the previous schema, including its covering metadata index.
+    const options = { db, send: () => {}, inspect: async () => ({ pages: 2, thumbnail: Buffer.from('cover') }) };
+    const original = createBooks(options);
+    const pdf = Buffer.from('%PDF-legacy book');
+    const book = await original.add(pdf, 'Existing notes', []);
+    db.exec('DROP TABLE book_notes; DROP INDEX books_metadata; CREATE INDEX books_metadata ON books (id, name COLLATE NOCASE, tags_json, pages, size, created_at, bookmark_page, completed, (length(trim(notes_markdown)) > 0));');
+    const markdown = '  # Existing notes\n\n```cpp\nint value = 1;\n```\n';
+    db.prepare('UPDATE books SET notes_markdown = ? WHERE id = ?').run(markdown, book.id);
+    let response;
+    const books = createBooks({ ...options, send: (_res, _status, body) => { response = body; } });
+    const url = new URL(`https://pixelware.test/api/admin/books/${book.id}/notes`);
+    await books.adminRoute({ method: 'GET' }, {}, url);
+    assert.deepEqual(response, { markdown });
+    assert.equal(books.list()[0].hasNotes, true);
+    const request = Readable.from([Buffer.from(JSON.stringify({ markdown: '' }))]); request.method = 'PATCH'; request.headers = { 'content-type': 'application/json' };
+    await books.adminRoute(request, {}, url);
+    const restarted = createBooks({ ...options, send: (_res, _status, body) => { response = body; } });
+    await restarted.adminRoute({ method: 'GET' }, {}, url);
+    assert.deepEqual(response, { markdown: '' });
+    assert.equal(restarted.list()[0].hasNotes, false);
+    assert.equal(db.prepare('SELECT notes_markdown FROM books WHERE id = ?').get(book.id).notes_markdown, markdown);
+    assert.deepEqual(Buffer.from(db.prepare('SELECT pdf FROM books WHERE id = ?').get(book.id).pdf), pdf);
   } finally { db.close(); }
 });
 

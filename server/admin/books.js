@@ -47,7 +47,9 @@ export function initBooks({ api, toast }) {
         if (noteSession !== active) return false;
         active.saved = markdown;
         books = books.map(book => book.id === active.id ? { ...book, hasNotes } : book);
-        render(); noteStatus(noteDirty() ? 'Unsaved changes' : 'All changes saved.');
+        const control = document.querySelector(`[data-book-notes-id="${active.id}"]`);
+        if (control) { control.classList.toggle('has-notes', hasNotes); control.title = hasNotes ? 'Edit notes' : 'Add notes'; }
+        noteStatus(noteDirty() ? 'Unsaved changes' : 'All changes saved.');
         return true;
       } catch (error) {
         if (noteSession === active) { noteStatus('Changes could not be saved.', true); $('book-notes-error').textContent = error.message; }
@@ -59,24 +61,29 @@ export function initBooks({ api, toast }) {
   }
   async function previewNote() {
     const active = noteSession;
-    if (!active || active.loading) return;
+    if (!active || active.loading || $('book-notes-panes').dataset.mode !== 'preview' || active.previewMarkdown === active.markdown) return;
     const markdown = active.markdown, sequence = ++active.previewSequence;
-    $('book-notes-words').textContent = `${markdown.trim() ? markdown.trim().split(/\s+/).length : 0} words`;
     try {
       const { html } = await api(`books/${active.id}/notes/preview`, { method: 'POST', body: { markdown } });
-      if (noteSession !== active || sequence !== active.previewSequence) return;
+      if (noteSession !== active || sequence !== active.previewSequence || $('book-notes-panes').dataset.mode !== 'preview') return;
+      active.previewMarkdown = undefined;
       $('book-notes-preview').innerHTML = html || '<p class="blog-muted">Your notes take shape here.</p>';
       await enhanceContent($('book-notes-preview'));
+      if (noteSession === active && sequence === active.previewSequence) active.previewMarkdown = markdown;
     } catch (error) { if (noteSession === active && sequence === active.previewSequence) $('book-notes-preview').textContent = error.message; }
+  }
+  function noteWordCount(markdown) {
+    $('book-notes-words').textContent = `${markdown.trim() ? markdown.trim().split(/\s+/).length : 0} words`;
   }
   function noteChanged() {
     const active = noteSession;
     if (!active || active.loading) return;
     active.markdown = noteInput.value; active.previewSequence++;
+    noteWordCount(active.markdown);
     noteStatus(noteDirty() ? 'Unsaved changes' : 'All changes saved.');
     clearTimeout(active.timer); clearTimeout(active.previewTimer);
     active.timer = setTimeout(() => void saveNote(), 700);
-    active.previewTimer = setTimeout(() => void previewNote(), 400);
+    if ($('book-notes-panes').dataset.mode === 'preview') active.previewTimer = setTimeout(() => void previewNote(), 400);
   }
   async function openNotes(book) {
     const active = noteSession = { id: book.id, markdown: '', saved: '', loading: true, previewSequence: 0 };
@@ -92,7 +99,7 @@ export function initBooks({ api, toast }) {
       active.markdown = active.saved = markdown; active.loading = false;
       noteInput.value = markdown; noteInput.disabled = false;
       $('book-notes-clear').disabled = $('book-notes-done').disabled = false;
-      noteStatus('All changes saved.'); void previewNote(); noteInput.focus();
+      noteStatus('All changes saved.'); noteWordCount(markdown); void previewNote(); noteInput.focus();
     } catch (error) {
       if (noteSession === active) { noteStatus('Note could not be loaded.'); $('book-notes-error').textContent = error.message; }
     }
@@ -120,7 +127,10 @@ export function initBooks({ api, toast }) {
       noteChanged();
     });
   }
-  bindComposerModes(noteInput, $('book-notes-panes'), document.querySelectorAll('[data-note-mode]'));
+  bindComposerModes(noteInput, $('book-notes-panes'), document.querySelectorAll('[data-note-mode]'), mode => {
+    if (noteSession) { clearTimeout(noteSession.previewTimer); noteSession.previewSequence++; }
+    if (mode === 'preview') void previewNote();
+  });
   noteInput.addEventListener('keydown', event => {
     if (event.key === 'Tab') { event.preventDefault(); noteInput.setRangeText('  ', noteInput.selectionStart, noteInput.selectionEnd, 'end'); noteChanged(); }
     if ((event.ctrlKey || event.metaKey) && event.key === 's') { event.preventDefault(); void saveNote(); }
@@ -276,6 +286,7 @@ export function initBooks({ api, toast }) {
       complete.disabled = completing.has(book.id);
       complete.append(icon('verified'));
       const notes = button('', () => void openNotes(book), `action-button${book.hasNotes ? ' has-notes' : ''}`);
+      notes.dataset.bookNotesId = book.id;
       notes.title = book.hasNotes ? 'Edit notes' : 'Add notes'; notes.setAttribute('aria-label', `Notes for ${book.name}`); notes.append(icon('notes'));
       const download = el('a', 'action-button'); download.href = `${base}/pdf?download=1`; download.download = `${book.name}.pdf`; download.title = 'Download PDF'; download.setAttribute('aria-label', `Download ${book.name}`); download.append(icon('download'));
       const remove = button('', () => { deleting = book; $('book-delete-name').textContent = book.name; $('book-delete-error').textContent = ''; $('book-delete-dialog').showModal(); }, 'action-button destructive');

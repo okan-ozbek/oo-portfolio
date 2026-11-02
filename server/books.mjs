@@ -66,16 +66,33 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
   if (!db.prepare('PRAGMA table_info(books)').all().some(column => column.name === 'completed')) {
     db.exec('ALTER TABLE books ADD COLUMN completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN (0, 1))');
   }
+  // Notes must not share a record with the PDF: reading later columns walks its
+  // overflow pages, and even a tiny autosave rewrites the entire PDF synchronously.
+  // Copy legacy notes once, atomically. Keep the old column untouched so migration
+  // never rewrites the PDFs, and never import it again after notes are edited/cleared.
+  if (!db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'book_notes'").get()) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec(`CREATE TABLE book_notes (
+        book_id TEXT PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
+        markdown TEXT NOT NULL
+      ) STRICT;
+      INSERT INTO book_notes (book_id, markdown)
+        SELECT id, notes_markdown FROM books WHERE notes_markdown <> '';`);
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+  }
   // Metadata and covers follow large PDF blobs in the table records. Reading
   // those later columns otherwise walks the PDF's SQLite overflow pages.
   // Keep compact covering indexes for the library's hot paths instead.
   db.exec(`CREATE INDEX IF NOT EXISTS books_metadata ON books (
     id, name COLLATE NOCASE, tags_json, pages, size, created_at, bookmark_page,
-    completed, (length(trim(notes_markdown)) > 0)
+    completed
   );
   CREATE INDEX IF NOT EXISTS books_thumbnails ON books (id, thumbnail);`);
   let processing = 0;
-  const fields = "id, name, tags_json, pages, size, created_at, bookmark_page, completed, (length(trim(notes_markdown)) > 0) AS has_notes";
+  const fields = `id, name, tags_json, pages, size, created_at, bookmark_page, completed,
+    EXISTS (SELECT 1 FROM book_notes WHERE book_id = books.id AND length(trim(markdown)) > 0) AS has_notes`;
   const metadata = row => ({ id: row.id, name: row.name, tags: JSON.parse(row.tags_json), pages: row.pages, size: row.size, createdAt: row.created_at, bookmarkPage: row.bookmark_page, completed: Boolean(row.completed), hasNotes: Boolean(row.has_notes) });
   // Pin these lookups to the covering index, including by-ID reads where SQLite
   // would otherwise prefer the primary key followed by the large table record.
@@ -147,12 +164,13 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
       return true;
     }
     if (asset === 'notes' && req.method === 'GET') {
-      send(res, 200, { markdown: db.prepare('SELECT notes_markdown FROM books WHERE id = ?').get(id).notes_markdown });
+      send(res, 200, { markdown: db.prepare('SELECT markdown FROM book_notes WHERE book_id = ?').get(id)?.markdown ?? '' });
       return true;
     }
     if (asset === 'notes' && req.method === 'PATCH') {
       const markdown = await readNote(req);
-      db.prepare('UPDATE books SET notes_markdown = ? WHERE id = ?').run(markdown, id);
+      db.prepare(`INSERT INTO book_notes (book_id, markdown) VALUES (?, ?)
+        ON CONFLICT(book_id) DO UPDATE SET markdown = excluded.markdown`).run(id, markdown);
       send(res, 200, { hasNotes: Boolean(markdown.trim()) });
       return true;
     }
