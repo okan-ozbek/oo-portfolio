@@ -1,4 +1,5 @@
 import { renderActivityChart } from './activity-chart.js';
+import { readApiResponse } from './api-response.js';
 /* The dashboard receives no password hash or secret configuration. */
 import { initResumes } from './resumes.js';
 import { initBooks } from './books.js';
@@ -115,12 +116,8 @@ async function api(path, { method = "GET", body, pdf = false, file } = {}) {
     headers: { ...(method !== "GET" ? { "Content-Type": file ? file.type : pdf ? "application/pdf" : "application/json", "X-CSRF-Token": csrf } : {}) },
     body: file ?? (body === undefined ? undefined : pdf ? body : JSON.stringify(body)),
   });
-  const data = await response.json();
-  if (!response.ok) {
-    if (response.status === 401 && path !== "login") showLogin();
-    throw new Error(data.error ?? "Request failed. Please try again.");
-  }
-  return data;
+  if (response.status === 401 && path !== "login") showLogin();
+  return readApiResponse(response);
 }
 
 function element(tag, className, content) {
