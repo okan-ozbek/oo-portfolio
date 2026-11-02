@@ -52,9 +52,12 @@ containing different links or resume history.
 
 The admin Docker image installs `poppler-utils`. Its temporary filesystem is
 256 MiB to accommodate two concurrent PDF inspections. NGINX allows 100 MiB book
-requests with a 120-second timeout. No public routes or storage buckets are used.
+requests with a 120-second timeout and streams request bodies to admin instead
+of buffering PDFs in the proxy's 16 MiB temporary filesystem. HTTP/1.1 upstream
+requests also keep chunked uploads streaming. No public routes or storage buckets are used.
 The CI workflow installs Poppler for the real-PDF backend tests; the container
-smoke test also checks book uploads and downloads through NGINX.
+smoke test also checks a 24 MiB book upload and unchanged downloads through NGINX
+with the same 16 MiB proxy temporary filesystem used in production.
 
 For local development, ensure `pdfinfo` and `pdftoppm` from Poppler are on PATH
 before `npm run dev`. Missing tools produce an actionable upload error.

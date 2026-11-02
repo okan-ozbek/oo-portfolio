@@ -42,7 +42,7 @@ try {
     "-e", "ADMIN_PASSWORD_HASH_FILE=/run/secrets/admin_password_hash", "-e", "APP_ORIGIN=https://pixelware.test", '-e', 'RESUME_COMPILER_URL=http://compiler:3032', adminImage);
   created.push(`${id}-admin`);
   docker("run", "-d", "--name", `${id}-nginx`, "--network", id,
-    "--read-only", "--user", "nginx", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--tmpfs", "/tmp",
+    "--read-only", "--user", "nginx", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--tmpfs", "/tmp:size=16m,mode=1777",
     "-p", "127.0.0.1::8080",
     ...(portfolioImage ? [] : ["--mount", `type=bind,source=${join(root, "deploy", "nginx.conf")},target=/etc/nginx/nginx.conf,readonly`,
       "--mount", `type=bind,source=${join(root, "dist", "client")},target=/usr/share/nginx/html,readonly`]),
@@ -70,7 +70,8 @@ try {
   headers.Cookie = login.headers.get("set-cookie").split(";")[0];
   headers["X-CSRF-Token"] = (await login.json()).csrf;
   assert.equal((await fetch(`${base}/admin/assets/books.js`)).status, 200);
-  const libraryPdf = bookPdf('Container book ' + 'x'.repeat(9000));
+  // Exceed production NGINX's 16 MiB /tmp so request buffering cannot regress.
+  const libraryPdf = bookPdf('Container book', { content: '%' + 'x'.repeat(24 * 1024 * 1024) + '\nBT /F1 24 Tf 50 700 Td (Container book) Tj ET' });
   const bookUpload = await fetch(`${base}/api/admin/books?name=Container%20book&tags=%5B%22C%2B%2B%22%5D`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/pdf' }, body: libraryPdf });
   assert.equal(bookUpload.status, 201, await bookUpload.clone().text());
   const libraryBook = (await bookUpload.json()).book;
