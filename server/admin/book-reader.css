@@ -1,0 +1,52 @@
+:root{color-scheme:dark;font:14px/1.5 'Segoe UI',Arial,sans-serif;background:#111113;color:#e6e6eb}
+*{box-sizing:border-box}
+body{margin:0;display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+[hidden]{display:none!important}
+button,input,select{font:inherit;color:inherit;background:#202024;border:1px solid #38383f;border-radius:5px;padding:7px 10px;min-height:36px}
+button,select{cursor:pointer}button:disabled,input:disabled,select:disabled{opacity:.4;cursor:default}
+button:hover:not(:disabled),a:hover{background:#303036}button[aria-pressed=true]{background:#34343e;border-color:#777785;color:#fff}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid #aaa2bf;outline-offset:3px}
+a{color:#c9c9d3;text-decoration:none;border-radius:4px;padding:7px 8px;white-space:nowrap}
+.reader-toolbar{position:fixed;inset:0 0 auto;padding:12px 20px 10px;background:#19191c;border-bottom:1px solid #303035;z-index:2;transition:transform 180ms ease}
+.reader-toolbar-hidden .reader-toolbar{transform:translateY(calc(-100% - 1px));pointer-events:none}
+.reader-heading{display:flex;align-items:center;gap:14px;min-width:0;margin-bottom:8px}.reader-heading a{font-size:12px;padding-left:0}.reader-heading h1{font-size:14px;font-weight:500;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reader-controls,.control-group{display:flex;align-items:center;gap:6px}.reader-controls{flex-wrap:wrap;gap:8px;font-size:12px}.control-group{padding-right:8px;border-right:1px solid #38383f}
+#page-number{width:65px;padding-inline:6px}#page-count{min-width:30px;white-space:nowrap;color:#93939f}
+#reader-status{font-size:11px;color:#a6a6b4;margin:6px 0 0}#reader-status:empty{display:none}#reader-status.is-error{color:#ffb0b0}
+#find-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}#find-input{width:min(100%,280px)}#find-status{font-size:12px;color:#aaaab5}
+.reader-main{position:relative;flex:1;min-height:0}#viewer-container{position:absolute;inset:0;overflow:auto;overscroll-behavior:contain}
+.reader-zoom .range-picker{position:relative;flex-shrink:0}
+.reader-zoom .range-trigger{display:inline-flex;align-items:center;gap:10px;min-width:108px;padding:7px 11px;background:#222226;color:#dedee7;border:1px solid #3b3b44;border-radius:7px;font-size:12px;white-space:nowrap}
+.reader-zoom .range-trigger:hover{background:#2a262a;border-color:#665056}
+.reader-zoom .range-trigger[aria-expanded=true]{background:#2a2328;border-color:#855158;box-shadow:0 0 0 3px #ff646b0a}
+.reader-zoom .range-icon{display:none}
+.reader-zoom .range-chevron{width:13px;height:13px;margin-left:auto;stroke:#9797a5;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;transition:transform 140ms}
+.reader-zoom .range-trigger[aria-expanded=true] .range-chevron{transform:rotate(180deg)}
+.reader-zoom .range-menu{position:absolute;left:0;top:calc(100% + 9px);z-index:10;width:190px;max-height:min(360px,60dvh);overflow:auto;padding:7px;background:#212125;border:1px solid #45404a;border-radius:10px;box-shadow:0 18px 48px #0008,0 2px 8px #0004}
+.reader-zoom .range-menu [role=option]{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;padding:11px 12px;background:transparent;color:#d7d7e1;text-align:left;border:1px solid transparent;border-radius:6px;font-size:12px}
+.reader-zoom .range-menu [role=option]+[role=option]{margin-top:3px}
+.reader-zoom .range-menu [role=option]:hover,.reader-zoom .range-menu [role=option]:focus-visible{background:#303036;border-color:#41414c;outline:none}
+.reader-zoom .range-menu [role=option][aria-selected=true]{background:#3a282d;border-color:#614047;color:#ffdade}
+.reader-zoom .range-check{font-size:15px;color:#ff858a;opacity:0}.reader-zoom .range-menu [aria-selected=true] .range-check{opacity:1}
+.pdfViewer{padding:calc(var(--reader-toolbar-height,100px) + 12px) 0 12px}.pdfViewer .page{border:0;margin:0 auto 12px;box-shadow:0 2px 16px #0006;--page-bg-color:#fff}
+/* Apply only to page artwork: text selection, links, and the toolbar stay usable. */
+html[data-theme=dark] .pdfViewer .canvasWrapper{filter:invert(.9) hue-rotate(180deg)}
+html[data-theme=dark] .pdfViewer .page{--page-bg-color:#191919}
+html[data-reading-colors=on] .pdfViewer .canvasWrapper{filter:url("#reader-color-filter")}
+html[data-reading-colors=on] .pdfViewer .page{--page-bg-color:var(--reader-page-color)}
+.reader-color-defs{position:absolute;pointer-events:none}
+#colors-toggle.has-reading-colors{border-color:#777785;background:#34343e}
+.reader-colors-panel{position:absolute;top:calc(100% + 8px);right:20px;width:min(410px,calc(100vw - 24px));max-height:min(640px,calc(100dvh - var(--reader-toolbar-height,100px) - 20px));overflow-y:auto;overscroll-behavior:contain;padding:16px;background:#212125;border:1px solid #45404a;border-radius:10px;box-shadow:0 18px 48px #0008,0 2px 8px #0004;font-size:12px}
+.reader-colors-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}.reader-colors-heading h2{font-size:14px;font-weight:500;margin:0}.reader-colors-heading button{padding:0;width:32px;min-height:32px;background:transparent;border:0;font-size:22px;color:#aaaab5}
+.reader-colors-switch{display:flex;align-items:center;gap:8px;min-height:36px;margin-bottom:10px;color:#d7d7e1}.reader-colors-switch input{width:16px;height:16px;min-height:0;margin:0;padding:0;accent-color:#aaa2bf}
+.reader-color-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:16px}
+.reader-color-preset{display:flex;flex-direction:column;gap:7px;align-items:stretch;padding:6px 6px 8px;font-size:11px;background:#19191c;border-color:#38383f;text-align:left;min-width:0}.reader-color-preset[aria-pressed=true]{border-color:#9992a9;background:#302d37}
+.reader-preset-preview{display:block;padding:10px 8px;border-radius:4px;font:22px/1.2 Georgia,serif;white-space:nowrap}.reader-preset-preview>span{font-size:15px}
+.reader-color-fields{border-top:1px solid #38383f;padding-top:7px}.reader-color-control{display:flex;align-items:center;gap:8px;min-height:44px;color:#d7d7e1}.reader-color-control>span:not(.reader-source-swatch){flex:1}
+.reader-color-control input[type=color]{width:42px;height:30px;min-height:30px;margin-left:auto;padding:3px;cursor:pointer;border-radius:5px}.reader-color-control input[type=color]::-webkit-color-swatch-wrapper{padding:0}.reader-color-control input[type=color]::-webkit-color-swatch{border:0;border-radius:2px}
+.reader-source-swatch{flex:none;width:13px;height:13px;border:1px solid #777785;border-radius:3px}
+#colors-page-info,.reader-colors-note{font-size:11px;color:#aaaab5;line-height:1.6;margin:10px 0 0}.reader-colors-note{color:#92929f}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+@media(max-width:700px){.reader-toolbar{padding:8px 10px 6px}.reader-heading{gap:8px;margin-bottom:6px}.reader-controls{gap:6px}.reader-controls button,.reader-controls select,.reader-controls input,.reader-controls>a{min-height:40px}.reader-controls>a{display:flex;align-items:center}.control-group{gap:4px;padding-right:6px}#page-number{width:54px}.pdfViewer{padding:calc(var(--reader-toolbar-height,100px) + 8px) 0 8px}}
+@media(max-width:700px){.reader-colors-panel{right:10px;padding:12px}.reader-color-presets{gap:6px}.reader-color-preset{font-size:10px}}
+@media(prefers-reduced-motion:reduce){.reader-toolbar,.reader-zoom .range-chevron{transition:none}}

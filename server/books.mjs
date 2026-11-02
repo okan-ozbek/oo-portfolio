@@ -133,6 +133,10 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
     const [, id, asset] = match;
     const row = find(id);
     if (!row) throw new HttpError(404, 'Book not found.');
+    if (!asset && req.method === 'GET') {
+      send(res, 200, { book: metadata(row) });
+      return true;
+    }
     if (asset === 'completion' && req.method === 'PATCH') {
       const body = await readJson(req);
       if (Object.keys(body).length !== 1 || typeof body.completed !== 'boolean') {
