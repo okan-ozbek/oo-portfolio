@@ -8,6 +8,16 @@ import { DatabaseSync } from "node:sqlite";
 import { request as httpRequest } from 'node:http';
 import { createAdminServer } from "../server/admin-server.mjs";
 import { hashPassword, verifyPassword } from "../server/security.mjs";
+import { readApiResponse } from '../server/admin/api-response.js';
+
+test('admin responses preserve API errors and explain non-JSON proxy failures', async () => {
+  assert.deepEqual(await readApiResponse(Response.json({ book: { id: 'test' } })), { book: { id: 'test' } });
+  await assert.rejects(readApiResponse(Response.json({ error: 'This PDF is already in your library.' }, { status: 409 })), /This PDF is already in your library\./);
+  for (const [status, message] of [[401, /session expired/], [413, /upload limit/], [500, /could not process/], [502, /unavailable/], [503, /unavailable/], [504, /too long/], [403, /Request failed/]]) {
+    await assert.rejects(readApiResponse(new Response('<html>Proxy error</html>', { status })), error => message.test(error.message) && error.message.includes(`HTTP ${status}`) && !error.message.includes('<html>'));
+  }
+  await assert.rejects(readApiResponse(new Response('<html>Unexpected success page</html>')), /invalid response/);
+});
 
 const origin = "https://pixelware.test";
 const password = "test-only long admin password!";
@@ -151,6 +161,10 @@ test("private APIs require authentication; production session cookies and logout
   assert.equal(loginPage.headers.get("cache-control"), "no-store");
   assert.match(loginPage.headers.get("content-security-policy"), /frame-ancestors 'none'/);
   assert.doesNotMatch(await loginPage.text(), /scrypt-v1:/);
+  const responseHelper = await app.request('/admin/assets/api-response.js');
+  assert.equal(responseHelper.status, 200);
+  assert.match(responseHelper.headers.get('content-type'), /javascript/);
+  assert.match(await responseHelper.text(), /export async function readApiResponse/);
   assert.equal((await app.request("/api/admin/login", { method: "POST", body: { password: "wrong" } })).status, 401);
   const auth = await app.login();
   const cookie = auth.response.headers.get("set-cookie");

@@ -8,6 +8,35 @@ import { createHash } from 'node:crypto';
 import { createAdminServer } from '../server/admin-server.mjs';
 import { hashPassword } from '../server/security.mjs';
 import { bookPdf } from './fixtures/book.mjs';
+import sharp from 'sharp';
+import { createBooks } from '../server/books.mjs';
+
+test('library and thumbnail queries avoid reading large PDF table records', async () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    const queries = [];
+    const books = createBooks({
+      db: { exec: sql => db.exec(sql), prepare: sql => { queries.push(sql); return db.prepare(sql); } },
+      send: () => {}, inspect: async () => ({ pages: 2, thumbnail: Buffer.from('cached cover') }),
+    });
+    const book = await books.add(Buffer.from('%PDF-' + 'x'.repeat(20 * 1024 * 1024)), 'Large book', ['Read']);
+    queries.length = 0;
+    assert.equal(books.list()[0].id, book.id);
+    let thumbnail;
+    await books.adminRoute({ method: 'GET', headers: {} }, { writeHead() {}, end(body) { thumbnail = body; } }, new URL(`https://pixelware.test/api/admin/books/${book.id}/thumbnail`));
+    assert.deepEqual(Buffer.from(thumbnail), Buffer.from('cached cover'));
+    const reads = queries.filter(sql => /^SELECT /.test(sql));
+    assert.equal(reads.length, 3, 'List, existence/metadata lookup, and thumbnail lookup');
+    const tableRoot = db.prepare("SELECT rootpage FROM sqlite_schema WHERE type = 'table' AND name = 'books'").get().rootpage;
+    for (const sql of reads) {
+      const bindings = sql.includes('WHERE id = ?') ? [book.id] : [];
+      const instructions = db.prepare(`EXPLAIN ${sql}`).all(...bindings);
+      const tableCursors = instructions.filter(op => op.opcode === 'OpenRead' && op.p2 === tableRoot).map(op => op.p1);
+      assert.equal(instructions.some(op => op.opcode === 'Column' && tableCursors.includes(op.p1)), false, `Must read the index rather than the PDF-containing table: ${sql}`);
+      assert.match(db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...bindings).map(op => op.detail).join('\n'), /USING (?:COVERING )?INDEX/);
+    }
+  } finally { db.close(); }
+});
 
 const origin = 'https://pixelware.test', password = 'book-library test password!';
 const passwordHash = await hashPassword(password);
@@ -83,6 +112,29 @@ test('tags normalize, filter exactly, update with book names, and deletion prese
   const data = await (await restarted.request('books')).json(); assert.deepEqual(data.books.map(book => book.id), [second.id]); assert.deepEqual(data.tags, ['Computer Architecture']);
 });
 
+test('first-page thumbnails respect the front-cover CropBox, including offset and negative MediaBoxes', async t => {
+  const app = await fixture(t); await app.login();
+  for (const [index, spec] of [
+    { mediaBox: [0, 0, 1224, 792], cropBox: [612, 0, 1224, 792], content: '1 0 0 rg 0 0 1224 792 re f 0 0 1 rg 612 0 612 792 re f' },
+    { mediaBox: [-104, -7, 1323, 870], cropBox: [670, 36, 1282, 828], content: '1 0 0 rg -104 -7 1427 877 re f 0 0 1 rg 670 36 612 792 re f' },
+  ].entries()) {
+    const pdf = bookPdf(`Wraparound cover ${index}`, spec);
+    const uploaded = await app.upload(pdf, `Wraparound cover ${index}`);
+    assert.equal(uploaded.status, 201, await uploaded.clone().text());
+    const { book } = await uploaded.json();
+    const response = await app.request(`books/${book.id}/thumbnail`);
+    const { data, info } = await sharp(Buffer.from(await response.arrayBuffer())).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    assert.equal(info.height, 240);
+    assert.ok(Math.abs(info.width / info.height - 612 / 792) < 0.01, 'The thumbnail must be the portrait front cover, not the landscape spread.');
+    for (const [x, y] of [[5, 5], [info.width - 6, info.height - 6], [Math.floor(info.width / 2), Math.floor(info.height / 2)]]) {
+      const offset = (y * info.width + x) * info.channels;
+      assert.deepEqual([...data.subarray(offset, offset + 3)], [0, 0, 255], 'Only the blue front cover should be visible; the red back cover is outside the CropBox.');
+    }
+    assert.equal(book.pages, 2);
+    assert.deepEqual(Buffer.from(await (await app.request(`books/${book.id}/pdf`)).arrayBuffer()), pdf);
+  }
+});
+
 test('invalid PDFs, duplicate uploads, and invalid metadata leave the library unchanged', async t => {
   const app = await fixture(t); await app.login();
   for (const pdf of [Buffer.from('not a pdf'), Buffer.from('%PDF-1.4\nbroken')]) assert.equal((await app.upload(pdf)).status, 400);
@@ -111,7 +163,39 @@ test('bookmarks validate PDF page bounds, stay private, and survive metadata edi
   data = await (await app.request('books')).json(); assert.equal(data.books[0].bookmarkPage, null);
 });
 
-test('migration preserves existing PDFs and bookmarks persist across server restarts', async t => {
+test('completion validates input, stays private, and changes independently of other book details', async t => {
+  const app = await fixture(t); await app.login();
+  const { book } = await (await app.upload()).json();
+  const { book: other } = await (await app.upload(bookPdf('Other'), 'Other')).json();
+  assert.equal(book.completed, false);
+  const path = `books/${book.id}/completion`;
+  const patch = (body, options = {}) => app.request(path, { method: 'PATCH', body, ...options });
+  assert.equal((await patch({ completed: true }, { anonymous: true })).status, 401);
+  for (const headers of [{ Origin: 'https://evil.test' }, { 'X-CSRF-Token': '' }]) assert.equal((await patch({ completed: true }, { headers })).status, 403);
+  for (const body of [{}, { completed: 1 }, { completed: null }, { completed: 'true' }, { completed: true, name: 'Unexpected rename' }]) assert.equal((await patch(body)).status, 400);
+  assert.equal((await app.request(path)).status, 405);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const saved = await patch({ completed: true });
+    assert.equal(saved.status, 200); assert.equal((await saved.json()).book.completed, true);
+  }
+  await app.request(`books/${book.id}`, { method: 'PATCH', body: { name: 'Completed book', tags: ['Read'] } });
+  await app.request(`books/${book.id}/bookmark`, { method: 'PATCH', body: { page: 2 } });
+  await app.request(`books/${book.id}/notes`, { method: 'PATCH', body: { markdown: '# Finished reading' } });
+  let books = (await (await app.request('books')).json()).books;
+  assert.equal(books.find(item => item.id === book.id).completed, true);
+  assert.equal(books.find(item => item.id === other.id).completed, false);
+  const cleared = await patch({ completed: false });
+  assert.equal(cleared.status, 200);
+  const updated = (await cleared.json()).book;
+  assert.equal(updated.completed, false); assert.equal(updated.name, 'Completed book');
+  assert.deepEqual(updated.tags, ['Read']); assert.equal(updated.bookmarkPage, 2); assert.equal(updated.hasNotes, true);
+  assert.deepEqual(await (await app.request(`books/${book.id}/notes`)).json(), { markdown: '# Finished reading' });
+  assert.deepEqual(Buffer.from(await (await app.request(`books/${book.id}/pdf`)).arrayBuffer()), bookPdf());
+  await app.request(`books/${book.id}`, { method: 'DELETE', body: {} });
+  assert.equal((await patch({ completed: true })).status, 404);
+});
+
+test('migration preserves existing PDFs and book reading state persists across server restarts', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'pixelware-book-migration-'));
   const database = join(directory, 'admin.sqlite'); const pdf = bookPdf('Existing book');
   const id = '11111111-1111-4111-8111-111111111111';
@@ -125,13 +209,17 @@ test('migration preserves existing PDFs and bookmarks persist across server rest
   app = await fixture(t, database); await app.login();
   let data = await (await app.request('books')).json(); assert.equal(data.books[0].bookmarkPage, null); assert.deepEqual(data.books[0].tags, ['C++']);
   assert.equal(data.books[0].hasNotes, false);
+  assert.equal(data.books[0].completed, false);
   assert.deepEqual(await (await app.request(`books/${id}/notes`)).json(), { markdown: '' });
   assert.equal((await app.request(`books/${id}/notes`, { method: 'PATCH', body: { markdown: '# Existing book notes' } })).status, 200);
   assert.equal((await app.request(`books/${id}/bookmark`, { method: 'PATCH', body: { page: 2 } })).status, 200);
+  assert.equal((await app.request(`books/${id}/completion`, { method: 'PATCH', body: { completed: true } })).status, 200);
   assert.equal((await app.upload(bookPdf('New book after migration'), 'New book')).status, 201);
   await app.close(); restarted = await fixture(t, database); await restarted.login();
   data = await (await restarted.request('books')).json(); assert.equal(data.books.find(book => book.id === id).bookmarkPage, 2);
   assert.equal(data.books.find(book => book.id === id).hasNotes, true);
+  assert.equal(data.books.find(book => book.id === id).completed, true);
+  assert.equal(data.books.find(book => book.name === 'New book').completed, false);
   assert.deepEqual(await (await restarted.request(`books/${id}/notes`)).json(), { markdown: '# Existing book notes' });
   assert.equal(data.books.find(book => book.name === 'New book').bookmarkPage, null);
   assert.deepEqual(Buffer.from(await (await restarted.request(`books/${id}/pdf`)).arrayBuffer()), pdf);

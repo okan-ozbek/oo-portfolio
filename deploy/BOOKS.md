@@ -4,6 +4,11 @@ Open `/admin`, sign in, and select **Books**. The library belongs to the private
 admin service, not the public static website. PDFs, covers, and downloads all
 require the existing admin session. Nothing is copied into `public/` or Git.
 
+Use the check-circle button on a book row to mark it complete. Completed books
+have a soft green row highlight and a **Completed** label. Click the button again
+to mark a book incomplete. This status saves automatically and persists across
+refreshes, edits, and server restarts.
+
 Each list row contains the first-page thumbnail, book name, actual PDF page
 count, tags, and Download / Delete actions. Click the cover or title to open
 the PDF preview. Click elsewhere on a row, or the `+` beside its tags, to
@@ -50,11 +55,19 @@ After deploying, upload books through the production admin to populate its
 separate database. Never replace the production database with a local database
 containing different links or resume history.
 
+Compact covering indexes serve book metadata and thumbnails without reading the
+large PDF records. They are created automatically on startup for existing
+libraries and stay in sync with edits. The metadata index stores only a flag
+for whether notes exist, rather than the notes themselves.
+
 The admin Docker image installs `poppler-utils`. Its temporary filesystem is
 256 MiB to accommodate two concurrent PDF inspections. NGINX allows 100 MiB book
-requests with a 120-second timeout. No public routes or storage buckets are used.
+requests with a 120-second timeout and streams request bodies to admin instead
+of buffering PDFs in the proxy's 16 MiB temporary filesystem. HTTP/1.1 upstream
+requests also keep chunked uploads streaming. No public routes or storage buckets are used.
 The CI workflow installs Poppler for the real-PDF backend tests; the container
-smoke test also checks book uploads and downloads through NGINX.
+smoke test also checks a 24 MiB book upload and unchanged downloads through NGINX
+with the same 16 MiB proxy temporary filesystem used in production.
 
 For local development, ensure `pdfinfo` and `pdftoppm` from Poppler are on PATH
 before `npm run dev`. Missing tools produce an actionable upload error.
