@@ -16,9 +16,18 @@
       <div class="control-group"><label for="page-number">Page</label><input id="page-number" data-document-control disabled type="number" min="1" value="1" inputmode="numeric"><span id="page-count">/ —</span></div>
       <div class="control-group reader-zoom"><label class="sr-only" for="zoom">Zoom</label><select id="zoom" data-document-control disabled><option value="page-width">Fit width</option><option value="page-fit">Fit page</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option><option value="custom" hidden>Custom</option></select></div>
       <button id="theme-toggle" aria-pressed="true" title="Display pages in dark mode. Turn off for original image colors.">Dark mode</button>
+      <button id="colors-toggle" aria-expanded="false" aria-controls="colors-panel">Reading colors</button>
       <button id="find-toggle" data-document-control disabled aria-expanded="false" aria-controls="find-bar">Find</button>
       <a id="original-pdf" hidden target="_blank" rel="noopener">Original PDF ↗</a>
     </div>
+    <section id="colors-panel" class="reader-colors-panel" aria-labelledby="colors-title" hidden>
+      <div class="reader-colors-heading"><h2 id="colors-title">Reading colors</h2><button type="button" id="colors-close" aria-label="Close reading colors">×</button></div>
+      <label class="reader-colors-switch"><input id="colors-enabled" type="checkbox">Use reading colors</label>
+      <div id="color-presets" class="reader-color-presets" role="group" aria-label="Suggested reading presets"></div>
+      <div class="reader-color-fields"><label class="reader-color-control"><span>Page background</span><input type="color" id="page-color" value="#24252a"></label><div id="text-color-controls"></div></div>
+      <p id="colors-page-info" role="status"></p>
+      <p class="reader-colors-note">Saved for this browser. Artwork using the same colors may also change.</p>
+    </section>
     <form id="find-bar" hidden role="search"><label class="sr-only" for="find-input">Find in book</label><input id="find-input" type="search" placeholder="Find in book" autocomplete="off"><button type="button" id="find-previous" aria-label="Previous match">↑</button><button type="submit" aria-label="Next match">↓</button><span id="find-status" role="status"></span></form>
     <p id="reader-status" role="status">Loading book…</p>
   </header>

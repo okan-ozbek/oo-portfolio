@@ -2,11 +2,12 @@ import { AnnotationMode, getDocument, GlobalWorkerOptions } from 'pdfjs-dist/bui
 import { EventBus, PDFFindController, PDFLinkService, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs';
 import { readApiResponse } from './api-response.js';
 import { initFilterPicker } from './filter-picker.js';
+import { initReadingColors } from './reader-colors.js';
 
 const $ = id => document.getElementById(id);
 const bookId = new URL(location.href).searchParams.get('book');
 const validId = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(bookId ?? '');
-let viewer, pdfDocument;
+let viewer, pdfDocument, readingColors;
 const zoomPicker = initFilterPicker($('zoom'));
 const toolbar = document.querySelector('.reader-toolbar');
 const container = $('viewer-container');
@@ -22,7 +23,7 @@ container.addEventListener('scroll', () => {
   lastScroll = top;
   if (!pdfDocument || Math.abs(delta) < 1) return;
   if (top < 24) { revealToolbar(); return; }
-  if (performance.now() < ignoreScrollUntil || zoomPicker.isOpen || !$('find-bar').hidden || toolbar.contains(document.activeElement) && document.activeElement.matches('input')) {
+  if (performance.now() < ignoreScrollUntil || zoomPicker.isOpen || readingColors?.isOpen || !$('find-bar').hidden || toolbar.contains(document.activeElement) && document.activeElement.matches('input')) {
     scrollDistance = 0; return;
   }
   const direction = Math.sign(delta);
@@ -43,8 +44,17 @@ function applyTheme() {
 }
 applyTheme();
 $('theme-toggle').addEventListener('click', () => {
+  readingColors.disable();
   dark = !dark; applyTheme();
   try { localStorage.setItem('pixelware-pdf-theme', dark ? 'dark' : 'original'); } catch { /* Keep the in-memory preference. */ }
+});
+readingColors = initReadingColors({
+  bookId, getDocument: () => pdfDocument, getPageNumber: () => viewer?.currentPageNumber ?? 1, isDark: () => dark,
+  onTheme(value) {
+    dark = value; applyTheme();
+    try { localStorage.setItem('pixelware-pdf-theme', dark ? 'dark' : 'original'); } catch { /* Keep the in-memory preference. */ }
+  },
+  onOpen() { revealToolbar(); zoomPicker.close(); },
 });
 const api = async path => readApiResponse(await fetch(`/api/admin/${path}`));
 const hashPage = () => Number(new URLSearchParams(location.hash.slice(1)).get('page'));
@@ -62,6 +72,7 @@ function updatePage(page) {
   $('page-number').value = page;
   $('original-pdf').href = `/api/admin/books/${bookId}/pdf#page=${page}`;
   history.replaceState(null, '', `${location.pathname}${location.search}#page=${page}`);
+  readingColors.pageChanged();
 }
 $('page-number').addEventListener('change', () => goToPage(Number($('page-number').value)));
 $('page-number').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); goToPage(Number(event.target.value)); event.target.blur(); } });
