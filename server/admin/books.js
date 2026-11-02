@@ -1,7 +1,7 @@
 import { icon } from './icons.js';
 import { formatMarkdown } from './blog-format.js';
 import { enhanceContent } from '/blog/assets/reader.js';
-import { createMarkdownEditor } from '/blog/assets/markdown-editor.js';
+import { bindComposerModes, createMarkdownEditor } from '/blog/assets/markdown-editor.js';
 const $ = id => document.getElementById(id);
 const el = (tag, className, text) => {
   const node = document.createElement(tag);
@@ -120,11 +120,7 @@ export function initBooks({ api, toast }) {
       noteChanged();
     });
   }
-  for (const mode of document.querySelectorAll('[data-note-mode]')) mode.addEventListener('click', () => {
-    $('book-notes-panes').dataset.mode = mode.dataset.noteMode;
-    noteInput.setMode(mode.dataset.noteMode);
-    for (const control of document.querySelectorAll('[data-note-mode]')) control.setAttribute('aria-pressed', String(control === mode));
-  });
+  bindComposerModes(noteInput, $('book-notes-panes'), document.querySelectorAll('[data-note-mode]'));
   noteInput.addEventListener('keydown', event => {
     if (event.key === 'Tab') { event.preventDefault(); noteInput.setRangeText('  ', noteInput.selectionStart, noteInput.selectionEnd, 'end'); noteChanged(); }
     if ((event.ctrlKey || event.metaKey) && event.key === 's') { event.preventDefault(); void saveNote(); }

@@ -147,36 +147,15 @@ export function selectAdjacentBlock(view, direction) {
   return false;
 }
 
-function blockButton(label, action) {
-  const button = document.createElement('button'); button.type = 'button'; button.textContent = label;
-  button.addEventListener('click', event => { event.stopPropagation(); action(); }); return button;
-}
-
-class EditingToolbar extends WidgetType {
-  constructor(from, to) { super(); this.from = from; this.to = to; }
-  eq(other) { return this.from === other.from && this.to === other.to; }
-  toDOM(view) {
-    const root = document.createElement('div'); root.className = 'md-block-toolbar md-editing-toolbar';
-    const label = document.createElement('span'); label.textContent = 'Editing Markdown block · Esc or Ctrl/⌘+Enter to finish';
-    root.append(label, blockButton('Done editing', () => finishBlockEditing(view, { from: this.from, to: this.to })));
-    return root;
-  }
-  ignoreEvent() { return true; }
-}
-
 class MarkdownBlock extends WidgetType {
   constructor(source, from, to, options, selected = false) { super(); Object.assign(this, { source, from, to, options, selected }); }
   eq(other) { return this.source === other.source && this.from === other.from && this.to === other.to && this.selected === other.selected; }
   toDOM(view) {
     const root = document.createElement('div');
     root.className = `md-rendered-block blog-content${this.selected ? ' is-block-selected' : ''}`;
-    const toolbar = document.createElement('div'); toolbar.className = 'md-block-toolbar';
-    const select = blockButton('Select block', () => selectBlock(view, this.from, this.to)); select.setAttribute('aria-pressed', String(this.selected));
-    toolbar.append(select, blockButton('Edit source', () => editBlock(view, this.from, this.to)));
-    const content = document.createElement('div'); content.className = 'md-block-content'; content.innerHTML = renderMarkdown(this.source);
-    root.append(toolbar, content);
+    root.innerHTML = renderMarkdown(this.source);
     root.tabIndex = 0; root.setAttribute('role', 'group');
-    root.setAttribute('aria-label', `${this.selected ? 'Selected Markdown block' : 'Markdown block'}. Enter to edit, Delete to remove selected block.`);
+    root.setAttribute('aria-label', `${this.selected ? 'Selected content' : 'Rendered content'}. Double-click or press Enter to edit source, Escape to finish, Delete to remove selected content.`);
     root.addEventListener('click', event => { if (!event.target.closest(this.options.onRender ? 'a,button,input,[data-image-src]' : 'a,button,input')) selectBlock(view, this.from, this.to); });
     root.addEventListener('dblclick', event => { if (!event.target.closest('a,button,input,[data-image-src]')) editBlock(view, this.from, this.to); });
     root.addEventListener('keydown', event => {
@@ -258,7 +237,6 @@ function decorate(state, options) {
   const codeLines = new Set();
   for (const block of interaction.editing) {
     const first = doc.lineAt(block.from), last = doc.lineAt(block.to);
-    ranges.push(Decoration.widget({ widget: new EditingToolbar(block.from, block.to), block: true, side: -1, editingControls: true }).range(first.from));
     for (let number = first.number; number <= last.number; number++) {
       const line = doc.line(number); codeLines.add(number); lineClass(line.from, 'md-code-line md-editing-line');
     }
@@ -354,21 +332,26 @@ function formatSelection(view, kind) {
   return true;
 }
 
+export function bindComposerModes(editor, panes, controls) {
+  const mobile = window.matchMedia('(max-width: 700px)');
+  let requested = 'live';
+  const modeFor = control => control.dataset.blogMode ?? control.dataset.noteMode;
+  const apply = () => {
+    const mode = mobile.matches ? 'live' : requested;
+    panes.dataset.mode = mode;
+    editor.setMode(mode);
+    for (const control of controls) control.setAttribute('aria-pressed', String(modeFor(control) === mode));
+  };
+  for (const control of controls) control.addEventListener('click', () => { requested = modeFor(control); apply(); });
+  mobile.addEventListener('change', apply);
+  apply();
+}
+
 // A small textarea-compatible adapter keeps autosave, toolbar selection, uploads,
 // image resizing, and source insertion on the same document and undo history.
 export function createMarkdownEditor(textarea, options = {}) {
   const host = document.createElement('div'); host.className = 'markdown-editor';
   textarea.before(host); textarea.hidden = true;
-  // Keep Source-mode controls outside CodeMirror. Inserting a block widget on
-  // caret entry would shift the very line being clicked during mouse selection.
-  const sourceControls = document.createElement('div'); sourceControls.className = 'md-block-toolbar md-source-controls'; sourceControls.hidden = true;
-  const sourceLabel = document.createElement('span'); sourceLabel.textContent = 'Markdown source · Esc or Ctrl/⌘+Enter to finish code';
-  const sourceDone = blockButton('Done editing', () => finishBlockEditing(view)); sourceDone.disabled = true;
-  sourceControls.append(sourceLabel, sourceDone); host.append(sourceControls);
-  const syncSourceControls = state => {
-    sourceControls.hidden = state.field(liveMode);
-    sourceDone.disabled = state.field(blockInteraction).editing.length === 0;
-  };
   const readOnly = new Compartment();
   let programmatic = false, live = true, disabled = textarea.disabled;
   const maxLength = textarea.maxLength > 0 ? textarea.maxLength : 300000;
@@ -392,7 +375,6 @@ export function createMarkdownEditor(textarea, options = {}) {
       options.onLimit?.(`Use up to ${maxLength.toLocaleString()} characters.`); return [];
     }),
     EditorView.updateListener.of(update => {
-      syncSourceControls(update.state);
       if (!update.docChanged) return;
       textarea.value = update.state.doc.toString();
       if (!programmatic) textarea.dispatchEvent(new Event('input', { bubbles: true }));
@@ -408,7 +390,6 @@ export function createMarkdownEditor(textarea, options = {}) {
         view.setState(EditorState.create({ doc: value, extensions: extensions() }));
         if (!live) view.dispatch({ effects: changeMode.of(false) });
         textarea.value = value;
-        syncSourceControls(view.state);
       } finally { programmatic = false; }
     },
     get selectionStart() { return view.state.selection.main.from; },
