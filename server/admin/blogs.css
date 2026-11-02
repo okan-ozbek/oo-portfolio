@@ -44,6 +44,19 @@
 .blog-composer .blog-content td code{color:var(--content-text)}
 #book-notes-dialog .markdown-editor{min-height:min(380px,42dvh)}
 @media(max-width:700px){.markdown-editor .cm-content{padding:22px 18px}.markdown-editor .md-h1{font-size:28px}.markdown-editor .md-h2{font-size:23px}}
+@media(max-width:700px){
+  .markdown-editor .cm-content{padding:18px 12px}
+  .blog-composer .blog-mode-tools{display:none}
+  .blog-composer .blog-composer-toolbar{padding:8px}
+  .blog-composer .blog-insert-tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(40px,1fr));gap:4px;width:100%}
+  .blog-composer .blog-insert-tools button:nth-child(n){width:100%;min-width:0;min-height:44px;margin:0}
+  .blog-composer .blog-content pre{white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal}
+  .blog-composer .blog-content table{table-layout:fixed;font-size:13px}
+  .blog-composer .blog-content th,.blog-composer .blog-content td{min-width:0;padding:8px 6px;overflow-wrap:anywhere;white-space:normal}
+  .blog-composer .blog-content th{font-size:10px}
+  .blog-composer .blog-diagram-body{padding:12px;min-width:0}
+  .blog-composer .blog-diagram-body svg{width:100%;max-width:100%;height:auto}
+}
 #book-notes-markdown{width:100%;flex:1;min-height:min(380px,42dvh);border:0;border-radius:0;background:transparent;color:var(--text);resize:vertical;padding:24px;font:12px/1.9 var(--mono);tab-size:2;outline:none}
 #book-notes-form .dialog-actions{align-items:center;flex-wrap:wrap}
 #book-notes-status{margin:0 auto 0 0}

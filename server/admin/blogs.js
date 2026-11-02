@@ -2,7 +2,7 @@ import { initContentChart } from './content-chart.js';
 import { icon } from './icons.js';
 import { formatMarkdown } from './blog-format.js';
 import { enhanceContent } from '/blog/assets/reader.js';
-import { createMarkdownEditor } from '/blog/assets/markdown-editor.js';
+import { bindComposerModes, createMarkdownEditor } from '/blog/assets/markdown-editor.js';
 import {technicalPresets,projectPresets,artworkNode,replaceArtwork,enhanceArtwork} from '/blog/assets/visuals.js';
 const $=id=>document.getElementById(id);
 // Keep legacy banner data intact when saving existing posts and revisions.
@@ -101,7 +101,7 @@ export function initBlogs({api,toast}) {
   async function create(){if(!(await leave()))return;$('blog-new').disabled=true;try{const {post}=await api('blogs',{method:'POST',body:{}});updatePost(post);await openPost(post.id);}catch(error){$('blog-library-error').textContent=error.message;}finally{$('blog-new').disabled=false;}}
   function selectTab(name){for(const tab of document.querySelectorAll('[data-blog-tab]')){const active=tab.dataset.blogTab===name;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;$(`blog-panel-${tab.dataset.blogTab}`).hidden=!active;}if(name==='history')void loadHistory();if(name==='suggestions')renderSuggestions();if(name==='artwork')renderArtwork();}
   for(const tab of document.querySelectorAll('[data-blog-tab]')){tab.addEventListener('click',()=>selectTab(tab.dataset.blogTab));tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const tabs=[...document.querySelectorAll('[data-blog-tab]')],index=tabs.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;selectTab(tabs[next].dataset.blogTab);tabs[next].focus();});}
-  for(const mode of document.querySelectorAll('[data-blog-mode]'))mode.addEventListener('click',()=>{$('blog-composer-panes').dataset.mode=mode.dataset.blogMode;markdownInput.setMode(mode.dataset.blogMode);for(const button of document.querySelectorAll('[data-blog-mode]'))button.setAttribute('aria-pressed',String(button===mode));});
+  bindComposerModes(markdownInput,$('blog-composer-panes'),document.querySelectorAll('[data-blog-mode]'));
   for(const key of ['title','summary','markdown'])(key==='markdown'?markdownInput:$(`blog-${key}`)).addEventListener('input',()=>{
     if(!editor)return;const value=key==='markdown'?markdownInput.value:$(`blog-${key}`).value;editor.post[key]=value;
     

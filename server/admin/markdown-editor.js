@@ -332,6 +332,21 @@ function formatSelection(view, kind) {
   return true;
 }
 
+export function bindComposerModes(editor, panes, controls) {
+  const mobile = window.matchMedia('(max-width: 700px)');
+  let requested = 'live';
+  const modeFor = control => control.dataset.blogMode ?? control.dataset.noteMode;
+  const apply = () => {
+    const mode = mobile.matches ? 'live' : requested;
+    panes.dataset.mode = mode;
+    editor.setMode(mode);
+    for (const control of controls) control.setAttribute('aria-pressed', String(modeFor(control) === mode));
+  };
+  for (const control of controls) control.addEventListener('click', () => { requested = modeFor(control); apply(); });
+  mobile.addEventListener('change', apply);
+  apply();
+}
+
 // A small textarea-compatible adapter keeps autosave, toolbar selection, uploads,
 // image resizing, and source insertion on the same document and undo history.
 export function createMarkdownEditor(textarea, options = {}) {
