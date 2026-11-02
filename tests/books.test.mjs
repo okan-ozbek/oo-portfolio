@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { createAdminServer } from '../server/admin-server.mjs';
 import { hashPassword } from '../server/security.mjs';
 import { bookPdf } from './fixtures/book.mjs';
+import sharp from 'sharp';
 
 const origin = 'https://pixelware.test', password = 'book-library test password!';
 const passwordHash = await hashPassword(password);
@@ -81,6 +82,29 @@ test('tags normalize, filter exactly, update with book names, and deletion prese
   for (const asset of ['pdf', 'thumbnail']) assert.equal((await restarted.request(`books/${first.id}/${asset}`)).status, 404);
   assert.equal((await restarted.request(`books/${first.id}`, { method: 'DELETE', body: {} })).status, 404);
   const data = await (await restarted.request('books')).json(); assert.deepEqual(data.books.map(book => book.id), [second.id]); assert.deepEqual(data.tags, ['Computer Architecture']);
+});
+
+test('first-page thumbnails respect the front-cover CropBox, including offset and negative MediaBoxes', async t => {
+  const app = await fixture(t); await app.login();
+  for (const [index, spec] of [
+    { mediaBox: [0, 0, 1224, 792], cropBox: [612, 0, 1224, 792], content: '1 0 0 rg 0 0 1224 792 re f 0 0 1 rg 612 0 612 792 re f' },
+    { mediaBox: [-104, -7, 1323, 870], cropBox: [670, 36, 1282, 828], content: '1 0 0 rg -104 -7 1427 877 re f 0 0 1 rg 670 36 612 792 re f' },
+  ].entries()) {
+    const pdf = bookPdf(`Wraparound cover ${index}`, spec);
+    const uploaded = await app.upload(pdf, `Wraparound cover ${index}`);
+    assert.equal(uploaded.status, 201, await uploaded.clone().text());
+    const { book } = await uploaded.json();
+    const response = await app.request(`books/${book.id}/thumbnail`);
+    const { data, info } = await sharp(Buffer.from(await response.arrayBuffer())).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    assert.equal(info.height, 240);
+    assert.ok(Math.abs(info.width / info.height - 612 / 792) < 0.01, 'The thumbnail must be the portrait front cover, not the landscape spread.');
+    for (const [x, y] of [[5, 5], [info.width - 6, info.height - 6], [Math.floor(info.width / 2), Math.floor(info.height / 2)]]) {
+      const offset = (y * info.width + x) * info.channels;
+      assert.deepEqual([...data.subarray(offset, offset + 3)], [0, 0, 255], 'Only the blue front cover should be visible; the red back cover is outside the CropBox.');
+    }
+    assert.equal(book.pages, 2);
+    assert.deepEqual(Buffer.from(await (await app.request(`books/${book.id}/pdf`)).arrayBuffer()), pdf);
+  }
 });
 
 test('invalid PDFs, duplicate uploads, and invalid metadata leave the library unchanged', async t => {

@@ -38,7 +38,9 @@ export async function inspectBook(pdf) {
     const { stdout } = await run('pdfinfo', [input], { timeout: 30000, maxBuffer: 1024 * 1024, windowsHide: true, env: { ...process.env, LC_ALL: 'C', LANG: 'C' } });
     const pages = Number(/^Pages:\s+(\d+)/m.exec(stdout)?.[1]);
     if (!Number.isSafeInteger(pages) || pages < 1 || /^Encrypted:\s+yes/m.test(stdout)) throw new HttpError(400, 'Upload an unencrypted PDF with at least one page.');
-    await run('pdftoppm', ['-f', '1', '-singlefile', '-scale-to', '240', '-png', input, join(directory, 'cover')], { timeout: 30000, maxBuffer: 1024 * 1024, windowsHide: true });
+    // Print-ready ebooks can keep the entire back/spine/front spread in the
+    // MediaBox while their CropBox selects the front cover shown by PDF viewers.
+    await run('pdftoppm', ['-f', '1', '-l', '1', '-singlefile', '-cropbox', '-scale-to', '240', '-png', input, join(directory, 'cover')], { timeout: 30000, maxBuffer: 1024 * 1024, windowsHide: true });
     const thumbnail = await readFile(join(directory, 'cover.png'));
     return { pages, thumbnail };
   } catch (error) {
