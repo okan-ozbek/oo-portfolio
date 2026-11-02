@@ -53,8 +53,25 @@ async function fixture(t, databasePath = ':memory:') {
   });
   async function login() { const response = await request('login', { method: 'POST', body: { password } }); cookie = response.headers.get('set-cookie').split(';')[0]; csrf = (await response.json()).csrf; }
   const upload = (pdf = bookPdf(), name = 'Test book', tags = ['C++', 'Computer Architecture']) => request(`books?${new URLSearchParams({ name, tags: JSON.stringify(tags) })}`, { method: 'POST', body: pdf });
-  return { request, login, upload, close };
+  return { base, request, login, upload, close };
 }
+
+test('the PDF reader serves local worker assets with scoped permissions and no private book data', async t => {
+  const app = await fixture(t);
+  const reader = await fetch(`${app.base}/admin/book-reader`);
+  assert.equal(reader.status, 200);
+  assert.match(reader.headers.get('content-security-policy'), /worker-src 'self'/);
+  assert.match(await reader.text(), /Dark mode/);
+  const admin = await fetch(`${app.base}/admin`);
+  assert.doesNotMatch(admin.headers.get('content-security-policy'), /wasm-unsafe-eval|worker-src/);
+  const worker = await fetch(`${app.base}/admin/pdfjs/build/pdf.worker.mjs`, { method: 'HEAD' });
+  assert.equal(worker.status, 200);
+  assert.match(worker.headers.get('content-type'), /javascript/);
+  assert.ok(Number(worker.headers.get('content-length')) > 0);
+  assert.equal((await worker.arrayBuffer()).byteLength, 0);
+  assert.equal((await fetch(`${app.base}/admin/pdfjs/package.json`)).status, 404);
+  assert.equal((await app.request('books')).status, 401);
+});
 
 test('PDFs and covers are private; all book mutations require origin, CSRF, and correct content type', async t => {
   const app = await fixture(t);
@@ -63,6 +80,12 @@ test('PDFs and covers are private; all book mutations require origin, CSRF, and 
   await app.login();
   const response = await app.upload(); assert.equal(response.status, 201, await response.clone().text());
   const { book } = await response.json();
+  assert.equal((await app.request(`books/${book.id}`, { anonymous: true })).status, 401);
+  const metadata = await (await app.request(`books/${book.id}`)).json();
+  assert.equal(metadata.book.id, book.id);
+  assert.equal(metadata.book.name, book.name);
+  assert.equal(Object.hasOwn(metadata.book, 'pdf'), false);
+  assert.equal(Object.hasOwn(metadata.book, 'notes_markdown'), false);
   for (const asset of ['pdf', 'thumbnail']) for (const method of ['GET', 'HEAD']) assert.equal((await app.request(`books/${book.id}/${asset}`, { method, anonymous: true })).status, 401);
   for (const method of ['PATCH', 'DELETE']) {
     for (const headers of [{ Origin: 'https://evil.test' }, { 'X-CSRF-Token': '' }]) assert.equal((await app.request(`books/${book.id}`, { method, headers, body: {} })).status, 403);

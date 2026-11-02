@@ -248,7 +248,7 @@ export function initBooks({ api, toast }) {
         if (event.target === row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); openEdit(book); }
       });
       const base = `/api/admin/books/${book.id}`;
-      const previewUrl = `${base}/pdf#page=${book.bookmarkPage ?? 1}`;
+      const previewUrl = `/admin/book-reader?book=${book.id}#page=${book.bookmarkPage ?? 1}`;
       const cover = el('a', 'book-cover'); cover.href = previewUrl; cover.target = '_blank'; cover.rel = 'noopener'; cover.setAttribute('aria-label', `Read ${book.name}`);
       const image = el('img'); image.src = `${base}/thumbnail`; image.alt = `First page of ${book.name}`; image.loading = 'lazy'; image.width = 48; image.height = 66; cover.append(image);
       const title = el('div', 'book-title');

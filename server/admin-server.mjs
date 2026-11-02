@@ -29,6 +29,8 @@ const assets = new Map([
   ["/admin/assets/projects.css", ["projects.css", "text/css; charset=utf-8"]],
   ["/admin", ["index.html", "text/html; charset=utf-8"]],
   ["/admin/", ["index.html", "text/html; charset=utf-8"]],
+  ["/admin/book-reader", ["book-reader.html", "text/html; charset=utf-8"]],
+  ["/admin/assets/book-reader.css", ["book-reader.css", "text/css; charset=utf-8"]],
   ["/admin/assets/admin.js", ["admin.js", "text/javascript; charset=utf-8"]],
   ["/admin/assets/api-response.js", ["api-response.js", "text/javascript; charset=utf-8"]],
   ["/admin/assets/admin.css", ["admin.css", "text/css; charset=utf-8"]],
@@ -166,10 +168,21 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
       const path = requestUrl.pathname;
       if (path === "/healthz" && req.method === "GET") return send(res, 200, { ok: Boolean(db.prepare("SELECT 1").get()) });
       if (assets.has(path) && ["GET", "HEAD"].includes(req.method)) {
+        if (path === '/admin/book-reader') res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; font-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
         const [file, type] = assets.get(path);
         const body = readFileSync(new URL(`./admin/${file}`, import.meta.url));
         res.writeHead(200, { "Content-Type": type });
         return res.end(req.method === "HEAD" ? undefined : body);
+      }
+      const pdfAsset = /^\/admin\/pdfjs\/(build\/pdf\.worker\.mjs|web\/pdf_viewer\.css|web\/images\/[\w.-]+\.(?:svg|png|gif)|cmaps\/[\w.-]+\.bcmap|standard_fonts\/[\w.-]+\.(?:pfb|ttf)|wasm\/[\w.-]+\.(?:wasm|js))$/.exec(path);
+      if (pdfAsset && ['GET', 'HEAD'].includes(req.method)) {
+        let body;
+        try { body = readFileSync(new URL(`../node_modules/pdfjs-dist/${pdfAsset[1]}`, import.meta.url)); }
+        catch { throw new HttpError(404, 'PDF reader asset not found.'); }
+        const extension = pdfAsset[1].split('.').at(-1);
+        const type = { mjs: 'text/javascript', js: 'text/javascript', css: 'text/css', wasm: 'application/wasm', svg: 'image/svg+xml', png: 'image/png', gif: 'image/gif', ttf: 'font/ttf' }[extension] ?? 'application/octet-stream';
+        res.writeHead(200, { 'Content-Type': type, 'Content-Length': body.length });
+        return res.end(req.method === 'HEAD' ? undefined : body);
       }
       if (await home(req,res,requestUrl)) return;
       if (seo.publicRoute(req,res,requestUrl)) return;
