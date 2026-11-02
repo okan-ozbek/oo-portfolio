@@ -25,20 +25,23 @@
 .markdown-editor .md-rule{border-bottom:1px solid var(--line);height:20px}.markdown-editor .md-rule-text{opacity:0}
 .markdown-editor .md-task{display:inline-flex;vertical-align:middle;margin-right:5px}.markdown-editor .md-task input{width:14px;height:14px;margin:0;accent-color:#b2a4ca;cursor:pointer}
 .markdown-editor .md-bullet{color:#a298b8;margin-right:3px}
-.markdown-editor .md-rendered-block{margin:12px 0;cursor:text;max-width:100%;overflow-x:auto;font-size:15px}
-.markdown-editor .md-rendered-block{border:1px solid #38383f;border-radius:6px;cursor:pointer}
-.markdown-editor .md-rendered-block.is-block-selected{border-color:#b1a1d2;box-shadow:0 0 0 2px #b1a1d244;background:#292331}
-.markdown-editor .md-block-content{padding:0 12px}
-.markdown-editor .md-block-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;border-bottom:1px solid #38383f;background:#202024;color:#96929e;font:10px/1.6 var(--mono);white-space:normal}
-.markdown-editor .md-block-toolbar button{background:transparent;border:1px solid #44414b;border-radius:4px;color:#ccc5d8;padding:5px 9px;font:inherit;white-space:nowrap;cursor:pointer}
-.markdown-editor .md-block-toolbar button:hover,.markdown-editor .md-block-toolbar button[aria-pressed=true]{background:#3a3148;color:#f1e9ff;border-color:#8b789f}
-.markdown-editor .md-editing-toolbar{border:1px solid #4b4355;border-radius:6px 6px 0 0;margin-top:12px}
-.markdown-editor .md-editing-line{border-left:1px solid #4b4355;border-right:1px solid #4b4355}
-.markdown-editor .md-source-controls[hidden]{display:none}
+.markdown-editor .md-rendered-block{margin:12px 0;cursor:text;max-width:100%;overflow-x:auto;font-size:15px;white-space:normal}
+.markdown-editor .md-rendered-block>:first-child{margin-top:0}
+.markdown-editor .md-rendered-block>:last-child{margin-bottom:0}
+.markdown-editor .md-rendered-block.is-block-selected{outline:1px solid #b1a1d2;outline-offset:2px}
 .markdown-editor .md-rendered-block:focus-visible{outline:1px dashed #766d86;outline-offset:4px}
 .markdown-editor .md-rendered-block .blog-image{position:relative;cursor:pointer}
 .markdown-editor .md-rendered-block .blog-image:hover .blog-image-resize,.markdown-editor .blog-image-resize:focus{opacity:1}
 .markdown-editor.is-source .cm-editor{font:12px/1.9 var(--mono)}
+.blog-composer .blog-content{overflow-x:auto}
+.blog-composer .blog-content table{display:table;table-layout:auto;width:100%;max-width:none;border-collapse:separate;border-spacing:0;border:1px solid var(--content-border);border-radius:6px;overflow:hidden;font-size:14px;line-height:1.6;background:var(--content-surface);color:var(--content-text)}
+.blog-composer .blog-content th,.blog-composer .blog-content td{font:inherit;letter-spacing:normal;color:inherit;min-width:100px;padding:10px 16px;vertical-align:top;border:0;border-right:1px solid var(--content-border);border-bottom:1px solid var(--content-border)}
+.blog-composer .blog-content th{height:36px;padding:8px 16px;background:var(--content-raised);color:var(--content-muted);font:500 11px/1.5 var(--site-mono)}
+.blog-composer .blog-content tr>:last-child{border-right:0}
+.blog-composer .blog-content tbody tr:last-child td{border-bottom:0}
+.blog-composer .blog-content th:first-child{border-top-left-radius:5px}
+.blog-composer .blog-content th:last-child{border-top-right-radius:5px}
+.blog-composer .blog-content td code{color:var(--content-text)}
 #book-notes-dialog .markdown-editor{min-height:min(380px,42dvh)}
 @media(max-width:700px){.markdown-editor .cm-content{padding:22px 18px}.markdown-editor .md-h1{font-size:28px}.markdown-editor .md-h2{font-size:23px}}
 #book-notes-markdown{width:100%;flex:1;min-height:min(380px,42dvh);border:0;border-radius:0;background:transparent;color:var(--text);resize:vertical;padding:24px;font:12px/1.9 var(--mono);tab-size:2;outline:none}
