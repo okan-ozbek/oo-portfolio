@@ -66,10 +66,22 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
   if (!db.prepare('PRAGMA table_info(books)').all().some(column => column.name === 'completed')) {
     db.exec('ALTER TABLE books ADD COLUMN completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN (0, 1))');
   }
+  // Metadata and covers follow large PDF blobs in the table records. Reading
+  // those later columns otherwise walks the PDF's SQLite overflow pages.
+  // Keep compact covering indexes for the library's hot paths instead.
+  db.exec(`CREATE INDEX IF NOT EXISTS books_metadata ON books (
+    id, name COLLATE NOCASE, tags_json, pages, size, created_at, bookmark_page,
+    completed, (length(trim(notes_markdown)) > 0)
+  );
+  CREATE INDEX IF NOT EXISTS books_thumbnails ON books (id, thumbnail);`);
   let processing = 0;
   const fields = "id, name, tags_json, pages, size, created_at, bookmark_page, completed, (length(trim(notes_markdown)) > 0) AS has_notes";
   const metadata = row => ({ id: row.id, name: row.name, tags: JSON.parse(row.tags_json), pages: row.pages, size: row.size, createdAt: row.created_at, bookmarkPage: row.bookmark_page, completed: Boolean(row.completed), hasNotes: Boolean(row.has_notes) });
-  function list() { return db.prepare(`SELECT ${fields} FROM books ORDER BY name COLLATE NOCASE, id`).all().map(metadata); }
+  // Pin these lookups to the covering index, including by-ID reads where SQLite
+  // would otherwise prefer the primary key followed by the large table record.
+  const metadataTable = 'books INDEXED BY books_metadata';
+  const find = id => db.prepare(`SELECT ${fields} FROM ${metadataTable} WHERE id = ?`).get(id);
+  function list() { return db.prepare(`SELECT ${fields} FROM ${metadataTable} ORDER BY name COLLATE NOCASE, id`).all().map(metadata); }
   function canonicalTags(tags) {
     const existing = new Map(list().flatMap(book => book.tags).map(tag => [tag.toLowerCase(), tag]));
     return tags.map(tag => existing.get(tag.toLowerCase()) ?? tag);
@@ -88,7 +100,7 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
       if (duplicate()) throw new HttpError(409, 'This PDF is already in your library.');
       const id = randomUUID();
       db.prepare('INSERT INTO books (id, name, tags_json, pages, size, sha256, pdf, thumbnail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, identity.name, JSON.stringify(canonicalTags(identity.tags)), pages, pdf.length, hash, pdf, thumbnail, new Date(now()).toISOString());
-      return metadata(db.prepare(`SELECT ${fields} FROM books WHERE id = ?`).get(id));
+      return metadata(find(id));
     } finally { processing--; }
   }
   async function adminRoute(req, res, url) {
@@ -119,7 +131,7 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
     const match = /^\/api\/admin\/books\/([a-f0-9-]{36})(?:\/(pdf|thumbnail|bookmark|completion|notes|notes\/preview))?$/.exec(url.pathname);
     if (!match) return false;
     const [, id, asset] = match;
-    const row = db.prepare(`SELECT ${fields} FROM books WHERE id = ?`).get(id);
+    const row = find(id);
     if (!row) throw new HttpError(404, 'Book not found.');
     if (asset === 'completion' && req.method === 'PATCH') {
       const body = await readJson(req);
@@ -127,7 +139,7 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
         throw new HttpError(400, 'Choose whether the book is complete.');
       }
       db.prepare('UPDATE books SET completed = ? WHERE id = ?').run(Number(body.completed), id);
-      send(res, 200, { book: metadata(db.prepare(`SELECT ${fields} FROM books WHERE id = ?`).get(id)) });
+      send(res, 200, { book: metadata(find(id)) });
       return true;
     }
     if (asset === 'notes' && req.method === 'GET') {
@@ -150,11 +162,11 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
         throw new HttpError(400, `Choose a PDF page between 1 and ${row.pages}, or clear the bookmark.`);
       }
       db.prepare('UPDATE books SET bookmark_page = ? WHERE id = ?').run(body.page, id);
-      send(res, 200, { book: metadata(db.prepare(`SELECT ${fields} FROM books WHERE id = ?`).get(id)) });
+      send(res, 200, { book: metadata(find(id)) });
       return true;
     }
     if (['pdf', 'thumbnail'].includes(asset) && ['GET', 'HEAD'].includes(req.method)) {
-      const body = db.prepare(`SELECT ${asset === 'pdf' ? 'pdf' : 'thumbnail'} AS body FROM books WHERE id = ?`).get(id).body;
+      const body = db.prepare(asset === 'pdf' ? 'SELECT pdf AS body FROM books WHERE id = ?' : 'SELECT thumbnail AS body FROM books INDEXED BY books_thumbnails WHERE id = ?').get(id).body;
       const download = url.searchParams.get('download') === '1';
       // As with resumes, CSP sandbox prevents Chromium's native PDF viewer loading.
       if (asset === 'pdf') {
@@ -179,7 +191,7 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
       const body = await readJson(req);
       const identity = bookIdentity(body.name, body.tags);
       db.prepare('UPDATE books SET name = ?, tags_json = ? WHERE id = ?').run(identity.name, JSON.stringify(canonicalTags(identity.tags)), id);
-      send(res, 200, { book: metadata(db.prepare(`SELECT ${fields} FROM books WHERE id = ?`).get(id)) });
+      send(res, 200, { book: metadata(find(id)) });
       return true;
     }
     if (!asset && req.method === 'DELETE') {

@@ -9,6 +9,34 @@ import { createAdminServer } from '../server/admin-server.mjs';
 import { hashPassword } from '../server/security.mjs';
 import { bookPdf } from './fixtures/book.mjs';
 import sharp from 'sharp';
+import { createBooks } from '../server/books.mjs';
+
+test('library and thumbnail queries avoid reading large PDF table records', async () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    const queries = [];
+    const books = createBooks({
+      db: { exec: sql => db.exec(sql), prepare: sql => { queries.push(sql); return db.prepare(sql); } },
+      send: () => {}, inspect: async () => ({ pages: 2, thumbnail: Buffer.from('cached cover') }),
+    });
+    const book = await books.add(Buffer.from('%PDF-' + 'x'.repeat(20 * 1024 * 1024)), 'Large book', ['Read']);
+    queries.length = 0;
+    assert.equal(books.list()[0].id, book.id);
+    let thumbnail;
+    await books.adminRoute({ method: 'GET', headers: {} }, { writeHead() {}, end(body) { thumbnail = body; } }, new URL(`https://pixelware.test/api/admin/books/${book.id}/thumbnail`));
+    assert.deepEqual(Buffer.from(thumbnail), Buffer.from('cached cover'));
+    const reads = queries.filter(sql => /^SELECT /.test(sql));
+    assert.equal(reads.length, 3, 'List, existence/metadata lookup, and thumbnail lookup');
+    const tableRoot = db.prepare("SELECT rootpage FROM sqlite_schema WHERE type = 'table' AND name = 'books'").get().rootpage;
+    for (const sql of reads) {
+      const bindings = sql.includes('WHERE id = ?') ? [book.id] : [];
+      const instructions = db.prepare(`EXPLAIN ${sql}`).all(...bindings);
+      const tableCursors = instructions.filter(op => op.opcode === 'OpenRead' && op.p2 === tableRoot).map(op => op.p1);
+      assert.equal(instructions.some(op => op.opcode === 'Column' && tableCursors.includes(op.p1)), false, `Must read the index rather than the PDF-containing table: ${sql}`);
+      assert.match(db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...bindings).map(op => op.detail).join('\n'), /USING (?:COVERING )?INDEX/);
+    }
+  } finally { db.close(); }
+});
 
 const origin = 'https://pixelware.test', password = 'book-library test password!';
 const passwordHash = await hashPassword(password);

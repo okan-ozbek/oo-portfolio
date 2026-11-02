@@ -55,6 +55,11 @@ After deploying, upload books through the production admin to populate its
 separate database. Never replace the production database with a local database
 containing different links or resume history.
 
+Compact covering indexes serve book metadata and thumbnails without reading the
+large PDF records. They are created automatically on startup for existing
+libraries and stay in sync with edits. The metadata index stores only a flag
+for whether notes exist, rather than the notes themselves.
+
 The admin Docker image installs `poppler-utils`. Its temporary filesystem is
 256 MiB to accommodate two concurrent PDF inspections. NGINX allows 100 MiB book
 requests with a 120-second timeout and streams request bodies to admin instead
