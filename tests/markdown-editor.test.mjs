@@ -109,14 +109,14 @@ test('typing a fence and its closing delimiter does not exit source editing', ()
   assert.equal(renderedBlocks(view.state).length, 1);
 });
 
-test('temporarily editing either fence keeps the source session and its controls', () => {
+test('temporarily editing either fence keeps the source session without adding block controls', () => {
   const source = 'Before\n\n```js\nconst x = 1;\n```\n\nAfter', from = source.indexOf('```');
   const view = harness(stateFor(source));
   view.dispatch({ selection: { anchor: from + 1 } });
   view.dispatch({ changes: { from, to: from + 1 }, selection: { anchor: from } });
   view.dispatch({ selection: { anchor: view.state.doc.length } });
   assert.equal(view.state.field(blockInteraction).editing.length, 1);
-  assert.equal(decorations(view.state).filter(item => item.editingControls).length, 1);
+  assert.equal(decorations(view.state).filter(item => item.editingControls).length, 0);
   assert.equal(renderedBlocks(view.state).length, 0);
 });
 
