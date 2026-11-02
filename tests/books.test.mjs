@@ -135,7 +135,39 @@ test('bookmarks validate PDF page bounds, stay private, and survive metadata edi
   data = await (await app.request('books')).json(); assert.equal(data.books[0].bookmarkPage, null);
 });
 
-test('migration preserves existing PDFs and bookmarks persist across server restarts', async t => {
+test('completion validates input, stays private, and changes independently of other book details', async t => {
+  const app = await fixture(t); await app.login();
+  const { book } = await (await app.upload()).json();
+  const { book: other } = await (await app.upload(bookPdf('Other'), 'Other')).json();
+  assert.equal(book.completed, false);
+  const path = `books/${book.id}/completion`;
+  const patch = (body, options = {}) => app.request(path, { method: 'PATCH', body, ...options });
+  assert.equal((await patch({ completed: true }, { anonymous: true })).status, 401);
+  for (const headers of [{ Origin: 'https://evil.test' }, { 'X-CSRF-Token': '' }]) assert.equal((await patch({ completed: true }, { headers })).status, 403);
+  for (const body of [{}, { completed: 1 }, { completed: null }, { completed: 'true' }, { completed: true, name: 'Unexpected rename' }]) assert.equal((await patch(body)).status, 400);
+  assert.equal((await app.request(path)).status, 405);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const saved = await patch({ completed: true });
+    assert.equal(saved.status, 200); assert.equal((await saved.json()).book.completed, true);
+  }
+  await app.request(`books/${book.id}`, { method: 'PATCH', body: { name: 'Completed book', tags: ['Read'] } });
+  await app.request(`books/${book.id}/bookmark`, { method: 'PATCH', body: { page: 2 } });
+  await app.request(`books/${book.id}/notes`, { method: 'PATCH', body: { markdown: '# Finished reading' } });
+  let books = (await (await app.request('books')).json()).books;
+  assert.equal(books.find(item => item.id === book.id).completed, true);
+  assert.equal(books.find(item => item.id === other.id).completed, false);
+  const cleared = await patch({ completed: false });
+  assert.equal(cleared.status, 200);
+  const updated = (await cleared.json()).book;
+  assert.equal(updated.completed, false); assert.equal(updated.name, 'Completed book');
+  assert.deepEqual(updated.tags, ['Read']); assert.equal(updated.bookmarkPage, 2); assert.equal(updated.hasNotes, true);
+  assert.deepEqual(await (await app.request(`books/${book.id}/notes`)).json(), { markdown: '# Finished reading' });
+  assert.deepEqual(Buffer.from(await (await app.request(`books/${book.id}/pdf`)).arrayBuffer()), bookPdf());
+  await app.request(`books/${book.id}`, { method: 'DELETE', body: {} });
+  assert.equal((await patch({ completed: true })).status, 404);
+});
+
+test('migration preserves existing PDFs and book reading state persists across server restarts', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'pixelware-book-migration-'));
   const database = join(directory, 'admin.sqlite'); const pdf = bookPdf('Existing book');
   const id = '11111111-1111-4111-8111-111111111111';
@@ -149,13 +181,17 @@ test('migration preserves existing PDFs and bookmarks persist across server rest
   app = await fixture(t, database); await app.login();
   let data = await (await app.request('books')).json(); assert.equal(data.books[0].bookmarkPage, null); assert.deepEqual(data.books[0].tags, ['C++']);
   assert.equal(data.books[0].hasNotes, false);
+  assert.equal(data.books[0].completed, false);
   assert.deepEqual(await (await app.request(`books/${id}/notes`)).json(), { markdown: '' });
   assert.equal((await app.request(`books/${id}/notes`, { method: 'PATCH', body: { markdown: '# Existing book notes' } })).status, 200);
   assert.equal((await app.request(`books/${id}/bookmark`, { method: 'PATCH', body: { page: 2 } })).status, 200);
+  assert.equal((await app.request(`books/${id}/completion`, { method: 'PATCH', body: { completed: true } })).status, 200);
   assert.equal((await app.upload(bookPdf('New book after migration'), 'New book')).status, 201);
   await app.close(); restarted = await fixture(t, database); await restarted.login();
   data = await (await restarted.request('books')).json(); assert.equal(data.books.find(book => book.id === id).bookmarkPage, 2);
   assert.equal(data.books.find(book => book.id === id).hasNotes, true);
+  assert.equal(data.books.find(book => book.id === id).completed, true);
+  assert.equal(data.books.find(book => book.name === 'New book').completed, false);
   assert.deepEqual(await (await restarted.request(`books/${id}/notes`)).json(), { markdown: '# Existing book notes' });
   assert.equal(data.books.find(book => book.name === 'New book').bookmarkPage, null);
   assert.deepEqual(Buffer.from(await (await restarted.request(`books/${id}/pdf`)).arrayBuffer()), pdf);

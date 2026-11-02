@@ -63,9 +63,12 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
   if (!db.prepare('PRAGMA table_info(books)').all().some(column => column.name === 'notes_markdown')) {
     db.exec("ALTER TABLE books ADD COLUMN notes_markdown TEXT NOT NULL DEFAULT ''");
   }
+  if (!db.prepare('PRAGMA table_info(books)').all().some(column => column.name === 'completed')) {
+    db.exec('ALTER TABLE books ADD COLUMN completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN (0, 1))');
+  }
   let processing = 0;
-  const fields = "id, name, tags_json, pages, size, created_at, bookmark_page, (length(trim(notes_markdown)) > 0) AS has_notes";
-  const metadata = row => ({ id: row.id, name: row.name, tags: JSON.parse(row.tags_json), pages: row.pages, size: row.size, createdAt: row.created_at, bookmarkPage: row.bookmark_page, hasNotes: Boolean(row.has_notes) });
+  const fields = "id, name, tags_json, pages, size, created_at, bookmark_page, completed, (length(trim(notes_markdown)) > 0) AS has_notes";
+  const metadata = row => ({ id: row.id, name: row.name, tags: JSON.parse(row.tags_json), pages: row.pages, size: row.size, createdAt: row.created_at, bookmarkPage: row.bookmark_page, completed: Boolean(row.completed), hasNotes: Boolean(row.has_notes) });
   function list() { return db.prepare(`SELECT ${fields} FROM books ORDER BY name COLLATE NOCASE, id`).all().map(metadata); }
   function canonicalTags(tags) {
     const existing = new Map(list().flatMap(book => book.tags).map(tag => [tag.toLowerCase(), tag]));
@@ -113,11 +116,20 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
         return true;
       }
     }
-    const match = /^\/api\/admin\/books\/([a-f0-9-]{36})(?:\/(pdf|thumbnail|bookmark|notes|notes\/preview))?$/.exec(url.pathname);
+    const match = /^\/api\/admin\/books\/([a-f0-9-]{36})(?:\/(pdf|thumbnail|bookmark|completion|notes|notes\/preview))?$/.exec(url.pathname);
     if (!match) return false;
     const [, id, asset] = match;
     const row = db.prepare(`SELECT ${fields} FROM books WHERE id = ?`).get(id);
     if (!row) throw new HttpError(404, 'Book not found.');
+    if (asset === 'completion' && req.method === 'PATCH') {
+      const body = await readJson(req);
+      if (Object.keys(body).length !== 1 || typeof body.completed !== 'boolean') {
+        throw new HttpError(400, 'Choose whether the book is complete.');
+      }
+      db.prepare('UPDATE books SET completed = ? WHERE id = ?').run(Number(body.completed), id);
+      send(res, 200, { book: metadata(db.prepare(`SELECT ${fields} FROM books WHERE id = ?`).get(id)) });
+      return true;
+    }
     if (asset === 'notes' && req.method === 'GET') {
       send(res, 200, { markdown: db.prepare('SELECT notes_markdown FROM books WHERE id = ?').get(id).notes_markdown });
       return true;

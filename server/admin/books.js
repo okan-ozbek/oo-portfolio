@@ -22,6 +22,7 @@ export function initBooks({ api, toast }) {
   let editSession = null, authVersion = 0;
   const editSessions = new Map();
   const pending = new Set();
+  const completing = new Set();
   let noteSession = null;
   const noteInput = createMarkdownEditor($('book-notes-markdown'), { enhance: enhanceContent, onLimit: toast });
   const noteDirty = () => noteSession && noteSession.markdown !== noteSession.saved;
@@ -243,7 +244,7 @@ export function initBooks({ api, toast }) {
     $('book-table-wrap').hidden = visible.length === 0;
     const rows = $('book-rows'); rows.replaceChildren();
     for (const book of visible) {
-      const row = el('tr', 'book-entry'); row.setAttribute('aria-label', `${book.name}, edit details`); row.tabIndex = 0;
+      const row = el('tr', `book-entry${book.completed ? ' is-completed' : ''}`); row.setAttribute('aria-label', `${book.name}${book.completed ? ', completed' : ''}, edit details`); row.tabIndex = 0;
       row.addEventListener('click', event => {
         if (!event.target.closest('a, button, input')) openEdit(book);
       });
@@ -257,7 +258,9 @@ export function initBooks({ api, toast }) {
       const title = el('div', 'book-title');
       const preview = el('a', 'book-name', book.name); preview.href = previewUrl; preview.target = '_blank'; preview.rel = 'noopener';
       if (book.bookmarkPage) { cover.title = preview.title = `Resume at PDF page ${book.bookmarkPage}`; }
-      title.append(preview, el('span', 'book-file-meta', `PDF · ${(book.size / 1024 / 1024).toFixed(1)} MB`));
+      const fileMeta = el('span', 'book-file-meta', `PDF · ${(book.size / 1024 / 1024).toFixed(1)} MB`);
+      if (book.completed) fileMeta.append(el('span', 'book-completed-label', ' · Completed'));
+      title.append(preview, fileMeta);
       const pages = el('span', 'book-pages', format.format(book.pages)); pages.setAttribute('aria-label', `${book.pages} pages`);
       const pageInfo = el('div', 'book-page-info');
       const bookmark = button('', () => openBookmark(book), `book-bookmark${book.bookmarkPage ? ' is-bookmarked' : ''}`);
@@ -269,16 +272,43 @@ export function initBooks({ api, toast }) {
       for (const tag of book.tags) tags.append(button(tag, () => { activeTag = tag; render(); }, tagClass(tag)));
       const edit = button(book.tags.length ? '＋' : '＋ Add tags', () => openEdit(book), 'book-add-tags'); edit.setAttribute('aria-label', `Edit tags for ${book.name}`); tags.append(edit);
       const actions = el('div', 'book-actions');
+      const complete = button('', () => void toggleComplete(book, complete), 'action-button book-completion');
+      complete.dataset.bookId = book.id;
+      complete.title = book.completed ? 'Mark incomplete' : 'Mark complete';
+      complete.setAttribute('aria-label', `Mark ${book.name} as ${book.completed ? 'incomplete' : 'complete'}`);
+      complete.setAttribute('aria-pressed', String(Boolean(book.completed)));
+      complete.disabled = completing.has(book.id);
+      complete.append(icon('verified'));
       const notes = button('', () => void openNotes(book), `action-button${book.hasNotes ? ' has-notes' : ''}`);
       notes.title = book.hasNotes ? 'Edit notes' : 'Add notes'; notes.setAttribute('aria-label', `Notes for ${book.name}`); notes.append(icon('notes'));
       const download = el('a', 'action-button'); download.href = `${base}/pdf?download=1`; download.download = `${book.name}.pdf`; download.title = 'Download PDF'; download.setAttribute('aria-label', `Download ${book.name}`); download.append(icon('download'));
       const remove = button('', () => { deleting = book; $('book-delete-name').textContent = book.name; $('book-delete-error').textContent = ''; $('book-delete-dialog').showModal(); }, 'action-button destructive');
       remove.title = 'Delete book'; remove.setAttribute('aria-label', `Delete ${book.name}`); remove.append(icon('trash'));
-      actions.append(notes, download, remove);
+      actions.append(complete, notes, download, remove);
       for (const [className, node] of [['book-cover-cell', cover], ['book-title-cell', title], ['book-pages-cell', pageInfo], ['book-tags-cell', tags], ['book-actions-cell', actions]]) {
         const cell = el('td', className); cell.append(node); row.append(cell);
       }
       rows.append(row);
+    }
+  }
+  async function toggleComplete(book, control) {
+    if (completing.has(book.id)) return;
+    const currentAuth = authVersion, hadFocus = document.activeElement === control;
+    completing.add(book.id); control.disabled = true;
+    try {
+      const { book: saved } = await api(`books/${book.id}/completion`, { method: 'PATCH', body: { completed: !book.completed } });
+      if (currentAuth !== authVersion) return;
+      books = books.map(item => item.id === book.id ? { ...item, completed: saved.completed } : item);
+      completing.delete(book.id); render();
+      toast(saved.completed ? 'Book marked complete.' : 'Book marked incomplete.');
+    } catch (error) { if (currentAuth === authVersion) toast(`Book status was not saved: ${error.message}`); }
+    finally {
+      if (currentAuth === authVersion) {
+        completing.delete(book.id); control.disabled = false;
+        const current = [...$('book-rows').querySelectorAll('.book-completion')].find(node => node.dataset.bookId === book.id);
+        if (current) current.disabled = false;
+        if (hadFocus && document.activeElement === document.body) current?.focus({ preventScroll: true });
+      }
     }
   }
   async function refresh() {
@@ -394,7 +424,7 @@ export function initBooks({ api, toast }) {
   return { refresh, reset() {
     clearTimeout(noteSession?.timer); clearTimeout(noteSession?.previewTimer); noteSession = null;
     $('book-notes-dialog').close(); noteInput.value = ''; $('book-notes-preview').replaceChildren();
-    authVersion++; editSession = null; editSessions.clear();
+    authVersion++; editSession = null; editSessions.clear(); completing.clear();
     version++; books = []; allTags = []; activeTag = ''; editing = null; deleting = null; bookmarking = null;
     $('book-search').value = ''; $('book-rows').replaceChildren(); $('book-filters').replaceChildren();
     for (const prefix of ['upload', 'edit', 'delete', 'bookmark']) $(`book-${prefix}-dialog`).close();

@@ -4,6 +4,11 @@ Open `/admin`, sign in, and select **Books**. The library belongs to the private
 admin service, not the public static website. PDFs, covers, and downloads all
 require the existing admin session. Nothing is copied into `public/` or Git.
 
+Use the check-circle button on a book row to mark it complete. Completed books
+have a soft green row highlight and a **Completed** label. Click the button again
+to mark a book incomplete. This status saves automatically and persists across
+refreshes, edits, and server restarts.
+
 Each list row contains the first-page thumbnail, book name, actual PDF page
 count, tags, and Download / Delete actions. Click the cover or title to open
 the PDF preview. Click elsewhere on a row, or the `+` beside its tags, to
