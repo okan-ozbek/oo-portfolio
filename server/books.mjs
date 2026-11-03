@@ -90,13 +90,30 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
     completed
   );
   CREATE INDEX IF NOT EXISTS books_thumbnails ON books (id, thumbnail);`);
+  // All frequently edited state lives in a compact record. Keep legacy columns
+  // untouched after the one-time copy, avoiding PDF rewrites on bookmark/tag edits.
+  if (!db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'book_state'").get()) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec(`CREATE TABLE book_state (
+        id TEXT PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
+        name TEXT NOT NULL, tags_json TEXT NOT NULL, pages INTEGER NOT NULL,
+        size INTEGER NOT NULL, created_at TEXT NOT NULL,
+        bookmark_page INTEGER CHECK(bookmark_page >= 1),
+        completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN (0, 1))
+      ) STRICT;
+      INSERT INTO book_state SELECT id, name, tags_json, pages, size, created_at, bookmark_page, completed
+        FROM books INDEXED BY books_metadata;
+      CREATE INDEX book_state_name ON book_state (name COLLATE NOCASE, id);`);
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+  }
   let processing = 0;
   const fields = `id, name, tags_json, pages, size, created_at, bookmark_page, completed,
-    EXISTS (SELECT 1 FROM book_notes WHERE book_id = books.id AND length(trim(markdown)) > 0) AS has_notes`;
+    EXISTS (SELECT 1 FROM book_notes WHERE book_id = book_state.id AND length(trim(markdown)) > 0) AS has_notes`;
   const metadata = row => ({ id: row.id, name: row.name, tags: JSON.parse(row.tags_json), pages: row.pages, size: row.size, createdAt: row.created_at, bookmarkPage: row.bookmark_page, completed: Boolean(row.completed), hasNotes: Boolean(row.has_notes) });
-  // Pin these lookups to the covering index, including by-ID reads where SQLite
-  // would otherwise prefer the primary key followed by the large table record.
-  const metadataTable = 'books INDEXED BY books_metadata';
+  // This table contains compact metadata only; none of these reads visit PDFs.
+  const metadataTable = 'book_state';
   const find = id => db.prepare(`SELECT ${fields} FROM ${metadataTable} WHERE id = ?`).get(id);
   function list() { return db.prepare(`SELECT ${fields} FROM ${metadataTable} ORDER BY name COLLATE NOCASE, id`).all().map(metadata); }
   function canonicalTags(tags) {
@@ -116,7 +133,13 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
       const { pages, thumbnail } = await inspect(pdf);
       if (duplicate()) throw new HttpError(409, 'This PDF is already in your library.');
       const id = randomUUID();
-      db.prepare('INSERT INTO books (id, name, tags_json, pages, size, sha256, pdf, thumbnail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, identity.name, JSON.stringify(canonicalTags(identity.tags)), pages, pdf.length, hash, pdf, thumbnail, new Date(now()).toISOString());
+      const tagsJson = JSON.stringify(canonicalTags(identity.tags)), createdAt = new Date(now()).toISOString();
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        db.prepare('INSERT INTO books (id, name, tags_json, pages, size, sha256, pdf, thumbnail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, identity.name, tagsJson, pages, pdf.length, hash, pdf, thumbnail, createdAt);
+        db.prepare('INSERT INTO book_state (id, name, tags_json, pages, size, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, identity.name, tagsJson, pages, pdf.length, createdAt);
+        db.exec('COMMIT');
+      } catch (error) { db.exec('ROLLBACK'); throw error; }
       return metadata(find(id));
     } finally { processing--; }
   }
@@ -159,7 +182,7 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
       if (Object.keys(body).length !== 1 || typeof body.completed !== 'boolean') {
         throw new HttpError(400, 'Choose whether the book is complete.');
       }
-      db.prepare('UPDATE books SET completed = ? WHERE id = ?').run(Number(body.completed), id);
+      db.prepare('UPDATE book_state SET completed = ? WHERE id = ?').run(Number(body.completed), id);
       send(res, 200, { book: metadata(find(id)) });
       return true;
     }
@@ -183,7 +206,7 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
       if (Object.keys(body).length !== 1 || !Object.hasOwn(body, 'page') || (body.page !== null && (!Number.isSafeInteger(body.page) || body.page < 1 || body.page > row.pages))) {
         throw new HttpError(400, `Choose a PDF page between 1 and ${row.pages}, or clear the bookmark.`);
       }
-      db.prepare('UPDATE books SET bookmark_page = ? WHERE id = ?').run(body.page, id);
+      db.prepare('UPDATE book_state SET bookmark_page = ? WHERE id = ?').run(body.page, id);
       send(res, 200, { book: metadata(find(id)) });
       return true;
     }
@@ -222,7 +245,7 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
     if (!asset && req.method === 'PATCH') {
       const body = await readJson(req);
       const identity = bookIdentity(body.name, body.tags);
-      db.prepare('UPDATE books SET name = ?, tags_json = ? WHERE id = ?').run(identity.name, JSON.stringify(canonicalTags(identity.tags)), id);
+      db.prepare('UPDATE book_state SET name = ?, tags_json = ? WHERE id = ?').run(identity.name, JSON.stringify(canonicalTags(identity.tags)), id);
       send(res, 200, { book: metadata(find(id)) });
       return true;
     }

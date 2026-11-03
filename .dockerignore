@@ -5,6 +5,7 @@
 .sites-runtime
 .wrangler
 node_modules
+.admin-runtime
 dist
 .next
 out

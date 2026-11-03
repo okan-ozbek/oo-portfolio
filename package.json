@@ -12,7 +12,7 @@
     "books:import": "node scripts/import-books.mjs",
     "resume:compiler": "docker compose -p pixelware-resume-dev -f compose.compiler-dev.yaml up -d --build --wait --wait-timeout 90",
     "test:resumes:compiler": "node scripts/smoke-resume-compiler.mjs",
-    "test:admin": "node scripts/build-home.mjs && node --test tests/admin.test.mjs tests/resumes.test.mjs tests/books.test.mjs tests/blogs.test.mjs tests/markdown-editor.test.mjs tests/reader-palette.test.mjs tests/pdf-ranges.test.mjs tests/projects.test.mjs tests/view-analytics.test.mjs",
+    "test:admin": "node scripts/build-home.mjs && node --test tests/admin.test.mjs tests/resumes.test.mjs tests/books.test.mjs tests/blogs.test.mjs tests/markdown-editor.test.mjs tests/reader-palette.test.mjs tests/pdf-ranges.test.mjs tests/performance.test.mjs tests/deploy-images.test.mjs tests/projects.test.mjs tests/view-analytics.test.mjs",
     "build:blog": "node scripts/build-blog.mjs",
     "test:admin:container": "node scripts/smoke-admin-container.mjs",
     "test:deploy": "node scripts/smoke-deploy.mjs",

@@ -1,4 +1,5 @@
 import { createHome } from './home.mjs';
+import { createAssetServer } from './assets.mjs';
 import { createSeo } from './seo.mjs';
 import { activityWindow } from './activity-window.mjs';
 import { createServer } from "node:http";
@@ -32,6 +33,7 @@ const assets = new Map([
   ["/admin/book-reader", ["book-reader.html", "text/html; charset=utf-8"]],
   ["/admin/assets/book-reader.css", ["book-reader.css", "text/css; charset=utf-8"]],
   ["/admin/assets/admin.js", ["admin.js", "text/javascript; charset=utf-8"]],
+  ["/admin/assets/lazy-workspace.js", ["lazy-workspace.js", "text/javascript; charset=utf-8"]],
   ["/admin/assets/api-response.js", ["api-response.js", "text/javascript; charset=utf-8"]],
   ["/admin/assets/admin.css", ["admin.css", "text/css; charset=utf-8"]],
   ["/admin/assets/mobile.css", ["mobile.css", "text/css; charset=utf-8"]],
@@ -121,9 +123,9 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
   const books = createBooks({ db, now, send });
   const analytics = createViewAnalytics({ db, now, secureCookies });
   const projects = createProjects({ db, now, send, analytics, origin, acceptOrigin:value=>allowedOrigins.has(value), onPublicChange:()=>seo.touch('home') });
-  const blogs = createBlogs({ db, origin, now, send, isAuthenticated: session, analytics, publicChrome:()=>({resumeAvailable:resumes.websiteAvailable(),projectCount:projects.visible().length}), onPublicChange:()=>{seo.touch('blogs');seo.touch('home');} });
-  const home = createHome({origin,projects,blogs,resumes,development:localNoLogin});
-  const pdfAssets = new Map();
+  const serveAsset = createAssetServer({ development: localNoLogin });
+  const blogs = createBlogs({ db, origin, now, send, serveAsset, isAuthenticated: session, analytics, publicChrome:()=>({resumeAvailable:resumes.websiteAvailable(),projectCount:projects.visible().length}), onPublicChange:()=>{seo.touch('blogs');seo.touch('home');} });
+  const home = createHome({origin,projects,blogs,resumes,serveAsset,development:localNoLogin});
   function validateLink(body) {
     const { slug, label = `/r/${slug}`, destination, source = "", enabled = true } = body;
     if (typeof label !== "string" || !label.trim() || label.length > 100) throw new HttpError(400, "Enter a label of 1–100 characters.");
@@ -171,32 +173,17 @@ export function createAdminServer({ passwordHash, origin, databasePath, secureCo
       if (assets.has(path) && ["GET", "HEAD"].includes(req.method)) {
         if (path === '/admin/book-reader') res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; font-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
         const [file, type] = assets.get(path);
+        if (!type.startsWith('text/html')) return await serveAsset(req, res, new URL(`./admin/${file}`, import.meta.url), type);
         const body = readFileSync(new URL(`./admin/${file}`, import.meta.url));
         res.writeHead(200, { "Content-Type": type });
         return res.end(req.method === "HEAD" ? undefined : body);
       }
       const pdfAsset = /^\/admin\/pdfjs\/(build\/pdf\.worker\.mjs|web\/pdf_viewer\.css|web\/images\/[\w.-]+\.(?:svg|png|gif)|cmaps\/[\w.-]+\.bcmap|standard_fonts\/[\w.-]+\.(?:pfb|ttf)|wasm\/[\w.-]+\.(?:wasm|js))$/.exec(path);
       if (pdfAsset && ['GET', 'HEAD'].includes(req.method)) {
-        let cached = pdfAssets.get(pdfAsset[1]);
-        try {
-          if (!cached) {
-            const body = readFileSync(new URL(`../node_modules/pdfjs-dist/${pdfAsset[1]}`, import.meta.url));
-            cached = { body, etag: `"${sha256(body)}"` }; pdfAssets.set(pdfAsset[1], cached);
-          }
-        }
-        catch { throw new HttpError(404, 'PDF reader asset not found.'); }
-        const { body, etag } = cached;
-        // Public package files can be revalidated across visits/deployments;
-        // private PDFs and API responses retain their no-store policy.
-        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
-        res.setHeader('ETag', etag);
-        if ((req.headers['if-none-match'] ?? '').split(',').some(value => value.trim().replace(/^W\//, '') === etag || value.trim() === '*')) {
-          res.writeHead(304); res.end(); return;
-        }
         const extension = pdfAsset[1].split('.').at(-1);
         const type = { mjs: 'text/javascript', js: 'text/javascript', css: 'text/css', wasm: 'application/wasm', svg: 'image/svg+xml', png: 'image/png', gif: 'image/gif', ttf: 'font/ttf' }[extension] ?? 'application/octet-stream';
-        res.writeHead(200, { 'Content-Type': type, 'Content-Length': body.length });
-        return res.end(req.method === 'HEAD' ? undefined : body);
+        try { return await serveAsset(req, res, new URL(`../node_modules/pdfjs-dist/${pdfAsset[1]}`, import.meta.url), type); }
+        catch (error) { if (error.code === 'ENOENT') throw new HttpError(404, 'PDF reader asset not found.'); throw error; }
       }
       if (await home(req,res,requestUrl)) return;
       if (seo.publicRoute(req,res,requestUrl)) return;

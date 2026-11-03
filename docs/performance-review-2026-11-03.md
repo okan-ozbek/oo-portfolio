@@ -1,5 +1,33 @@
 # Performance review — 3 November 2026
 
+## Implementation status
+
+The first implementation batch now separates book metadata from PDF rows,
+loads admin sections and the notes editor on demand, revalidates/caches public
+assets, removes hidden blog preview/library/history work, and avoids resume PDF
+reads for metadata and cached thumbnails. Deployment promotes tested images
+through GitHub Container Registry by digest, using temporary workflow credentials
+instead of VPS builds. The runtime dependency-copy stage excludes browser/build
+packages. Bundle publication stages complete builds and retains the preceding
+generation; development preserves older chunks for active tabs.
+
+The PDF reader's on-demand ranges, metadata-only HEAD, cached palettes, and
+unchanged-filter reuse were implemented before this batch. SQLite range slices
+still have native SQLite traversal costs; filesystem PDF migration remains a
+separate change. Public HTML output caching remains deferred pending production
+traffic/render profiles. The original measurements below describe the baseline.
+
+Validation: the full production build, static checks, 95 admin regression tests,
+typecheck, and lint passed. The final Docker image passed isolated deployment
+persistence and NGINX/admin/compiler smoke tests. In a new 80 MiB disposable WAL
+fixture, individual bookmark/completion/rename saves took 6.48/1.47/1.33 ms.
+These remain diagnostic single-operation measurements. Browser checks confirmed
+zero Markdown editor instances in analytics and the book library, notes loaded
+on demand with their content intact, and preview/changelog rendering on demand.
+The runtime stage copies 22 installed packages and their resolution paths.
+Registry promotion was tested with a mocked registry client; activation and
+production timing require the next GitHub Actions deployment run.
+
 The strongest findings are synchronous PDF storage work in the admin service,
 eager editor loading, and rebuilding admin images during deployment. The recent
 notes fix addresses one instance of the storage problem; other book operations
@@ -126,7 +154,7 @@ book notes. Each successful autosave also rebuilds the hidden library and
 reloads revision history (lines 69–89 at review time).
 
 Render previews only while Preview is visible. Refresh revision history when
-the History tab is opened or visible, and defer hidden library rendering until
+the Changelog section approaches the viewport, and defer hidden library rendering until
 returning to it. Keep word counts independent of preview requests. Verify
 autosave ordering, image controls, publishing, and revision restoration.
 

@@ -1,7 +1,5 @@
 import { icon } from './icons.js';
 import { formatMarkdown } from './blog-format.js';
-import { enhanceContent } from '/blog/assets/reader.js';
-import { bindComposerModes, createMarkdownEditor } from '/blog/assets/markdown-editor.js';
 const $ = id => document.getElementById(id);
 const el = (tag, className, text) => {
   const node = document.createElement(tag);
@@ -24,7 +22,22 @@ export function initBooks({ api, toast }) {
   const pending = new Set();
   const completing = new Set();
   let noteSession = null;
-  const noteInput = createMarkdownEditor($('book-notes-markdown'), { enhance: enhanceContent, onLimit: toast });
+  let noteInput, noteEditorPromise, enhanceContent;
+  function ensureNoteEditor() {
+    return noteEditorPromise ??= Promise.all([import('/blog/assets/markdown-editor.js'), import('/blog/assets/reader.js')]).then(([editor, reader]) => {
+      enhanceContent = reader.enhanceContent;
+      noteInput = editor.createMarkdownEditor($('book-notes-markdown'), { enhance: enhanceContent, onLimit: toast });
+      noteInput.addEventListener('input', noteChanged);
+      editor.bindComposerModes(noteInput, $('book-notes-panes'), document.querySelectorAll('[data-note-mode]'), mode => {
+        if (noteSession) { clearTimeout(noteSession.previewTimer); noteSession.previewSequence++; }
+        if (mode === 'preview') void previewNote();
+      });
+      noteInput.addEventListener('keydown', event => {
+        if (event.key === 'Tab') { event.preventDefault(); noteInput.setRangeText('  ', noteInput.selectionStart, noteInput.selectionEnd, 'end'); noteChanged(); }
+        if ((event.ctrlKey || event.metaKey) && event.key === 's') { event.preventDefault(); void saveNote(); }
+      });
+    }).catch(error => { noteEditorPromise = null; throw error; });
+  }
   const noteDirty = () => noteSession && noteSession.markdown !== noteSession.saved;
   function noteStatus(text, failed = false) {
     $('book-notes-status').textContent = text;
@@ -87,14 +100,15 @@ export function initBooks({ api, toast }) {
   }
   async function openNotes(book) {
     const active = noteSession = { id: book.id, markdown: '', saved: '', loading: true, previewSequence: 0 };
-    noteInput.value = ''; noteInput.disabled = true;
+    $('book-notes-markdown').disabled = true;
+    if (noteInput) { noteInput.value = ''; noteInput.disabled = true; }
     $('book-notes-name').textContent = book.name;
     $('book-notes-error').textContent = ''; $('book-notes-preview').replaceChildren();
     $('book-notes-words').textContent = '0 words';
     $('book-notes-clear').disabled = $('book-notes-done').disabled = true;
     noteStatus('Loading note…'); $('book-notes-dialog').showModal();
     try {
-      const { markdown } = await api(`books/${book.id}/notes`);
+      const [{ markdown }] = await Promise.all([api(`books/${book.id}/notes`), ensureNoteEditor()]);
       if (noteSession !== active) return;
       active.markdown = active.saved = markdown; active.loading = false;
       noteInput.value = markdown; noteInput.disabled = false;
@@ -112,7 +126,6 @@ export function initBooks({ api, toast }) {
     clearTimeout(active.timer); clearTimeout(active.previewTimer);
     noteSession = null; $('book-notes-dialog').close();
   }
-  noteInput.addEventListener('input', noteChanged);
   const noteSnippets = { code: '\n```\n// Your code here\n```\n', mermaid: '\n```mermaid\nflowchart LR\n  A[Idea] --> B[Takeaway]\n```\n', link: '[Link text](https://example.com)' };
   for (const tool of document.querySelectorAll('[data-note-insert]')) {
     tool.append(icon(tool.dataset.noteIcon));
@@ -127,14 +140,6 @@ export function initBooks({ api, toast }) {
       noteChanged();
     });
   }
-  bindComposerModes(noteInput, $('book-notes-panes'), document.querySelectorAll('[data-note-mode]'), mode => {
-    if (noteSession) { clearTimeout(noteSession.previewTimer); noteSession.previewSequence++; }
-    if (mode === 'preview') void previewNote();
-  });
-  noteInput.addEventListener('keydown', event => {
-    if (event.key === 'Tab') { event.preventDefault(); noteInput.setRangeText('  ', noteInput.selectionStart, noteInput.selectionEnd, 'end'); noteChanged(); }
-    if ((event.ctrlKey || event.metaKey) && event.key === 's') { event.preventDefault(); void saveNote(); }
-  });
   $('book-notes-retry').addEventListener('click', () => void saveNote());
   $('book-notes-clear').addEventListener('click', () => { noteInput.value = ''; noteChanged(); noteInput.focus(); });
   $('book-notes-close').addEventListener('click', () => void closeNotes());
@@ -430,7 +435,7 @@ export function initBooks({ api, toast }) {
   });
   return { refresh, reset() {
     clearTimeout(noteSession?.timer); clearTimeout(noteSession?.previewTimer); noteSession = null;
-    $('book-notes-dialog').close(); noteInput.value = ''; $('book-notes-preview').replaceChildren();
+    $('book-notes-dialog').close(); if (noteInput) noteInput.value = ''; $('book-notes-preview').replaceChildren();
     authVersion++; editSession = null; editSessions.clear(); completing.clear();
     version++; books = []; allTags = []; activeTag = ''; editing = null; deleting = null; bookmarking = null;
     $('book-search').value = ''; $('book-rows').replaceChildren(); $('book-filters').replaceChildren();
