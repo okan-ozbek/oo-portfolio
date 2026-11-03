@@ -52,7 +52,11 @@ export function createResumes({ db, origin, now, send, visitor, onPublicChange=(
       resume_id TEXT PRIMARY KEY REFERENCES resumes(id) ON DELETE CASCADE,
       pdf_hash TEXT NOT NULL, thumbnail BLOB NOT NULL
     ) STRICT;
+    CREATE INDEX IF NOT EXISTS resumes_metadata ON resumes
+      (id, name, slug, main_file, pages, created_at, compiled_at, published_at,
+       draft_version, published_version, length(draft_pdf));
   `);
+  const fields = 'id,name,slug,main_file,pages,created_at,compiled_at,published_at,draft_version,published_version,length(draft_pdf) AS draft_size';
   const busy = new Set();
   const previews = new Map();
   const transaction = work => {
@@ -66,13 +70,13 @@ export function createResumes({ db, origin, now, send, visitor, onPublicChange=(
   function metadata(row) {
     return { id: row.id, name: row.name, slug: row.slug, mainFile: row.main_file, pages: row.pages,
       createdAt: row.created_at, compiledAt: row.compiled_at,
-      isDefault: defaultId() === row.id, url: `${origin}/resumes/${row.slug}.pdf`,
-      downloads: db.prepare('SELECT COALESCE(SUM(downloads), 0) AS n FROM resume_downloads_daily WHERE resume_id = ?').get(row.id).n,
-      clicks: db.prepare('SELECT COALESCE(SUM(d.clicks), 0) AS n FROM daily_clicks d JOIN resume_links r ON r.link_id = d.link_id WHERE r.resume_id = ?').get(row.id).n,
-      trackedLinks: db.prepare('SELECT COUNT(*) AS n FROM resume_links WHERE resume_id = ? AND tracked = 1 AND link_id IS NOT NULL').get(row.id).n };
+      isDefault: row.is_default === undefined ? defaultId() === row.id : Boolean(row.is_default), url: `${origin}/resumes/${row.slug}.pdf`,
+      downloads: row.downloads ?? db.prepare('SELECT COALESCE(SUM(downloads), 0) AS n FROM resume_downloads_daily WHERE resume_id = ?').get(row.id).n,
+      clicks: row.clicks ?? db.prepare('SELECT COALESCE(SUM(d.clicks), 0) AS n FROM daily_clicks d JOIN resume_links r ON r.link_id = d.link_id WHERE r.resume_id = ?').get(row.id).n,
+      trackedLinks: row.tracked_links ?? db.prepare('SELECT COUNT(*) AS n FROM resume_links WHERE resume_id = ? AND tracked = 1 AND link_id IS NOT NULL').get(row.id).n };
   }
   function get(id) {
-    const row = db.prepare('SELECT * FROM resumes WHERE id = ?').get(id);
+    const row = db.prepare(`SELECT ${fields} FROM resumes INDEXED BY resumes_metadata WHERE id = ?`).get(id);
     if (!row) throw new HttpError(404, 'Resume not found.');
     return row;
   }
@@ -81,8 +85,9 @@ export function createResumes({ db, origin, now, send, visitor, onPublicChange=(
     catch { return false; }
   }
   function detail(row) {
+    const source = db.prepare('SELECT files_json, scan_json FROM resumes WHERE id = ?').get(row.id);
     const mappings = db.prepare('SELECT r.*, l.slug, l.label, l.enabled FROM resume_links r LEFT JOIN links l ON l.id = r.link_id WHERE resume_id = ?').all(row.id);
-    return { ...metadata(row), files: JSON.parse(row.files_json).map(file => file.path), links: JSON.parse(row.scan_json).map((link, index) => {
+    return { ...metadata(row), files: JSON.parse(source.files_json).map(file => file.path), links: JSON.parse(source.scan_json).map((link, index) => {
       const mapping = mappings.find(item => item.url_key === link.key);
       let host = 'link';
       try { host = new URL(link.destination).hostname.replace(/^www\./, '').split('.')[0].replace(/[^a-z0-9]+/g, '-'); } catch { /* non-web URI */ }
@@ -108,7 +113,7 @@ export function createResumes({ db, origin, now, send, visitor, onPublicChange=(
     return detail(get(id));
   }
   function pdfResponse(req, res, row, publicDownload) {
-    const pdf = row.draft_pdf;
+    const pdf = req.method === 'HEAD' ? null : db.prepare('SELECT draft_pdf FROM resumes WHERE id = ?').get(row.id).draft_pdf;
     const preview = /prefetch|prerender/i.test(`${req.headers.purpose ?? ''} ${req.headers['sec-purpose'] ?? ''}`);
     if (publicDownload && req.method === 'GET' && !preview) {
       const token = visitor(req, res);
@@ -123,14 +128,14 @@ export function createResumes({ db, origin, now, send, visitor, onPublicChange=(
     res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
     if(publicDownload && row.id===defaultId()){res.removeHeader('X-Robots-Tag');res.setHeader('Link',`<${origin}/resume.pdf>; rel="canonical"`);}
     const attachment = publicDownload || new URL(req.url, 'http://internal').searchParams.get('download') === '1';
-    res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Length': pdf.length, 'Content-Disposition': `${attachment ? 'attachment' : 'inline'}; filename="${row.slug}.pdf"` });
+    res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Length': row.draft_size, 'Content-Disposition': `${attachment ? 'attachment' : 'inline'}; filename="${row.slug}.pdf"` });
     res.end(req.method === 'HEAD' ? undefined : Buffer.from(pdf));
   }
   async function publicRoute(req, res, url) {
     const match = url.pathname.match(/^\/resumes\/([a-z0-9-]+)\.pdf$/);
     if (url.pathname !== '/api/public/resume' && url.pathname !== '/resume.pdf' && !match) return false;
     if (!['GET', 'HEAD'].includes(req.method)) throw new HttpError(405, 'Method not allowed.');
-    const row = match ? db.prepare('SELECT * FROM resumes WHERE slug = ?').get(match[1]) : db.prepare('SELECT * FROM resumes WHERE id = ?').get(defaultId());
+    const row = match ? db.prepare(`SELECT ${fields} FROM resumes INDEXED BY resumes_metadata WHERE slug = ?`).get(match[1]) : db.prepare(`SELECT ${fields} FROM resumes INDEXED BY resumes_metadata WHERE id = ?`).get(defaultId());
     if (url.pathname === '/api/public/resume') { send(res, 200, { available: Boolean(row), ...(row ? { name: row.name, url: '/resume.pdf' } : {}) }); return true; }
     if (!row) throw new HttpError(404, 'No resume is available.');
     pdfResponse(req, res, row, true); return true;
@@ -138,7 +143,13 @@ export function createResumes({ db, origin, now, send, visitor, onPublicChange=(
   async function adminRoute(req, res, url) {
     const root = '/api/admin/resumes';
     if (url.pathname !== root && !url.pathname.startsWith(`${root}/`)) return false;
-    if (url.pathname === root && req.method === 'GET') { send(res, 200, { resumes: db.prepare('SELECT id,name,slug,main_file,pages,created_at,compiled_at,published_at,draft_version,published_version FROM resumes ORDER BY created_at DESC').all().map(metadata) }); return true; }
+    if (url.pathname === root && req.method === 'GET') {
+      const currentDefault = defaultId();
+      const downloads = new Map(db.prepare('SELECT resume_id, SUM(downloads) AS n FROM resume_downloads_daily GROUP BY resume_id').all().map(row => [row.resume_id, row.n]));
+      const clicks = new Map(db.prepare('SELECT r.resume_id, SUM(d.clicks) AS n FROM resume_links r JOIN daily_clicks d ON d.link_id = r.link_id GROUP BY r.resume_id').all().map(row => [row.resume_id, row.n]));
+      const tracked = new Map(db.prepare('SELECT resume_id, COUNT(*) AS n FROM resume_links WHERE tracked = 1 AND link_id IS NOT NULL GROUP BY resume_id').all().map(row => [row.resume_id, row.n]));
+      send(res, 200, { resumes: db.prepare(`SELECT ${fields} FROM resumes INDEXED BY resumes_metadata ORDER BY created_at DESC`).all().map(row => metadata({ ...row, is_default: Number(currentDefault === row.id), downloads: downloads.get(row.id) ?? 0, clicks: clicks.get(row.id) ?? 0, tracked_links: tracked.get(row.id) ?? 0 })) }); return true;
+    }
     if (url.pathname === root && req.method === 'POST') {
       const body = await readJson(req, MAX_REQUEST_BYTES);
       identity(body);
@@ -151,16 +162,19 @@ export function createResumes({ db, origin, now, send, visitor, onPublicChange=(
     const [, id, action] = match;
     const row = get(id);
     if (['GET', 'HEAD'].includes(req.method) && action === 'thumbnail') {
-      const digest = hash(row.draft_pdf);
+      // Compilation already advances this persisted version. Cache hits need
+      // neither the PDF bytes nor a fresh hash of the entire document.
+      const digest = `version:${row.draft_version}`;
       const cached = db.prepare('SELECT thumbnail FROM resume_thumbnails WHERE resume_id = ? AND pdf_hash = ?').get(id, digest);
       let thumbnail = cached?.thumbnail;
       if (!thumbnail) {
         const key = `${id}:${digest}`;
         if (!previews.has(key)) {
-          const task = pdfThumbnail(row.draft_pdf).then(image => {
+          const pdf = db.prepare('SELECT draft_pdf FROM resumes WHERE id = ?').get(id).draft_pdf;
+          const task = pdfThumbnail(pdf).then(image => {
             // A resume can be deleted or rebuilt while its preview is rendering.
-            const current = db.prepare('SELECT draft_pdf FROM resumes WHERE id = ?').get(id);
-            if (current && hash(current.draft_pdf) === digest) db.prepare('INSERT OR REPLACE INTO resume_thumbnails VALUES (?, ?, ?)').run(id, digest, image);
+            const current = db.prepare('SELECT draft_version FROM resumes INDEXED BY resumes_metadata WHERE id = ?').get(id);
+            if (current?.draft_version === row.draft_version) db.prepare('INSERT OR REPLACE INTO resume_thumbnails VALUES (?, ?, ?)').run(id, digest, image);
             return image;
           }).finally(() => previews.delete(key));
           previews.set(key, task);
@@ -176,12 +190,14 @@ export function createResumes({ db, origin, now, send, visitor, onPublicChange=(
     if (busy.has(id)) throw new HttpError(409, 'This resume is being built. Try again shortly.');
     if (req.method === 'POST' && action === 'duplicate') {
       const body = await readJson(req);
-      send(res, 201, { resume: insert(body, { mainFile: row.main_file, files: JSON.parse(row.files_json) }, { pdf: Buffer.from(row.original_pdf).toString('base64'), links: JSON.parse(row.scan_json), pages: row.pages }) }); return true;
+      const source = db.prepare('SELECT files_json, scan_json, original_pdf FROM resumes WHERE id = ?').get(id);
+      send(res, 201, { resume: insert(body, { mainFile: row.main_file, files: JSON.parse(source.files_json) }, { pdf: Buffer.from(source.original_pdf).toString('base64'), links: JSON.parse(source.scan_json), pages: row.pages }) }); return true;
     }
     if (req.method === 'POST' && action === 'compile') {
       const body = await readJson(req, 128 * 1024);
       if (!Array.isArray(body.links) || body.links.length > 100 || new Set(body.links.map(link => link.key)).size !== body.links.length) throw new HttpError(400, 'Invalid link selections.');
-      const scan = JSON.parse(row.scan_json);
+      const source = db.prepare('SELECT original_pdf, scan_json FROM resumes WHERE id = ?').get(id);
+      const scan = JSON.parse(source.scan_json);
       const previous = db.prepare('SELECT r.*, l.slug FROM resume_links r LEFT JOIN links l ON l.id = r.link_id WHERE resume_id = ?').all(id);
       const selections = body.links.map(selection => {
         const found = scan.find(link => link.key === selection.key);
@@ -202,7 +218,7 @@ export function createResumes({ db, origin, now, send, visitor, onPublicChange=(
       checkSlugs(); busy.add(id);
       try {
         const mappings = active.map(link => ({ from: link.destination, to: `${origin}/r/${link.slug}` }));
-        const result = await compile('rewrite', { pdf: Buffer.from(row.original_pdf).toString('base64'), mappings });
+        const result = await compile('rewrite', { pdf: Buffer.from(source.original_pdf).toString('base64'), mappings });
         for (const mapping of mappings) if (!result.links.some(link => link.destination === mapping.to)) throw new HttpError(422, 'A selected hyperlink could not be replaced. The previous PDF was kept.');
         transaction(() => {
           get(id); checkSlugs();

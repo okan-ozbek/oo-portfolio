@@ -66,20 +66,54 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
   if (!db.prepare('PRAGMA table_info(books)').all().some(column => column.name === 'completed')) {
     db.exec('ALTER TABLE books ADD COLUMN completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN (0, 1))');
   }
+  // Notes must not share a record with the PDF: reading later columns walks its
+  // overflow pages, and even a tiny autosave rewrites the entire PDF synchronously.
+  // Copy legacy notes once, atomically. Keep the old column untouched so migration
+  // never rewrites the PDFs, and never import it again after notes are edited/cleared.
+  if (!db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'book_notes'").get()) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec(`CREATE TABLE book_notes (
+        book_id TEXT PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
+        markdown TEXT NOT NULL
+      ) STRICT;
+      INSERT INTO book_notes (book_id, markdown)
+        SELECT id, notes_markdown FROM books WHERE notes_markdown <> '';`);
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+  }
   // Metadata and covers follow large PDF blobs in the table records. Reading
   // those later columns otherwise walks the PDF's SQLite overflow pages.
   // Keep compact covering indexes for the library's hot paths instead.
   db.exec(`CREATE INDEX IF NOT EXISTS books_metadata ON books (
     id, name COLLATE NOCASE, tags_json, pages, size, created_at, bookmark_page,
-    completed, (length(trim(notes_markdown)) > 0)
+    completed
   );
   CREATE INDEX IF NOT EXISTS books_thumbnails ON books (id, thumbnail);`);
+  // All frequently edited state lives in a compact record. Keep legacy columns
+  // untouched after the one-time copy, avoiding PDF rewrites on bookmark/tag edits.
+  if (!db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'book_state'").get()) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec(`CREATE TABLE book_state (
+        id TEXT PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
+        name TEXT NOT NULL, tags_json TEXT NOT NULL, pages INTEGER NOT NULL,
+        size INTEGER NOT NULL, created_at TEXT NOT NULL,
+        bookmark_page INTEGER CHECK(bookmark_page >= 1),
+        completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN (0, 1))
+      ) STRICT;
+      INSERT INTO book_state SELECT id, name, tags_json, pages, size, created_at, bookmark_page, completed
+        FROM books INDEXED BY books_metadata;
+      CREATE INDEX book_state_name ON book_state (name COLLATE NOCASE, id);`);
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+  }
   let processing = 0;
-  const fields = "id, name, tags_json, pages, size, created_at, bookmark_page, completed, (length(trim(notes_markdown)) > 0) AS has_notes";
+  const fields = `id, name, tags_json, pages, size, created_at, bookmark_page, completed,
+    EXISTS (SELECT 1 FROM book_notes WHERE book_id = book_state.id AND length(trim(markdown)) > 0) AS has_notes`;
   const metadata = row => ({ id: row.id, name: row.name, tags: JSON.parse(row.tags_json), pages: row.pages, size: row.size, createdAt: row.created_at, bookmarkPage: row.bookmark_page, completed: Boolean(row.completed), hasNotes: Boolean(row.has_notes) });
-  // Pin these lookups to the covering index, including by-ID reads where SQLite
-  // would otherwise prefer the primary key followed by the large table record.
-  const metadataTable = 'books INDEXED BY books_metadata';
+  // This table contains compact metadata only; none of these reads visit PDFs.
+  const metadataTable = 'book_state';
   const find = id => db.prepare(`SELECT ${fields} FROM ${metadataTable} WHERE id = ?`).get(id);
   function list() { return db.prepare(`SELECT ${fields} FROM ${metadataTable} ORDER BY name COLLATE NOCASE, id`).all().map(metadata); }
   function canonicalTags(tags) {
@@ -99,7 +133,13 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
       const { pages, thumbnail } = await inspect(pdf);
       if (duplicate()) throw new HttpError(409, 'This PDF is already in your library.');
       const id = randomUUID();
-      db.prepare('INSERT INTO books (id, name, tags_json, pages, size, sha256, pdf, thumbnail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, identity.name, JSON.stringify(canonicalTags(identity.tags)), pages, pdf.length, hash, pdf, thumbnail, new Date(now()).toISOString());
+      const tagsJson = JSON.stringify(canonicalTags(identity.tags)), createdAt = new Date(now()).toISOString();
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        db.prepare('INSERT INTO books (id, name, tags_json, pages, size, sha256, pdf, thumbnail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, identity.name, tagsJson, pages, pdf.length, hash, pdf, thumbnail, createdAt);
+        db.prepare('INSERT INTO book_state (id, name, tags_json, pages, size, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, identity.name, tagsJson, pages, pdf.length, createdAt);
+        db.exec('COMMIT');
+      } catch (error) { db.exec('ROLLBACK'); throw error; }
       return metadata(find(id));
     } finally { processing--; }
   }
@@ -142,17 +182,18 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
       if (Object.keys(body).length !== 1 || typeof body.completed !== 'boolean') {
         throw new HttpError(400, 'Choose whether the book is complete.');
       }
-      db.prepare('UPDATE books SET completed = ? WHERE id = ?').run(Number(body.completed), id);
+      db.prepare('UPDATE book_state SET completed = ? WHERE id = ?').run(Number(body.completed), id);
       send(res, 200, { book: metadata(find(id)) });
       return true;
     }
     if (asset === 'notes' && req.method === 'GET') {
-      send(res, 200, { markdown: db.prepare('SELECT notes_markdown FROM books WHERE id = ?').get(id).notes_markdown });
+      send(res, 200, { markdown: db.prepare('SELECT markdown FROM book_notes WHERE book_id = ?').get(id)?.markdown ?? '' });
       return true;
     }
     if (asset === 'notes' && req.method === 'PATCH') {
       const markdown = await readNote(req);
-      db.prepare('UPDATE books SET notes_markdown = ? WHERE id = ?').run(markdown, id);
+      db.prepare(`INSERT INTO book_notes (book_id, markdown) VALUES (?, ?)
+        ON CONFLICT(book_id) DO UPDATE SET markdown = excluded.markdown`).run(id, markdown);
       send(res, 200, { hasNotes: Boolean(markdown.trim()) });
       return true;
     }
@@ -165,12 +206,17 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
       if (Object.keys(body).length !== 1 || !Object.hasOwn(body, 'page') || (body.page !== null && (!Number.isSafeInteger(body.page) || body.page < 1 || body.page > row.pages))) {
         throw new HttpError(400, `Choose a PDF page between 1 and ${row.pages}, or clear the bookmark.`);
       }
-      db.prepare('UPDATE books SET bookmark_page = ? WHERE id = ?').run(body.page, id);
+      db.prepare('UPDATE book_state SET bookmark_page = ? WHERE id = ?').run(body.page, id);
       send(res, 200, { book: metadata(find(id)) });
       return true;
     }
     if (['pdf', 'thumbnail'].includes(asset) && ['GET', 'HEAD'].includes(req.method)) {
-      const body = db.prepare(asset === 'pdf' ? 'SELECT pdf AS body FROM books WHERE id = ?' : 'SELECT thumbnail AS body FROM books INDEXED BY books_thumbnails WHERE id = ?').get(id).body;
+      if (asset === 'thumbnail') {
+        const body = db.prepare('SELECT thumbnail AS body FROM books INDEXED BY books_thumbnails WHERE id = ?').get(id).body;
+        res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': body.length });
+        res.end(req.method === 'HEAD' ? undefined : body);
+        return true;
+      }
       const download = url.searchParams.get('download') === '1';
       // As with resumes, CSP sandbox prevents Chromium's native PDF viewer loading.
       if (asset === 'pdf') {
@@ -178,23 +224,28 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
         res.setHeader('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="book.pdf"; filename*=UTF-8''${encodeURIComponent(row.name + '.pdf').replace(/['()*]/g, char => '%' + char.charCodeAt(0).toString(16))}`);
         res.setHeader('Accept-Ranges', 'bytes');
       }
-      let start = 0, end = body.length - 1, status = 200;
+      let start = 0, end = row.size - 1, status = 200;
       if (asset === 'pdf' && req.headers.range) {
         const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range);
-        if (!range || (!range[1] && !range[2])) { res.setHeader('Content-Range', `bytes */${body.length}`); throw new HttpError(416, 'Invalid byte range.'); }
-        start = range[1] ? Number(range[1]) : Math.max(0, body.length - Number(range[2]));
+        if (!range || (!range[1] && !range[2])) { res.setHeader('Content-Range', `bytes */${row.size}`); throw new HttpError(416, 'Invalid byte range.'); }
+        start = range[1] ? Number(range[1]) : Math.max(0, row.size - Number(range[2]));
         end = range[1] && range[2] ? Math.min(Number(range[2]), end) : end;
-        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= body.length) { res.setHeader('Content-Range', `bytes */${body.length}`); throw new HttpError(416, 'Invalid byte range.'); }
-        status = 206; res.setHeader('Content-Range', `bytes ${start}-${end}/${body.length}`);
+        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= row.size) { res.setHeader('Content-Range', `bytes */${row.size}`); throw new HttpError(416, 'Invalid byte range.'); }
+        status = 206; res.setHeader('Content-Range', `bytes ${start}-${end}/${row.size}`);
       }
-      res.writeHead(status, { 'Content-Type': asset === 'pdf' ? 'application/pdf' : 'image/png', 'Content-Length': end - start + 1 });
-      res.end(req.method === 'HEAD' ? undefined : body.subarray(start, end + 1));
+      // HEAD needs metadata only. Slice ranges inside SQLite so Node does not
+      // allocate/copy the entire PDF for every small reader request.
+      const body = req.method === 'HEAD' ? undefined : status === 206
+        ? db.prepare('SELECT substr(pdf, ?, ?) AS body FROM books WHERE id = ?').get(start + 1, end - start + 1, id).body
+        : db.prepare('SELECT pdf AS body FROM books WHERE id = ?').get(id).body;
+      res.writeHead(status, { 'Content-Type': 'application/pdf', 'Content-Length': end - start + 1 });
+      res.end(body);
       return true;
     }
     if (!asset && req.method === 'PATCH') {
       const body = await readJson(req);
       const identity = bookIdentity(body.name, body.tags);
-      db.prepare('UPDATE books SET name = ?, tags_json = ? WHERE id = ?').run(identity.name, JSON.stringify(canonicalTags(identity.tags)), id);
+      db.prepare('UPDATE book_state SET name = ?, tags_json = ? WHERE id = ?').run(identity.name, JSON.stringify(canonicalTags(identity.tags)), id);
       send(res, 200, { book: metadata(find(id)) });
       return true;
     }

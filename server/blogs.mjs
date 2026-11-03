@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { createAssetServer } from './assets.mjs';
 import sharp from 'sharp';
 import { HttpError, readJson } from './http.mjs';
 import { artwork, artUrl, presets } from './blog-art.mjs';
@@ -12,7 +12,7 @@ const SLUG=/^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const positions=['center','top','bottom','left','right'];
 const fields=['title','slug','summary','tags','markdown','thumbnail','banner','relatedIds'];
 const fresh = () => ({title:'Untitled draft',slug:`post-${randomUUID().slice(0,8)}`,summary:'',tags:[],markdown:'',thumbnail:{preset:'terrain',assetId:null,position:'center'},banner:{preset:'terrain',assetId:null,position:'center'},relatedIds:[]});
-export function createBlogs({db,origin,now=Date.now,send,isAuthenticated,analytics,publicChrome=()=>({}),onPublicChange=()=>{}}) {
+export function createBlogs({db,origin,now=Date.now,send,isAuthenticated,analytics,serveAsset=createAssetServer(),publicChrome=()=>({}),onPublicChange=()=>{}}) {
   db.exec(`CREATE TABLE IF NOT EXISTS blog_posts (
     id TEXT PRIMARY KEY, draft_json TEXT NOT NULL, published_json TEXT, published_slug TEXT UNIQUE,
     version INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
@@ -164,10 +164,12 @@ export function createBlogs({db,origin,now=Date.now,send,isAuthenticated,analyti
     const bytes=(body,type,privatePage=false)=>{res.setHeader('Content-Security-Policy',type.startsWith('text/html')?blogPageCsp(body):blogCsp);if(!privatePage)res.removeHeader('X-Robots-Tag');res.writeHead(200,{'Content-Type':type,'Content-Length':Buffer.byteLength(body)});res.end(req.method==='HEAD'?undefined:body);return true;};
     const asset=/^\/blog\/assets\/([\w.-]+)$/.exec(path);
     if(asset){
-      if(asset[1]==='theme.css')return bytes(readFileSync(new URL('./blog/theme.css',import.meta.url)),'text/css; charset=utf-8');
-      if(asset[1]==='blog.css')return bytes(readFileSync(new URL('./blog/blog.css',import.meta.url)),'text/css; charset=utf-8');
-      if(asset[1]==='reader.js')return bytes(readFileSync(new URL('./blog/reader.js',import.meta.url)),'text/javascript; charset=utf-8');
-      if(/^[\w-]+\.js$/.test(asset[1])){try{return bytes(readFileSync(new URL(`./blog/vendor/${asset[1]}`,import.meta.url)),'text/javascript; charset=utf-8');}catch{throw new HttpError(404,'Asset not found.');}}
+      res.setHeader('Content-Security-Policy',blogCsp);res.removeHeader('X-Robots-Tag');
+      const source=['theme.css','blog.css','reader.js'].includes(asset[1]);
+      if(source||/^[\w-]+\.js$/.test(asset[1])){
+        try{return await serveAsset(req,res,new URL(source?`./blog/${asset[1]}`:`./blog/vendor/${asset[1]}`,import.meta.url),asset[1].endsWith('.css')?'text/css; charset=utf-8':'text/javascript; charset=utf-8');}
+        catch(error){if(error.code==='ENOENT')throw new HttpError(404,'Asset not found.');throw error;}
+      }
       throw new HttpError(404,'Asset not found.');
     }
     const art=/^\/blog\/art\/([a-z-]+)\.svg$/.exec(path);

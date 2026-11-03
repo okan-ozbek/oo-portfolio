@@ -66,7 +66,7 @@ export function initBlogs({api,toast}) {
     enhanceArtwork($('blog-rows'));
   }
   async function refresh(){const version=++loading,currentEpoch=epoch;const [data]=await Promise.all([api('blogs'),activity.refresh()]);if(version!==loading||currentEpoch!==epoch)return;posts=data.posts;author=data.author;renderList();}
-  function updatePost(post){posts=posts.some(item=>item.id===post.id)?posts.map(item=>item.id===post.id?post:item):[post,...posts];renderList();}
+  function updatePost(post){posts=posts.some(item=>item.id===post.id)?posts.map(item=>item.id===post.id?post:item):[post,...posts];if(!$('blog-library').hidden)renderList();}
   function renderState(){if(!editor)return;const post=editor.post;$('blog-edit-state').textContent=post.status==='published'?(dirty()||post.hasUnpublishedChanges?'PUBLISHED · UNPUBLISHED CHANGES':'PUBLISHED'):'PRIVATE DRAFT';$('blog-publish').textContent=post.status==='published'?'Publish changes':'Publish';$('blog-unpublish').hidden=post.status!=='published';$('blog-preview-link').href=`/admin/blog-preview/${post.id}`;$('blog-slug').disabled=true;}
   async function save(){
     const active=editor;if(!active)return true;
@@ -77,16 +77,16 @@ export function initBlogs({api,toast}) {
     active.saving=(async()=>{try{
       const data=await api(`blogs/${active.post.id}`,{method:'PATCH',body:{post,version:active.post.version,sessionId:active.sessionId}});
       if(editor!==active)return false;
-      active.savedSequence=sequence;active.post.version=data.post.version;active.post.hasUnpublishedChanges=data.post.hasUnpublishedChanges;active.post.updatedAt=data.post.updatedAt;updatePost(data.post);status(active.sequence===sequence?'All changes saved':'Unsaved changes');renderState();void loadHistory(false);return true;
+      active.savedSequence=sequence;active.post.version=data.post.version;active.post.hasUnpublishedChanges=data.post.hasUnpublishedChanges;active.post.updatedAt=data.post.updatedAt;active.historyDirty=true;updatePost(data.post);status(active.sequence===sequence?'All changes saved':'Unsaved changes');renderState();if(historyVisible)void loadHistory(false);return true;
     }catch(error){if(editor===active){status('Changes not saved',true);setError(error);}return false;}finally{active.saving=null;}})();
     const success=await active.saving;if(success&&editor===active&&dirty())return save();return success;
   }
-  function changed(preview=true){if(!editor)return;editor.sequence++;status('Unsaved changes');clearTimeout(editor.timer);editor.timer=setTimeout(()=>void save(),700);renderState();if(preview)schedulePreview();}
-  function schedulePreview(){const active=editor;if(!active)return;clearTimeout(active.previewTimer);active.previewTimer=setTimeout(()=>void preview(),400);}
+  function wordCount() {if(editor)$('blog-word-count').textContent=`${editor.post.markdown.trim()?editor.post.markdown.trim().split(/\s+/).length:0} words`;}
+  function changed(preview=true){if(!editor)return;editor.sequence++;editor.previewSequence++;wordCount();status('Unsaved changes');clearTimeout(editor.timer);editor.timer=setTimeout(()=>void save(),700);renderState();if(preview)schedulePreview();}
+  function schedulePreview(){const active=editor;if(!active)return;clearTimeout(active.previewTimer);if($('blog-composer-panes').dataset.mode==='preview')active.previewTimer=setTimeout(()=>void preview(),400);}
   async function preview(){
-    const active=editor;if(!active)return;const sequence=++active.previewSequence;
-    $('blog-word-count').textContent=`${active.post.markdown.trim()?active.post.markdown.trim().split(/\s+/).length:0} words`;
-    try{const data=await api(`blogs/${active.post.id}/preview`,{method:'POST',body:{post:snapshot(active.post)}});if(editor!==active||sequence!==active.previewSequence)return;$('blog-live-preview').innerHTML=data.html||'<p class="blog-muted">Your ideas take shape here.</p>';await enhanceContent($('blog-live-preview'));if(editor===active&&sequence===active.previewSequence)attachImageControls();}
+    const active=editor;if(!active||$('blog-composer-panes').dataset.mode!=='preview')return;const post=snapshot(active.post),key=JSON.stringify(post);if(active.previewKey===key)return;const sequence=++active.previewSequence;
+    try{const data=await api(`blogs/${active.post.id}/preview`,{method:'POST',body:{post}});if(editor!==active||sequence!==active.previewSequence||$('blog-composer-panes').dataset.mode!=='preview')return;active.previewKey=null;$('blog-live-preview').innerHTML=data.html||'<p class="blog-muted">Your ideas take shape here.</p>';await enhanceContent($('blog-live-preview'));if(editor===active&&sequence===active.previewSequence){active.previewKey=key;attachImageControls();}}
     catch(error){if(editor===active&&sequence===active.previewSequence)$('blog-live-preview').textContent=error.message;}
   }
   async function leave(){return !editor||await save();}
@@ -94,21 +94,23 @@ export function initBlogs({api,toast}) {
     if(!(await leave()))return;const currentEpoch=epoch;
     try{const {post}=await api(`blogs/${id}`);if(currentEpoch!==epoch)return;
       if(editor){clearTimeout(editor.timer);clearTimeout(editor.previewTimer);}
-      editor={post,sequence:0,savedSequence:0,saving:null,sessionId:crypto.randomUUID(),previewSequence:0,assets:[],autoSlug:!post.publishedAt&&post.slug.startsWith('post-')};
-      $('blog-library').hidden=true;$('blog-editor').hidden=false;$('blog-title').value=post.title;$('blog-summary').value=post.summary;$('blog-slug').value=post.slug;tagInput.value='';tagInput.setCustomValidity('');renderTags();markdownInput.value=post.markdown;setError('');status('All changes saved');renderState();selectTab('content');renderArtwork();void loadMedia();void loadHistory();void preview();$('blog-title').focus();if(post.title==='Untitled draft')$('blog-title').select();
+      editor={post,sequence:0,savedSequence:0,saving:null,sessionId:crypto.randomUUID(),previewSequence:0,assets:[],historyDirty:true,autoSlug:!post.publishedAt&&post.slug.startsWith('post-')};
+      $('blog-history').replaceChildren();
+      $('blog-library').hidden=true;$('blog-editor').hidden=false;$('blog-title').value=post.title;$('blog-summary').value=post.summary;$('blog-slug').value=post.slug;tagInput.value='';tagInput.setCustomValidity('');renderTags();markdownInput.value=post.markdown;setError('');status('All changes saved');renderState();wordCount();selectTab('content');void loadMedia();void preview();$('blog-title').focus();if(post.title==='Untitled draft')$('blog-title').select();
+      const opened=editor;requestAnimationFrame(()=>{if(editor!==opened)return;const bounds=$('blog-panel-history').getBoundingClientRect();historyVisible=bounds.top<innerHeight+200&&bounds.bottom>0;if(historyVisible)void loadHistory(false);});
     }catch(error){$('blog-library-error').textContent=error.message;}
   }
   async function create(){if(!(await leave()))return;$('blog-new').disabled=true;try{const {post}=await api('blogs',{method:'POST',body:{}});updatePost(post);await openPost(post.id);}catch(error){$('blog-library-error').textContent=error.message;}finally{$('blog-new').disabled=false;}}
   function selectTab(name){for(const tab of document.querySelectorAll('[data-blog-tab]')){const active=tab.dataset.blogTab===name;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;$(`blog-panel-${tab.dataset.blogTab}`).hidden=!active;}if(name==='history')void loadHistory();if(name==='suggestions')renderSuggestions();if(name==='artwork')renderArtwork();}
   for(const tab of document.querySelectorAll('[data-blog-tab]')){tab.addEventListener('click',()=>selectTab(tab.dataset.blogTab));tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const tabs=[...document.querySelectorAll('[data-blog-tab]')],index=tabs.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;selectTab(tabs[next].dataset.blogTab);tabs[next].focus();});}
-  bindComposerModes(markdownInput,$('blog-composer-panes'),document.querySelectorAll('[data-blog-mode]'));
+  bindComposerModes(markdownInput,$('blog-composer-panes'),document.querySelectorAll('[data-blog-mode]'),mode=>{if(editor){clearTimeout(editor.previewTimer);editor.previewSequence++;}if(mode==='preview')void preview();});
   for(const key of ['title','summary','markdown'])(key==='markdown'?markdownInput:$(`blog-${key}`)).addEventListener('input',()=>{
     if(!editor)return;const value=key==='markdown'?markdownInput.value:$(`blog-${key}`).value;editor.post[key]=value;
     
     if(key==='title'&&editor.autoSlug){editor.post.slug=slugify(value)||editor.post.slug;$('blog-slug').value=editor.post.slug;}
     changed(key==='markdown'||key==='title'||key==='summary');
   });
-  function showLibrary(){clearTimeout(editor?.timer);clearTimeout(editor?.previewTimer);editor=null;$('blog-editor').hidden=true;$('blog-library').hidden=false;$('blog-new').focus();}
+  function showLibrary(){clearTimeout(editor?.timer);clearTimeout(editor?.previewTimer);editor=null;$('blog-editor').hidden=true;$('blog-library').hidden=false;renderList();$('blog-new').focus();}
   $('blog-save-draft').addEventListener('click',async()=>{
     const active=editor,control=$('blog-save-draft');
     if(!active||active.publishing||control.disabled)return;
@@ -176,7 +178,32 @@ export function initBlogs({api,toast}) {
     for(const post of posts.filter(post=>post.id!==editor.post.id&&post.status==='published'&&!chosen.includes(post.id)))$('blog-related-picker').append(new Option(post.title,post.id));$('blog-related-picker').disabled=chosen.length>=6;
   }
   $('blog-related-picker').addEventListener('change',()=>{if(editor&&$('blog-related-picker').value){editor.post.relatedIds.push($('blog-related-picker').value);changed(false);renderSuggestions();}});
-  async function loadHistory(flush=true){const active=editor;if(!active)return;if(flush&&!(await save()))return;try{const {revisions}=await api(`blogs/${active.post.id}/revisions`);if(editor!==active)return;$('blog-history').replaceChildren();for(const rev of revisions){const row=node('article','blog-revision'),info=node('div');info.append(node('strong','',rev.kind==='draft'?'Draft edited':rev.kind),node('p','',rev.note||rev.fields.map(field=>field==='markdown'?'content':field==='relatedIds'?'suggested posts':field).join(', ')||'No content changes'));const time=node('time','',formatDate(rev.createdAt));time.dateTime=rev.createdAt;info.append(time);row.append(info);row.append(button('Restore as draft',async()=>{if(!(await save()))return;try{const data=await api(`blogs/${active.post.id}/restore`,{method:'POST',body:{version:active.post.version,revisionId:rev.id}});updatePost(data.post);await openPost(data.post.id);toast('Revision restored to your draft.');}catch(error){setError(error);}},'secondary'));$('blog-history').append(row);}}catch(error){if(editor===active)setError(error);}}
+  let historyVisible=false;
+  new IntersectionObserver(entries=>{historyVisible=entries[0].isIntersecting;if(historyVisible&&editor)void loadHistory(false);},{rootMargin:'200px'}).observe($('blog-panel-history'));
+  async function loadHistory(flush=true){
+    const active=editor;if(!active)return;
+    if(flush&&!(await save())||editor!==active)return;
+    if(active.historyLoading)return active.historyLoading;
+    if(!active.historyDirty)return;
+    const sequence=active.savedSequence;
+    active.historyLoading=(async()=>{
+      let success=false;
+      try{
+        const {revisions}=await api(`blogs/${active.post.id}/revisions`);if(editor!==active)return;
+        active.historyDirty=sequence!==active.savedSequence;success=true;
+        $('blog-history').replaceChildren();
+        for(const rev of revisions){
+          const row=node('article','blog-revision'),info=node('div');
+          info.append(node('strong','',rev.kind==='draft'?'Draft edited':rev.kind),node('p','',rev.note||rev.fields.map(field=>field==='markdown'?'content':field==='relatedIds'?'suggested posts':field).join(', ')||'No content changes'));
+          const time=node('time','',formatDate(rev.createdAt));time.dateTime=rev.createdAt;info.append(time);row.append(info);
+          row.append(button('Restore as draft',async()=>{if(!(await save()))return;try{const data=await api(`blogs/${active.post.id}/restore`,{method:'POST',body:{version:active.post.version,revisionId:rev.id}});updatePost(data.post);await openPost(data.post.id);toast('Revision restored to your draft.');}catch(error){setError(error);}},'secondary'));
+          $('blog-history').append(row);
+        }
+      }catch(error){if(editor===active)setError(error);}
+      finally{active.historyLoading=null;if(success&&editor===active&&active.historyDirty&&historyVisible)void loadHistory(false);}
+    })();
+    return active.historyLoading;
+  }
   function openPublish(action){if(!editor)return;publishAction=action;$('blog-publish-note-field').hidden=action!=='publish'||!editor.post.publishedAt;$('blog-publish-title').textContent=action==='unpublish'?'Return to draft?':'Ready to share?';$('blog-publish-description').textContent=action==='unpublish'?'This removes the article from the website. Your writing, images, and history stay here.':editor.post.status==='published'?'Your saved changes will replace the live article.':'This article will appear on your website and in the reading list.';$('blog-publish-confirm').textContent=action==='unpublish'?'Unpublish article':'Publish article';$('blog-publish-note').value='';$('blog-publish-error').textContent='';$('blog-publish-dialog').showModal();}
   $('blog-publish').addEventListener('click',()=>openPublish('publish'));$('blog-unpublish').addEventListener('click',()=>openPublish('unpublish'));
   $('blog-publish-form').addEventListener('submit',async event=>{event.preventDefault();const active=editor;if(!active||active.publishing)return;active.publishing=true;for(const control of $('blog-publish-form').elements)control.disabled=true;
