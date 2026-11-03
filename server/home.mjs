@@ -1,16 +1,17 @@
-import { readFileSync, statSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { createAssetServer } from './assets.mjs';
 import { createHash } from 'node:crypto';
 import { blogCsp } from './blog-pages.mjs';
 import { artDescriptor } from '../lib/art-catalog.mjs';
 import { HttpError } from './http.mjs';
 
-export function createHome({origin,projects,blogs,resumes,development=false}){
+export function createHome({origin,projects,blogs,resumes,development=false,serveAsset=createAssetServer({development})}){
   return async(req,res,url)=>{
     const assets={'/blog/assets/home-client.js':['client.js','text/javascript'],'/blog/assets/home.css':['home.css','text/css']};
     if(assets[url.pathname]){
       if(!['GET','HEAD'].includes(req.method))throw new HttpError(405,'Method not allowed.');
-      const [file,type]=assets[url.pathname];const body=readFileSync(new URL('./home/vendor/'+file,import.meta.url));
-      res.removeHeader('X-Robots-Tag');res.writeHead(200,{'Content-Type':type+'; charset=utf-8'});res.end(req.method==='HEAD'?undefined:body);return true;
+      const [file,type]=assets[url.pathname];
+      res.removeHeader('X-Robots-Tag');return await serveAsset(req,res,new URL('./home/vendor/'+file,import.meta.url),type+'; charset=utf-8');
     }
     if(url.pathname!=='/')return false;
     if(!['GET','HEAD'].includes(req.method))throw new HttpError(405,'Method not allowed.');

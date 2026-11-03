@@ -20,7 +20,9 @@ export function initReadingColors({ bookId, getDocument, getPageNumber, isDark, 
   const stored = read(overridesKey);
   let overrides = stored && typeof stored === 'object' && !Array.isArray(stored)
     ? Object.fromEntries(Object.entries(stored).filter(([source, target]) => validColor(source) && validColor(target))) : {};
-  let colors = [], scanSequence = 0, scanTimer;
+  const paletteKey = `pixelware-pdf-palette:${bookId}`, remembered = read(paletteKey);
+  let colors = Array.isArray(remembered) ? remembered.filter(validColor).slice(0, 12) : [];
+  let scanSequence = 0, scanTimer, renderedPage = 0, filterKey, adjustmentFrame;
   const cache = new Map();
   const svg = svgNode('svg', { width: '0', height: '0', 'aria-hidden': 'true', class: 'reader-color-defs' });
   const defs = svgNode('defs');
@@ -38,16 +40,21 @@ export function initReadingColors({ bookId, getDocument, getPageNumber, isDark, 
     $('colors-enabled').checked = enabled;
     $('colors-toggle').classList.toggle('has-reading-colors', enabled);
     if (!enabled) return;
-    onTheme(luminance(pageColor) < 0.5);
+    const dark = luminance(pageColor) < 0.5;
+    if (dark !== isDark()) onTheme(dark);
+    const mappings = colors.slice(0, 12).map(source => [source, targetFor(source)]).filter(([source, target]) => source !== '#000000' || target !== textColor);
+    const key = JSON.stringify([pageColor, textColor, mappings]);
+    // Replacing a shared SVG filter repaints every canvas using it. Most pages
+    // have the same palette, so keep the existing filter nodes in that case.
+    if (key === filterKey) return;
+    filterKey = key;
     const foreground = rgb(textColor), background = rgb(pageColor);
     const hue = svgNode('feColorMatrix', { in: 'SourceGraphic', type: 'hueRotate', values: luminance(pageColor) < luminance(textColor) ? '180' : '0', result: 'hue' });
     const transfer = svgNode('feComponentTransfer', { in: 'hue', result: 'base' });
     for (let i = 0; i < 3; i++) transfer.append(svgNode(`feFunc${'RGB'[i]}`, { type: 'linear', slope: background[i] - foreground[i], intercept: foreground[i] }));
     const nodes = [hue, transfer];
     let previous = 'base';
-    for (const [index, source] of colors.slice(0, 12).entries()) {
-      const target = targetFor(source);
-      if (source === '#000000' && target === textColor) continue;
+    for (const [index, [source, target]] of mappings.entries()) {
       const mask = svgNode('feComponentTransfer', { in: 'SourceGraphic', result: `channels-${index}` });
       rgb(source).forEach((channel, i) => mask.append(svgNode(`feFunc${'RGB'[i]}`, { type: 'table', tableValues: colorMaskTable(channel) })));
       const alpha = svgNode('feColorMatrix', { in: `channels-${index}`, type: 'matrix', values: '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 0 -2', result: `mask-${index}` });
@@ -57,6 +64,11 @@ export function initReadingColors({ bookId, getDocument, getPageNumber, isDark, 
       nodes.push(mask, alpha, flood, paint, merge); previous = `result-${index}`;
     }
     filter.replaceChildren(...nodes);
+  }
+  function adjust() {
+    enabled = true; syncPresets();
+    if (adjustmentFrame) return;
+    adjustmentFrame = requestAnimationFrame(() => { adjustmentFrame = null; apply(); persist(); });
   }
   function renderInputs() {
     const root = $('text-color-controls'); root.replaceChildren();
@@ -69,7 +81,7 @@ export function initReadingColors({ bookId, getDocument, getPageNumber, isDark, 
       input.dataset.sourceColor = source; input.setAttribute('aria-label', index === 0 ? 'Main text color' : `Text color ${index + 1}, originally ${source}`);
       input.addEventListener('input', () => {
         if (index === 0) textColor = input.value;
-        overrides[source] = input.value; enabled = true; syncPresets(); apply(); persist();
+        overrides[source] = input.value; adjust();
       });
       label.append(swatch, text, input); root.append(label);
     });
@@ -95,14 +107,19 @@ export function initReadingColors({ bookId, getDocument, getPageNumber, isDark, 
   }
   async function scan() {
     const doc = getDocument();
-    if (!doc || $('colors-panel').hidden) return;
+    if (!doc || (!enabled && $('colors-panel').hidden)) return;
+    // Let PDF.js draw first. Reusing its completed operator list avoids a second
+    // competing render request while the first readable page is loading.
+    if (renderedPage !== getPageNumber()) return;
     const page = getPageNumber(), sequence = ++scanSequence;
     $('colors-page-info').textContent = `Checking text colors on page ${page}…`;
     try {
       if (!cache.has(page)) cache.set(page, doc.getPage(page).then(value => value.getOperatorList()).then(list => textPalette(list, OPS)));
       const palette = await cache.get(page);
       if (sequence !== scanSequence || page !== getPageNumber()) return;
-      colors = palette; renderInputs(); apply();
+      if (colors.join(',') !== palette.join(',')) { colors = palette; write(paletteKey, colors.slice(0, 12)); }
+      if (!$('colors-panel').hidden) renderInputs();
+      apply();
     } catch {
       cache.delete(page);
       if (sequence === scanSequence) $('colors-page-info').textContent = 'Could not inspect this page. Presets and the main text tone are still available.';
@@ -115,33 +132,25 @@ export function initReadingColors({ bookId, getDocument, getPageNumber, isDark, 
   $('colors-toggle').addEventListener('click', () => {
     if (!$('colors-panel').hidden) { close(); return; }
     onOpen(); $('colors-panel').hidden = false; $('colors-toggle').setAttribute('aria-expanded', 'true');
-    void scan(); $('colors-enabled').focus({ preventScroll: true });
+    renderInputs(); void scan(); $('colors-enabled').focus({ preventScroll: true });
   });
   $('colors-close').addEventListener('click', () => close(true));
   $('colors-panel').addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(true); } });
   document.addEventListener('pointerdown', event => { if (!event.target.closest('#colors-panel,#colors-toggle')) close(); });
   $('colors-enabled').addEventListener('change', () => { enabled = $('colors-enabled').checked; apply(); persist(); });
-  $('page-color').addEventListener('input', () => { pageColor = $('page-color').value; enabled = true; syncPresets(); apply(); persist(); });
+  $('page-color').addEventListener('input', () => { pageColor = $('page-color').value; adjust(); });
   syncPresets(); renderInputs(); apply();
   return {
     get isOpen() { return !$('colors-panel').hidden; },
     close,
     disable() { enabled = false; apply(); persist(); },
     pageChanged() {
-      clearTimeout(scanTimer);
-      // Keep customized colors on newly rendered pages, even with the panel closed.
-      if ($('colors-panel').hidden && enabled) {
-        const doc = getDocument(), page = getPageNumber(), sequence = ++scanSequence;
-        if (!doc) return;
-        scanTimer = setTimeout(async () => {
-          try {
-            if (!cache.has(page)) cache.set(page, doc.getPage(page).then(value => value.getOperatorList()).then(list => textPalette(list, OPS)));
-            const palette = await cache.get(page);
-            if (sequence !== scanSequence || page !== getPageNumber()) return;
-            colors = palette; renderInputs(); apply();
-          } catch { cache.delete(page); }
-        }, 150);
-      } else scanTimer = setTimeout(() => void scan(), 150);
+      clearTimeout(scanTimer); scanSequence++; renderedPage = 0;
+    },
+    pageRendered(page) {
+      if (page !== getPageNumber()) return;
+      renderedPage = page; clearTimeout(scanTimer);
+      scanTimer = setTimeout(() => void scan(), 150);
     },
   };
 }

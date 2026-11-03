@@ -122,19 +122,27 @@ using these images, with separate containers, networks, volumes, and credentials
 The persistence test replaces the admin container across two release directories
 while preserving its database volume. All three tests must finish successfully
 before deployment. Standalone smoke commands still build their own images.
-Dependencies are pinned to official action release commits. No registry account
-or additional secrets are required. The first run populates the caches and can
+Dependencies are pinned to official action release commits. No additional
+long-lived secrets are required. The first run populates the caches and can
 still take longer; measure subsequent runs to assess the improvement.
 
-CI also packages and smoke-tests the generated frontend in the small
-`deploy/Dockerfile.prebuilt` NGINX image. Its static files pass to the deployment
-job as a commit-named artifact from the same workflow run (retained for one day).
-The release archive contains both tracked source and this verified `dist/client`
-directory. The installer selects the prebuilt Dockerfile and refuses a release
-missing that build. This removes the second npm install/frontend compilation
-from the VPS. The regular `Dockerfile` remains the default for manual local
-Compose builds. The dedicated prebuilt Docker ignore file includes only static
-assets and NGINX configuration; credentials and local databases stay excluded.
+CI also packages and smoke-tests the frontend using `deploy/Dockerfile.prebuilt`.
+After all checks pass, `scripts/publish-images.sh` pushes the existing admin,
+compiler, and frontend images to `ghcr.io/<owner>/<repository>-<service>` and
+records their immutable digests in `compose.images.yaml`. The manifest passes
+to deployment as a commit-named artifact retained for one day. Verification
+uses `packages: write`; deployment uses `packages: read`. The repository must
+be allowed to create/access its GitHub Container Registry packages.
+
+The workflow's short-lived `GITHUB_TOKEN` authenticates both publication and
+VPS pulls. Pull credentials travel through the existing verified SSH channel,
+are stored only in a private temporary Docker config, and are removed on exit.
+No personal access token or permanent registry login is needed. See
+[GitHub's Container Registry documentation](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+The VPS pulls those exact digests and starts them with `--no-build`; it never
+installs dependencies or rebuilds application images. Manual Compose builds
+continue using the normal Dockerfiles. Obsolete verification jobs can cancel;
+production deployment jobs remain serialized.
 
 Create an environment named `production`, restrict it to `master`,
 and configure these environment secrets (repository secrets also work):
@@ -176,8 +184,8 @@ synchronization or encrypted storage at rest. Compose file secrets are read-only
 bind mounts, not Swarm-encrypted secrets.
 
 **Database preservation:** each release runs Docker Compose with
-`-f compose.vps.yaml -p <project>`, builds, then runs
-`up -d --force-recreate --wait`. The existing
+`-f compose.vps.yaml -f compose.images.yaml -p <project>`, pulls tested digests,
+then runs `up -d --no-build --force-recreate --wait`. The existing
 `<project>_admin_data` named volume is reattached, preserving links, click counts,
 and sessions. The workflow never removes volumes, prunes Docker resources, or
 copies a development database over the server database. The shared Caddy stack
@@ -193,8 +201,10 @@ deployment's first adoption, use its actual project name; no volume migration is
 automated. Explicit custom volume names/other Compose overrides require carrying
 those settings over before adopting this workflow.
 
-Keep releases for rollback. Run `sudo docker compose -f compose.vps.yaml -p <your-project> up -d --build --wait`
-from a previous release to roll code back. There is no automatic rollback or old
+Keep releases and their image digests for rollback. Run
+`sudo docker compose -f compose.vps.yaml -f compose.images.yaml -p <your-project> up -d --no-build --wait`
+from a previous release to reuse its locally retained images. Pulling an uncached
+private image requires a fresh registry login. There is no automatic rollback or old
 release cleanup. Inspect Docker logs after failed builds or health checks.
 See [GitHub's secret setup](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
 for environment-secret access rules and plan availability.
@@ -236,7 +246,9 @@ restarts, with at most two concurrent password checks. A determined attacker
 could exhaust the limit and temporarily deny sign-in; a VPN/IP allowlist or
 identity provider can strengthen a later production version.
 
-Admin responses/302 redirects use `Cache-Control: no-store`. Admin CSP prohibits
+Private admin responses/302 redirects use `Cache-Control: no-store`. Public code
+assets use ETag revalidation; hashed browser chunks use immutable caching.
+Admin CSP prohibits
 framing and inline scripts; indexing is disabled. Destinations are never fetched
 by the backend, and SQL inputs use bound parameters. NGINX disables access logs
 for tracked redirects. Review additional provider/proxy logs separately.

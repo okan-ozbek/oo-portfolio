@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+/.admin-runtime/
+/server/blog/.vendor-build-*/
 /.pnp
 .pnp.*
 .yarn/*

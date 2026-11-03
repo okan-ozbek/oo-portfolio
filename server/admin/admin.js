@@ -1,11 +1,8 @@
 import { renderActivityChart } from './activity-chart.js';
 import { readApiResponse } from './api-response.js';
 /* The dashboard receives no password hash or secret configuration. */
-import { initResumes } from './resumes.js';
-import { initBooks } from './books.js';
+import { createLazyWorkspace } from './lazy-workspace.js';
 import { initFilterPicker } from './filter-picker.js';
-import { initProjects } from './projects.js';
-import { initBlogs } from './blogs.js';
 import { icon as actionIcon } from './icons.js';
 const $ = id => document.getElementById(id);
 const number = new Intl.NumberFormat();
@@ -21,6 +18,7 @@ let menuTrigger = null;
 let toastAnimation;
 let refreshVersion = 0;
 let activityRange = "30d";
+let sectionVersion = 0;
 const rangeLabels = { "7d": "Last 7 days", "30d": "Last 30 days", quarter: "Last quarter", year: "Last year" };
 const rangeOptions = [...$("activity-range-menu").querySelectorAll("[role=option]")];
 
@@ -70,10 +68,7 @@ function openRangeMenu() {
 }
 
 function showLogin() {
-  resumeWorkspace.reset();
-  bookWorkspace.reset();
-  blogWorkspace.reset();
-  projectWorkspace.reset();
+  for (const workspace of Object.values(workspaces)) workspace.reset();
   selectSection('links');
   closeRangeMenu();
   closeLinkMenu();
@@ -427,29 +422,29 @@ $("link-form").addEventListener("submit", async event => {
 
 initFilterPicker(document.getElementById('blog-status'));
 initFilterPicker(document.getElementById('project-filter'));
-const resumeWorkspace = initResumes({ api, toast, refreshLinks: refresh });
-const bookWorkspace = initBooks({ api, toast });
-const blogWorkspace = initBlogs({ api, toast });
-const projectWorkspace = initProjects({ api, toast });
+const workspaces = {
+  resumes: createLazyWorkspace(() => import('./resumes.js').then(module => module.initResumes), { api, toast, refreshLinks: refresh }),
+  books: createLazyWorkspace(() => import('./books.js').then(module => module.initBooks), { api, toast }),
+  blogs: createLazyWorkspace(() => import('./blogs.js').then(module => module.initBlogs), { api, toast }),
+  projects: createLazyWorkspace(() => import('./projects.js').then(module => module.initProjects), { api, toast }),
+};
 async function selectSection(section) {
-  if (!$('blogs-view').hidden && section !== 'blogs' && !(await blogWorkspace.leave())) return;
+  const version = ++sectionVersion;
+  if (!$('blogs-view').hidden && section !== 'blogs' && !(await workspaces.blogs.leave())) return;
+  if (version !== sectionVersion) return;
   closeLinkMenu();
   for (const name of ['links', 'resumes', 'books', 'blogs', 'projects']) {
     $(`${name}-view`).hidden = name !== section;
     if (name === section) $(`nav-${name}`).setAttribute('aria-current', 'page');
     else $(`nav-${name}`).removeAttribute('aria-current');
   }
-  if (section === 'resumes') {
-    try { await resumeWorkspace.refresh(); } catch (error) { $('resume-error').textContent = error.message; }
-  }
-  if (section === 'books') {
-    try { await bookWorkspace.refresh(); } catch (error) { $('book-error').textContent = error.message; }
-  }
-  if (section === 'projects') {
-    try { await projectWorkspace.refresh(); } catch (error) { $('project-library-error').textContent = error.message; }
-  }
-  if (section === 'blogs') {
-    try { await blogWorkspace.refresh(); } catch (error) { $('blog-library-error').textContent = error.message; }
+  if (workspaces[section]) {
+    try {
+      const workspace = await workspaces[section].get();
+      if (version === sectionVersion) await workspace.refresh();
+    } catch (error) {
+      if (version === sectionVersion) $(section === 'resumes' ? 'resume-error' : section === 'books' ? 'book-error' : `${section === 'blogs' ? 'blog' : 'project'}-library-error`).textContent = error.message;
+    }
   }
 }
 $('nav-links').addEventListener('click', () => selectSection('links'));
@@ -467,7 +462,7 @@ $('nav-blogs').addEventListener('click', () => selectSection('blogs'));
     $("loading").hidden = true;
     $("dashboard").hidden = false;
     const requestedSection = new URLSearchParams(location.search).get('section');
-    if (['blogs','projects'].includes(requestedSection)) await selectSection(requestedSection);
+    if (Object.hasOwn(workspaces, requestedSection)) await selectSection(requestedSection);
   } catch (error) {
     showLogin();
     if (error.message !== "Sign in to continue.") $("login-error").textContent = "Cannot reach the admin service. Refresh to try again.";

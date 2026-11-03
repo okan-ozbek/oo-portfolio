@@ -11,7 +11,7 @@ const { values } = parseArgs({ options: { host: { type: "string" }, port: { type
 const host = values.host ?? "127.0.0.1";
 if (!["127.0.0.1", "localhost", "::1"].includes(host)) throw new Error("The draft dev server must bind to loopback. Use the HTTPS Docker deployment for remote access.");
 await setupLocalAdmin();
-await buildBlog();
+await buildBlog({clean:false});
 const closeHome=await buildHome({watch:true});
 loadEnvFile(new URL("../.env.admin", import.meta.url));
 const adminPort = Number(process.env.ADMIN_PORT ?? 3031);
