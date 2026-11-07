@@ -24,7 +24,9 @@
 @media(max-width:700px){.pdf-post-it{width:min(200px,65%);max-height:200px}.pdf-post-it-heading button{min-height:32px}.pdf-note-resize{width:28px;height:28px}.note-placement{bottom:8px;font-size:12px;padding:10px}}
 
 /* PDF notes grow with their content, including while editing and resizing. */
-.pdf-post-it{max-height:none}
-.pdf-post-it .pdf-note-content{flex:0 0 auto;overflow:visible}
+.pdf-post-it,.book-pdf-note{max-height:none}
+:is(.pdf-post-it,.book-pdf-note) .pdf-note-content{flex:0 0 auto;overflow:visible}
 .pdf-post-it .markdown-editor .cm-editor{height:auto}
 .pdf-post-it .markdown-editor .cm-scroller{overflow:visible}
+.book-pdf-note-heading{display:flex;flex:none;align-items:center;justify-content:space-between;gap:12px;padding-bottom:7px;margin-bottom:9px;border-bottom:1px solid color-mix(in srgb,var(--pdf-note-text) 18%,transparent);font-size:.85em;color:var(--pdf-note-muted)}
+.book-pdf-note-heading .action-icon{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}

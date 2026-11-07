@@ -1,6 +1,6 @@
 import { readApiResponse } from './api-response.js';
 import { createMarkdownEditor } from './markdown-editor.js';
-import { bindNoteGestures, displayNoteLayout, pageForNoteRect } from './pdf-note-gestures.js';
+import { bindNoteGestures, constrainNoteHorizontally, displayNoteLayout, noteViewport, pageForNoteRect } from './pdf-note-gestures.js';
 import { icon } from './icons.js';
 import { initNoteAppearance } from './note-appearance.js';
 
@@ -48,20 +48,20 @@ export function initPdfNotes({ bookId, container, getViewer, status, onLayoutCha
     return node;
   }
   function position(card, note, page) {
-    const sized = note.width != null && note.height != null, layout = sized ? displayNoteLayout(note, page.clientWidth, page.clientHeight) : note;
+    const sized = note.width != null && note.height != null;
+    const width = Math.min(innerWidth <= 700 ? 200 : 230, page.clientWidth * .65);
+    let layout = sized ? displayNoteLayout(note, page.clientWidth, page.clientHeight) : {
+      ...note, width: width / page.clientWidth, height: 120 / page.clientHeight,
+      x: clamp(note.x * page.clientWidth - (note.x > .6 ? width : 0), 0, page.clientWidth - width) / page.clientWidth,
+    };
+    layout = constrainNoteHorizontally(layout, page.getBoundingClientRect(), noteViewport(container));
     // A resized height is a minimum; wrapped content can make the note taller.
     card.style.height = 'auto';
     card.style.minHeight = sized ? `${layout.height * page.clientHeight}px` : '120px';
     card.style.left = `${layout.x * 100}%`; card.style.top = `${layout.y * 100}%`;
-    card.classList.toggle('anchor-right', !sized && note.x > .6); card.classList.toggle('anchor-bottom', !sized && note.y > .75);
-    if (sized) { card.style.width = `${layout.width * page.clientWidth}px`; }
-    else {
-      const width = Math.min(innerWidth <= 700 ? 200 : 230, page.clientWidth * .65);
-      card.style.width = `${width}px`;
-      card.classList.remove('anchor-right', 'anchor-bottom');
-      card.style.left = `${clamp(note.x * page.clientWidth - (note.x > .6 ? width : 0), 0, page.clientWidth - width)}px`;
-      if (card.isConnected) card.style.top = `${clamp(note.y * page.clientHeight - (note.y > .75 ? card.offsetHeight : 0), 0, Math.max(0, page.clientHeight - card.offsetHeight))}px`;
-    }
+    card.style.width = `${layout.width * page.clientWidth}px`;
+    card.classList.remove('anchor-right', 'anchor-bottom');
+    if (!sized && card.isConnected) card.style.top = `${clamp(note.y * page.clientHeight - (note.y > .75 ? card.offsetHeight : 0), 0, Math.max(0, page.clientHeight - card.offsetHeight))}px`;
   }
   function createCard(note, page) {
     const card = document.createElement('aside'); card.className = 'pdf-post-it pdf-note-card';
@@ -82,6 +82,7 @@ export function initPdfNotes({ bookId, container, getViewer, status, onLayoutCha
   }
   function render() {
     if (!getViewer() || gestures.active) return;
+    onLayoutChange();
     const displayed = editing && !editing.note.id ? [...notes, editing.note] : notes;
     for (const page of container.querySelectorAll('.page[data-page-number]')) {
       const localNotes = displayed.filter(item => item.page === Number(page.dataset.pageNumber));
@@ -98,8 +99,13 @@ export function initPdfNotes({ bookId, container, getViewer, status, onLayoutCha
         }
       }
     }
-    onLayoutChange();
   }
+  let scrollFrame, previousScrollLeft = container.scrollLeft;
+  container.addEventListener('scroll', () => {
+    if (container.scrollLeft === previousScrollLeft) return;
+    previousScrollLeft = container.scrollLeft;
+    cancelAnimationFrame(scrollFrame); scrollFrame = requestAnimationFrame(render);
+  }, { passive: true });
   async function saveLayout(note, change, mode) {
     if (layoutSaving) return;
     layoutSaving = true;
@@ -207,7 +213,8 @@ export function initPdfNotes({ bookId, container, getViewer, status, onLayoutCha
   }
   function place(page, x, y) {
     const element = pageElement(page);
-    void startEditing({ page, x: clamp(x, -8, 8), y: clamp(y, -8, 8), width: Math.min(230, element.clientWidth * .65) / element.clientWidth, height: 180 / element.clientHeight, markdown: '' });
+    const layout = constrainNoteHorizontally({ x, y: clamp(y, -8, 8), width: Math.min(230, element.clientWidth * .65) / element.clientWidth, height: 180 / element.clientHeight }, element.getBoundingClientRect(), noteViewport(container));
+    void startEditing({ page, ...layout, markdown: '' });
   }
   container.addEventListener('click', event => {
     if (!placing || event.target.closest('.pdf-post-it')) return;
@@ -241,16 +248,7 @@ export function initPdfNotes({ bookId, container, getViewer, status, onLayoutCha
     try { localStorage.setItem('pixelware-pdf-notes', visible ? 'visible' : 'hidden'); } catch { /* Retain in memory. */ }
   });
   syncVisibility();
-  return { render, get error() { return loadError; }, workspacePadding() {
-    let left = 0, right = 0;
-    for (const note of editing && !editing.note.id ? [...notes, editing.note] : notes) {
-      if (!note.width) continue;
-      const width = pageElement(note.page)?.clientWidth ?? 816;
-      left = Math.max(left, -note.x * width + 24);
-      right = Math.max(right, (note.x + note.width - 1) * width + 24);
-    }
-    return { left, right };
-  }, async load() {
+  return { render, get error() { return loadError; }, async load() {
     try { ({ annotations: notes } = await api('annotations')); }
     catch (error) { loadError = `PDF notes could not be loaded: ${error.message} Reload the reader to retry.`; status(loadError, true); }
   } };

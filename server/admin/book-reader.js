@@ -18,17 +18,11 @@ const container = $('viewer-container');
 function updateNoteWorkspace(center = false) {
   const pages = container.querySelectorAll('.page[data-page-number]');
   if (!pages.length) return;
-  const workspace = $('viewer'), previousLeft = parseFloat(getComputedStyle(workspace).paddingLeft);
-  const base = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--note-gutter')) || 240;
-  const padding = pdfNotes?.workspacePadding() ?? { left: 0, right: 0 };
-  const left = Math.max(base, padding.left), right = Math.max(base, padding.right);
-  document.documentElement.style.setProperty('--note-gutter-left', `${left}px`);
-  document.documentElement.style.setProperty('--note-gutter-right', `${right}px`);
   document.documentElement.style.setProperty('--reader-page-width', `${Math.max(...[...pages].map(page => page.clientWidth))}px`);
   if (center) {
     const page = viewer?.getPageView(viewer.currentPageNumber - 1)?.div ?? pages[0];
     container.scrollLeft = Math.max(0, page.offsetLeft + page.clientWidth / 2 - container.clientWidth / 2);
-  } else container.scrollLeft += left - previousLeft;
+  }
 }
 new ResizeObserver(() => document.documentElement.style.setProperty('--reader-toolbar-height', `${toolbar.offsetHeight}px`)).observe(toolbar);
 for (const control of document.querySelectorAll('[data-reader-icon]')) control.append(icon(control.dataset.readerIcon));
@@ -137,7 +131,7 @@ async function openBook() {
     pdfNotes.render();
   });
   eventBus.on('scalechanging', ({ scale, presetValue }) => {
-    requestAnimationFrame(() => updateNoteWorkspace(true));
+    requestAnimationFrame(() => { updateNoteWorkspace(true); pdfNotes.render(); });
     const value = presetValue || String(scale);
     const known = [...$('zoom').options].some(option => option.value === value);
     if (!known) $('zoom').querySelector('[value=custom]').textContent = `${Math.round(scale * 100)}%`;
@@ -171,6 +165,9 @@ async function openBook() {
   try { pdfDocument = await loadingTask.promise; } catch (error) { throw rangeError ?? error; }
   $('page-count').textContent = `/ ${pdfDocument.numPages}`; $('page-number').max = pdfDocument.numPages;
   linkService.setDocument(pdfDocument); viewer.setDocument(pdfDocument);
-  new ResizeObserver(() => { if (pdfDocument && ['page-width', 'page-fit'].includes($('zoom').value)) viewer.currentScaleValue = $('zoom').value; }).observe(container);
+  new ResizeObserver(() => {
+    if (pdfDocument && ['page-width', 'page-fit'].includes($('zoom').value)) viewer.currentScaleValue = $('zoom').value;
+    updateNoteWorkspace(true); pdfNotes.render();
+  }).observe(container);
 }
 void openBook().catch(error => { status(error.message, true); });

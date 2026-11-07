@@ -13,7 +13,7 @@ import sharp from 'sharp';
 import { createBooks } from '../server/books.mjs';
 import { renderNoteMarkdown } from '../server/blog-markdown.mjs';
 import { noteAppearance } from '../server/admin/note-appearance.js';
-import { displayNoteLayout, fitNoteLayout, pageForNoteRect } from '../server/admin/pdf-note-gestures.js';
+import { constrainNoteHorizontally, displayNoteLayout, fitNoteLayout, pageForNoteRect } from '../server/admin/pdf-note-gestures.js';
 const origin = 'https://pixelware.test', password = 'book-library test password!';
 const passwordHash = await hashPassword(password);
 
@@ -96,6 +96,25 @@ test('free note layouts preserve margin positions and size independently of page
   const mobile = displayNoteLayout({ x: -.2, y: .95, width: .2, height: .1 }, 320, 440);
   assert.equal(mobile.width * 320, 160); assert.ok(Math.abs(mobile.height * 440 - 120) < 1e-10);
   assert.equal(mobile.x, -.2); assert.equal(mobile.y, .95);
+});
+
+test('notes stay inside the viewport when dragged, resized, restored, or zoomed', () => {
+  const page = { left: 400, width: 800 }, viewport = { left: 0, width: 1600 };
+  const original = { x: -2, y: 1.2, width: .3, height: .4 };
+  const left = constrainNoteHorizontally(original, page, viewport);
+  assert.equal(page.left + left.x * page.width, 8);
+  assert.equal(left.y, original.y); assert.equal(left.height, original.height);
+  const right = constrainNoteHorizontally({ ...original, x: 2 }, page, viewport);
+  assert.equal(page.left + (right.x + right.width) * page.width, 1592);
+  const resized = constrainNoteHorizontally({ ...original, x: 1, width: 2 }, page, viewport, 'resize');
+  assert.equal(resized.x, 1, 'resizing holds the left edge');
+  assert.equal(page.left + (resized.x + resized.width) * page.width, 1592);
+  const mobilePage = { left: -200, width: 1600 }, mobile = { left: 20, width: 320 };
+  const narrow = constrainNoteHorizontally(original, mobilePage, mobile);
+  assert.ok(Math.abs(mobilePage.left + narrow.x * mobilePage.width - 28) < 1e-9);
+  assert.equal(narrow.width * mobilePage.width, 304, 'oversized notes shrink to fit the viewport');
+  const zoomed = constrainNoteHorizontally({ ...original, width: 4 }, { left: -1000, width: 3200 }, viewport);
+  assert.equal(zoomed.width * 3200, 1584);
 });
 
 test('page references use the largest overlap, with vertical overlap for side margins', () => {

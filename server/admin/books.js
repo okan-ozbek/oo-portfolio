@@ -136,18 +136,20 @@ export function initBooks({ api, toast }) {
     if (!active.annotations.length) {
       root.append(el('p', 'field-note', 'No PDF notes yet. Use ＋ Note in the PDF reader to place one.')); return;
     }
-    for (const note of active.annotations) {
+    for (const note of [...active.annotations].sort((a, b) => a.page - b.page)) {
       const card = el('article', 'book-pdf-note pdf-note-card');
       card.tabIndex = 0; card.setAttribute('role', 'link');
       card.setAttribute('aria-label', 'Open note on PDF page ' + note.page);
       card.title = 'Open in the PDF reader · Page ' + note.page;
       card.style.width = Math.max(160, note.width ? note.width * 816 : 230) + 'px';
-      if (note.height) { card.style.height = Math.max(120, note.height * 1056) + 'px'; card.style.maxHeight = 'none'; }
+      card.style.minHeight = Math.max(120, note.height ? note.height * 1056 : 0) + 'px';
+      const heading = el('header', 'book-pdf-note-heading');
+      heading.append(el('span', '', 'PDF page ' + note.page), icon('external'));
       const content = el('div', 'pdf-note-content'); content.innerHTML = note.html;
       const open = () => window.open('/admin/book-reader?book=' + active.id + '#page=' + note.page, '_blank', 'noopener');
       card.addEventListener('click', event => { event.preventDefault(); open(); });
       card.addEventListener('keydown', event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); open(); } });
-      card.append(content); root.append(card);
+      card.append(heading, content); root.append(card);
     }
   }
   const noteSnippets = { code: '\n```\n// Your code here\n```\n', mermaid: '\n```mermaid\nflowchart LR\n  A[Idea] --> B[Takeaway]\n```\n', link: '[Link text](https://example.com)' };
