@@ -27,16 +27,20 @@ write. Markdown source and Preview views are also available. Notes autosave;
 note** removes the contents. Notes persist in SQLite with the book and are removed
 when the book is deleted.
 
-In the PDF reader, choose **＋ Note**, then click or tap the exact spot on a page.
-Write in the live Markdown editor and choose **Save note**. Hold the marked **Drag**
+In the PDF reader, choose **Add note**, then click or tap the exact spot on a page.
+Click a note's text or pencil icon to edit Markdown directly inside the yellow
+post-it. Changes autosave; the red checkmark finishes editing. Delete is available
+in the note's editing header. Hold the marked **Drag**
 handle to move a post-it, including to another page; use its bottom-right corner to
 resize it horizontally and vertically. Arrow keys work on both handles, with Shift
-for larger steps. Position and size persist and scale with PDF zoom. The editor's
-preview uses the note's actual dimensions. **Hide notes / Show notes**
+for larger steps. Position and size persist and scale with PDF zoom. **Show notes**
 switches the overlays off and on, with the preference remembered in this browser.
 Notes keep their relative position when zooming. They are stored separately from
 the PDF and also appear as yellow cards in **Book Notes**. Click a card to open
 its PDF page. Editing and deletion of PDF notes happen in the reader.
+The reader's compact icon toolbar stays visible while scrolling. On narrow
+screens, **More reading controls** contains zoom, dark mode, reading colors, and
+the original PDF link.
 
 The **Blogs** workspace supports autosaved Markdown drafts, highlighted code,
 Mermaid diagrams, resizable images, paired artwork presets, publishing, and

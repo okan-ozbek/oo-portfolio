@@ -385,6 +385,7 @@ export function createMarkdownEditor(textarea, options = {}) {
   const view = new EditorView({ state: EditorState.create({ doc: textarea.value, extensions: extensions() }), parent: host });
   const dispatch = transaction => { programmatic = true; try { view.dispatch(transaction); } finally { programmatic = false; } };
   return {
+    destroy() { view.destroy(); host.remove(); },
     get value() { return view.state.doc.toString(); },
     set value(value) {
       programmatic = true;
