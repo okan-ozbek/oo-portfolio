@@ -5,7 +5,7 @@ body{margin:0;display:flex;flex-direction:column;height:100dvh;overflow:hidden}
 .reader-main{isolation:isolate}
 #viewer.pdfViewer{width:calc(var(--reader-page-width,816px) + 24px);min-width:100%;padding:12px;box-sizing:border-box}
 #viewer-container{scrollbar-gutter:stable}
-#reader-status{position:absolute;top:100%;left:20px;right:20px;margin-top:0!important;padding:5px 8px;background:#19191cef;border-radius:0 0 5px 5px;pointer-events:none}
+#reader-status{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:30;width:max-content;max-width:min(320px,calc(100vw - 36px));margin:0;padding:8px 12px;background:#1c1c20eb;border:1px solid #34343c;border-radius:7px;box-shadow:0 3px 14px #0003;pointer-events:none;font-size:11px;line-height:1.5;color:#a6a6b4}
 button,input,select{font:inherit;color:inherit;background:#202024;border:1px solid #38383f;border-radius:5px;padding:7px 10px;min-height:36px}
 button,select{cursor:pointer}button:disabled,input:disabled,select:disabled{opacity:.4;cursor:default}
 button:hover:not(:disabled),a:hover{background:#303036}button[aria-pressed=true]{background:#34343e;border-color:#777785;color:#fff}
@@ -14,7 +14,7 @@ a{color:#c9c9d3;text-decoration:none;border-radius:4px;padding:7px 8px;white-spa
 .reader-toolbar{position:relative;flex:none;padding:8px 14px;background:#19191c;border-bottom:1px solid #303035;z-index:10}
 .reader-bar,.reader-controls,.control-group,.reader-extra-controls{display:flex;align-items:center;gap:6px}.reader-bar{gap:12px;min-width:0}.reader-controls{margin-left:auto;flex:none}.control-group{flex:none}
 #page-number{width:65px;padding-inline:6px}#page-count{min-width:30px;white-space:nowrap;color:#93939f}
-#reader-status{font-size:11px;color:#a6a6b4;margin:6px 0 0}#reader-status:empty{display:none}#reader-status.is-error{color:#ffb0b0}
+#reader-status:empty{display:none}#reader-status.is-error{color:#ffb0b0}
 #find-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}#find-input{width:min(100%,280px)}#find-status{font-size:12px;color:#aaaab5}
 .reader-main{position:relative;flex:1;min-height:0}#viewer-container{position:absolute;inset:0;overflow:auto;overscroll-behavior:contain}
 .reader-zoom .range-picker{position:relative;flex-shrink:0}

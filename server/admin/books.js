@@ -106,7 +106,8 @@ export function initBooks({ api, toast }) {
     if (noteInput) { noteInput.value = ''; noteInput.disabled = true; }
     $('book-notes-name').textContent = book.name;
     $('book-notes-error').textContent = ''; $('book-notes-preview').replaceChildren();
-    $('book-pdf-notes-list').textContent = 'Loading PDF notes…';
+    $('book-pdf-notes-list').replaceChildren();
+    $('book-pdf-notes-list').closest('.book-pdf-notes').hidden = true;
     $('book-notes-words').textContent = '0 words';
     $('book-notes-clear').disabled = $('book-notes-done').disabled = true;
     noteStatus('Loading note…'); $('book-notes-dialog').showModal();
@@ -133,18 +134,17 @@ export function initBooks({ api, toast }) {
   }
   function renderPdfNotes(active) {
     const root = $('book-pdf-notes-list'); root.replaceChildren();
-    if (!active.annotations.length) {
-      root.append(el('p', 'field-note', 'No PDF notes yet. Use ＋ Note in the PDF reader to place one.')); return;
-    }
+    root.closest('.book-pdf-notes').hidden = !active.annotations.length;
+    if (!active.annotations.length) return;
     for (const note of [...active.annotations].sort((a, b) => a.page - b.page)) {
       const card = el('article', 'book-pdf-note pdf-note-card');
       card.tabIndex = 0; card.setAttribute('role', 'link');
-      card.setAttribute('aria-label', 'Open note on PDF page ' + note.page);
+      card.setAttribute('aria-label', 'Open note on page ' + note.page);
       card.title = 'Open in the PDF reader · Page ' + note.page;
       card.style.width = Math.max(160, note.width ? note.width * 816 : 230) + 'px';
       card.style.minHeight = Math.max(120, note.height ? note.height * 1056 : 0) + 'px';
       const heading = el('header', 'book-pdf-note-heading');
-      heading.append(el('span', '', 'PDF page ' + note.page), icon('external'));
+      heading.append(el('span', '', 'Page ' + note.page), icon('external'));
       const content = el('div', 'pdf-note-content'); content.innerHTML = note.html;
       const open = () => window.open('/admin/book-reader?book=' + active.id + '#page=' + note.page, '_blank', 'noopener');
       card.addEventListener('click', event => { event.preventDefault(); open(); });

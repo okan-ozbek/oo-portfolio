@@ -51,7 +51,7 @@ try { dark = localStorage.getItem('pixelware-pdf-theme') !== 'original'; } catch
 let statusTimer;
 const status = (text, error = false) => {
   clearTimeout(statusTimer); $('reader-status').textContent = text; $('reader-status').classList.toggle('is-error', error);
-  if (text && !error) statusTimer = setTimeout(() => { $('reader-status').textContent = ''; }, 4000);
+  if (text && !error) statusTimer = setTimeout(() => { $('reader-status').textContent = ''; }, 2200);
 };
 function applyTheme() {
   document.documentElement.dataset.theme = dark ? 'dark' : 'original';

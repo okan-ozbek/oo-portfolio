@@ -28,5 +28,9 @@
 :is(.pdf-post-it,.book-pdf-note) .pdf-note-content{flex:0 0 auto;overflow:visible}
 .pdf-post-it .markdown-editor .cm-editor{height:auto}
 .pdf-post-it .markdown-editor .cm-scroller{overflow:visible}
-.book-pdf-note-heading{display:flex;flex:none;align-items:center;justify-content:space-between;gap:12px;padding-bottom:7px;margin-bottom:9px;border-bottom:1px solid color-mix(in srgb,var(--pdf-note-text) 18%,transparent);font-size:.85em;color:var(--pdf-note-muted)}
+.book-pdf-note-heading{display:flex;flex:none;align-items:center;justify-content:space-between;gap:12px;min-height:34px;padding:4px 2px 9px;margin-bottom:9px;border-bottom:1px solid color-mix(in srgb,var(--pdf-note-text) 18%,transparent);font-size:.85em;color:var(--pdf-note-muted)}
 .book-pdf-note-heading .action-icon{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+
+.book-pdf-note{transition:transform 140ms ease,box-shadow 140ms ease,border-color 140ms ease}
+@media(hover:hover){.book-pdf-note:hover{transform:translateY(-2px);box-shadow:3px 8px 20px #0006;border-color:var(--pdf-note-muted)}}
+@media(prefers-reduced-motion:reduce){.book-pdf-note{transition:none}.book-pdf-note:hover{transform:none}}
