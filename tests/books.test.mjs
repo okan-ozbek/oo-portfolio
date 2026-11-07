@@ -11,6 +11,7 @@ import { hashPassword } from '../server/security.mjs';
 import { bookPdf } from './fixtures/book.mjs';
 import sharp from 'sharp';
 import { createBooks } from '../server/books.mjs';
+import { displayNoteLayout, fitNoteLayout } from '../server/admin/pdf-note-gestures.js';
 const origin = 'https://pixelware.test', password = 'book-library test password!';
 const passwordHash = await hashPassword(password);
 
@@ -25,12 +26,13 @@ test('PDF post-it notes validate positions, protect mutations, render Markdown, 
   for (const headers of [{ Origin: 'https://evil.test' }, { 'X-CSRF-Token': '' }]) {
     assert.equal((await app.request(path, { method: 'POST', headers, body: note })).status, 403);
   }
-  for (const change of [{ page: 0 }, { page: 3 }, { page: 1.5 }, { page: '2' }, { x: -0.1 }, { x: 1.1 }, { x: '0.3' }, { y: null }, { y: 2 }, { markdown: '' }, { markdown: '   ' }, { markdown: null }, { markdown: 'x'.repeat(100001) }, { extra: true }]) {
+  for (const change of [{ page: 0 }, { page: 3 }, { page: 1.5 }, { page: '2' }, { x: -0.1 }, { x: 1.1 }, { x: '0.3' }, { y: null }, { y: 2 }, { markdown: '' }, { markdown: '   ' }, { markdown: null }, { markdown: 'x'.repeat(100001) }, { extra: true }, { width: .2 }, { width: 0, height: .2 }, { width: 1.1, height: .2 }, { width: '.2', height: .2 }, { width: .2, height: null }, { width: .2, height: -1 }]) {
     assert.equal((await app.request(path, { method: 'POST', body: { ...note, ...change } })).status, 400);
   }
   const response = await app.request(path, { method: 'POST', body: note }); assert.equal(response.status, 201);
   let { annotation } = await response.json();
   assert.equal(annotation.page, 2); assert.equal(annotation.x, .32); assert.equal(annotation.y, .71);
+  assert.equal(annotation.width, null); assert.equal(annotation.height, null);
   assert.match(annotation.html, /<strong>A thought<\/strong>/); assert.doesNotMatch(annotation.html, /<script|href="javascript:/);
   assert.deepEqual((await (await app.request(path)).json()).annotations, [annotation]);
   const item = `${path}/${annotation.id}`;
@@ -71,13 +73,29 @@ test('PDF notes survive restart and cascade when their book is removed without r
   db.close();
   const path = `books/${book.id}/annotations`;
   const result = await app.request(path, { method: 'POST', body: { page: 2, x: .5, y: .2, markdown: 'Persistent **note**' } });
-  assert.equal(result.status, 201); const { annotation } = await result.json();
+  assert.equal(result.status, 201); let { annotation } = await result.json();
+  const resized = await app.request(`${path}/${annotation.id}`, { method: 'PATCH', body: { page: 2, x: .2, y: .3, width: .4, height: .25, markdown: annotation.markdown } });
+  assert.equal(resized.status, 200); annotation = (await resized.json()).annotation;
+  // Older clients and text-only edits must retain saved note dimensions.
+  const edited = await app.request(`${path}/${annotation.id}`, { method: 'PATCH', body: { page: 2, x: .2, y: .3, markdown: 'Edited after resizing' } });
+  assert.equal(edited.status, 200); annotation = (await edited.json()).annotation;
+  assert.equal(annotation.width, .4); assert.equal(annotation.height, .25);
   await app.close(); restarted = await fixture(t, database); await restarted.login();
   assert.deepEqual((await (await restarted.request(path)).json()).annotations, [annotation]);
   assert.equal((await (await restarted.request(`books/${book.id}`)).json()).book.hasNotes, true);
   assert.equal((await restarted.request(`books/${book.id}`, { method: 'DELETE', body: {} })).status, 200);
   const check = new DatabaseSync(database);
   try { assert.equal(check.prepare('SELECT count(*) AS count FROM book_annotations').get().count, 0); } finally { check.close(); }
+});
+
+test('dragged/resized layouts stay inside the PDF page, including tiny pages and edge drops', () => {
+  assert.deepEqual(fitNoteLayout({ x: -.2, y: 2, width: .3, height: .4 }), { x: 0, y: .6, width: .3, height: .4 });
+  assert.deepEqual(fitNoteLayout({ x: .8, y: .9, width: 2, height: 3 }), { x: 0, y: 0, width: 1, height: 1 });
+  const layout = fitNoteLayout({ x: .95, y: .95, width: .2, height: .3 });
+  assert.equal(layout.x + layout.width, 1); assert.equal(layout.y + layout.height, 1);
+  const mobile = displayNoteLayout({ x: .8, y: .9, width: .2, height: .1 }, 320, 440);
+  assert.equal(mobile.width * 320, 160); assert.ok(Math.abs(mobile.height * 440 - 120) < 1e-10);
+  assert.equal(mobile.x + mobile.width, 1); assert.equal(mobile.y + mobile.height, 1);
 });
 
 test('library and thumbnail queries avoid reading large PDF table records', async () => {

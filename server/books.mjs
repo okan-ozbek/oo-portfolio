@@ -116,6 +116,10 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   ) STRICT;
   CREATE INDEX IF NOT EXISTS book_annotations_book ON book_annotations (book_id, page, created_at);`);
+  const annotationColumns = db.prepare('PRAGMA table_info(book_annotations)').all();
+  for (const dimension of ['width', 'height']) if (!annotationColumns.some(column => column.name === dimension)) {
+    db.exec(`ALTER TABLE book_annotations ADD COLUMN ${dimension} REAL CHECK(${dimension} > 0 AND ${dimension} <= 1)`);
+  }
   const fields = `id, name, tags_json, pages, size, created_at, bookmark_page, completed,
     (EXISTS (SELECT 1 FROM book_notes WHERE book_id = book_state.id AND length(trim(markdown)) > 0)
      OR EXISTS (SELECT 1 FROM book_annotations WHERE book_id = book_state.id)) AS has_notes`;
@@ -183,7 +187,7 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
     if (!row) throw new HttpError(404, 'Book not found.');
     if (asset?.startsWith('annotations')) {
       const annotationId = asset.split('/')[1];
-      const serialize = note => ({ id: note.id, page: note.page, x: note.x, y: note.y, markdown: note.markdown,
+      const serialize = note => ({ id: note.id, page: note.page, x: note.x, y: note.y, width: note.width, height: note.height, markdown: note.markdown,
         html: renderMarkdown(note.markdown), createdAt: note.created_at, updatedAt: note.updated_at });
       if (!annotationId && req.method === 'GET') {
         send(res, 200, { annotations: db.prepare('SELECT * FROM book_annotations WHERE book_id = ? ORDER BY page, created_at, id').all(id).map(serialize) });
@@ -194,17 +198,20 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
       if ((!annotationId && req.method === 'POST') || (annotationId && req.method === 'PATCH')) {
         const body = await readJson(req, 650000);
         const keys = ['page', 'x', 'y', 'markdown'];
-        if (Object.keys(body).length !== keys.length || keys.some(key => !Object.hasOwn(body, key)) ||
+        const width = Object.hasOwn(body, 'width') ? body.width : annotation?.width ?? null;
+        const height = Object.hasOwn(body, 'height') ? body.height : annotation?.height ?? null;
+        if (Object.keys(body).some(key => ![...keys, 'width', 'height'].includes(key)) || keys.some(key => !Object.hasOwn(body, key)) ||
+            !((width === null && height === null) || [width, height].every(value => typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 1)) ||
             !Number.isSafeInteger(body.page) || body.page < 1 || body.page > row.pages ||
             ![body.x, body.y].every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1) ||
             typeof body.markdown !== 'string' || !body.markdown.trim() || body.markdown.length > MAX_NOTE_LENGTH) {
           throw new HttpError(400, `Choose a PDF page between 1 and ${row.pages}, a position within the page, and a nonempty Markdown note up to ${MAX_NOTE_LENGTH.toLocaleString('en-US')} characters.`);
         }
         const noteId = annotationId ?? randomUUID(), timestamp = new Date(now()).toISOString();
-        if (annotationId) db.prepare('UPDATE book_annotations SET page = ?, x = ?, y = ?, markdown = ?, updated_at = ? WHERE id = ? AND book_id = ?')
-          .run(body.page, body.x, body.y, body.markdown, timestamp, noteId, id);
-        else db.prepare('INSERT INTO book_annotations (id, book_id, page, x, y, markdown, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-          .run(noteId, id, body.page, body.x, body.y, body.markdown, timestamp, timestamp);
+        if (annotationId) db.prepare('UPDATE book_annotations SET page = ?, x = ?, y = ?, width = ?, height = ?, markdown = ?, updated_at = ? WHERE id = ? AND book_id = ?')
+          .run(body.page, body.x, body.y, width, height, body.markdown, timestamp, noteId, id);
+        else db.prepare('INSERT INTO book_annotations (id, book_id, page, x, y, width, height, markdown, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(noteId, id, body.page, body.x, body.y, width, height, body.markdown, timestamp, timestamp);
         send(res, annotationId ? 200 : 201, { annotation: serialize(db.prepare('SELECT * FROM book_annotations WHERE id = ? AND book_id = ?').get(noteId, id)), hasNotes: true });
         return true;
       }

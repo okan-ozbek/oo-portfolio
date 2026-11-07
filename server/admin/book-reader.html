@@ -6,7 +6,10 @@
   <title>Book reader · Pixelware</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/admin/pdfjs/web/pdf_viewer.css">
+  <link rel="stylesheet" href="/admin/assets/blogs.css">
+  <link rel="stylesheet" href="/blog/assets/blog.css">
   <link rel="stylesheet" href="/admin/assets/book-reader.css">
+  <link rel="stylesheet" href="/admin/assets/pdf-notes.css">
   <script type="module" src="/blog/assets/book-reader.js"></script>
 </head>
 <body>
@@ -39,10 +42,10 @@
     <form id="pdf-note-form">
       <div class="pdf-note-dialog-heading"><h2 id="pdf-note-title">PDF note</h2><button id="pdf-note-close" type="button" aria-label="Close PDF note">×</button></div>
       <p id="pdf-note-page"></p>
-      <label for="pdf-note-markdown">Note · Markdown supported</label>
-      <textarea id="pdf-note-markdown" maxlength="100000" required rows="8" placeholder="Write a thought, **highlight an idea**, or add a list…"></textarea>
-      <div class="pdf-note-preview-heading"><span>Preview</span><button id="pdf-note-preview-button" type="button">Update preview</button></div>
-      <div id="pdf-note-preview" class="pdf-note-content"></div>
+      <div class="pdf-note-workspace">
+        <section class="pdf-note-editor"><label for="pdf-note-markdown">Note · Live Markdown</label><div class="pdf-note-editor-modes" role="group" aria-label="PDF note editor view"><button type="button" id="pdf-note-live" aria-pressed="true">Live</button><button type="button" id="pdf-note-source" aria-pressed="false">Markdown</button></div><textarea id="pdf-note-markdown" maxlength="100000" rows="8" placeholder="Write a thought, **highlight an idea**, or add a list…"></textarea></section>
+        <section class="pdf-note-preview-pane" aria-label="Note size preview"><p class="pdf-note-preview-heading">Actual note size</p><div class="pdf-note-preview-viewport"><div id="pdf-note-preview" class="pdf-note-card"><div class="pdf-post-it-heading" aria-hidden="true"><span>✎ Edit note</span><span>⠿ Drag</span></div><div id="pdf-note-preview-content" class="pdf-note-content"></div></div></div></section>
+      </div>
       <p id="pdf-note-error" role="alert"></p>
       <div class="pdf-note-dialog-actions"><button id="pdf-note-delete" type="button" hidden>Delete note</button><button id="pdf-note-cancel" type="button">Cancel</button><button id="pdf-note-save" type="submit">Save note</button></div>
     </form>
