@@ -18,6 +18,8 @@
       <button id="theme-toggle" aria-pressed="true" title="Display pages in dark mode. Turn off for original image colors.">Dark mode</button>
       <button id="colors-toggle" aria-expanded="false" aria-controls="colors-panel">Reading colors</button>
       <button id="find-toggle" data-document-control disabled aria-expanded="false" aria-controls="find-bar">Find</button>
+      <button id="note-add" data-document-control disabled aria-pressed="false">＋ Note</button>
+      <button id="notes-toggle" data-document-control disabled aria-pressed="true">Show notes</button>
       <a id="original-pdf" hidden target="_blank" rel="noopener">Original PDF ↗</a>
     </div>
     <section id="colors-panel" class="reader-colors-panel" aria-labelledby="colors-title" hidden>
@@ -32,6 +34,19 @@
     <p id="reader-status" role="status">Loading book…</p>
   </header>
   <main class="reader-main"><div id="viewer-container" tabindex="0" aria-label="PDF pages"><div id="viewer" class="pdfViewer"></div></div></main>
+  <div id="note-placement" class="note-placement" role="status" hidden><span>Click or tap anywhere on a PDF page to place your note. Press Enter to use the current page’s center.</span><button id="note-placement-cancel" type="button">Cancel</button></div>
+  <dialog id="pdf-note-dialog" aria-labelledby="pdf-note-title">
+    <form id="pdf-note-form">
+      <div class="pdf-note-dialog-heading"><h2 id="pdf-note-title">PDF note</h2><button id="pdf-note-close" type="button" aria-label="Close PDF note">×</button></div>
+      <p id="pdf-note-page"></p>
+      <label for="pdf-note-markdown">Note · Markdown supported</label>
+      <textarea id="pdf-note-markdown" maxlength="100000" required rows="8" placeholder="Write a thought, **highlight an idea**, or add a list…"></textarea>
+      <div class="pdf-note-preview-heading"><span>Preview</span><button id="pdf-note-preview-button" type="button">Update preview</button></div>
+      <div id="pdf-note-preview" class="pdf-note-content"></div>
+      <p id="pdf-note-error" role="alert"></p>
+      <div class="pdf-note-dialog-actions"><button id="pdf-note-delete" type="button" hidden>Delete note</button><button id="pdf-note-cancel" type="button">Cancel</button><button id="pdf-note-save" type="submit">Save note</button></div>
+    </form>
+  </dialog>
   <noscript>Enable JavaScript to read books in dark mode.</noscript>
 </body>
 </html>

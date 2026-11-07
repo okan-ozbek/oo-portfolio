@@ -104,13 +104,16 @@ export function initBooks({ api, toast }) {
     if (noteInput) { noteInput.value = ''; noteInput.disabled = true; }
     $('book-notes-name').textContent = book.name;
     $('book-notes-error').textContent = ''; $('book-notes-preview').replaceChildren();
+    $('book-pdf-notes-list').textContent = 'Loading PDF notes…';
     $('book-notes-words').textContent = '0 words';
     $('book-notes-clear').disabled = $('book-notes-done').disabled = true;
     noteStatus('Loading note…'); $('book-notes-dialog').showModal();
     try {
-      const [{ markdown }] = await Promise.all([api(`books/${book.id}/notes`), ensureNoteEditor()]);
+      const [{ markdown }, { annotations }] = await Promise.all([api(`books/${book.id}/notes`), api(`books/${book.id}/annotations`), ensureNoteEditor()]);
       if (noteSession !== active) return;
       active.markdown = active.saved = markdown; active.loading = false;
+      active.annotations = annotations; active.annotationEdits = new Map();
+      renderPdfNotes(active);
       noteInput.value = markdown; noteInput.disabled = false;
       $('book-notes-clear').disabled = $('book-notes-done').disabled = false;
       noteStatus('All changes saved.'); noteWordCount(markdown); void previewNote(); noteInput.focus();
@@ -121,10 +124,87 @@ export function initBooks({ api, toast }) {
   async function closeNotes() {
     const active = noteSession;
     if (!active) return;
+    if (active.annotationSaving) return;
+    if (active.annotationEdits?.size) {
+      active.annotationSaving = true; noteStatus('Saving PDF notes…');
+      const root = $('book-pdf-notes-list');
+      for (const control of root.querySelectorAll('button,textarea')) control.disabled = true;
+      try {
+        for (const [id, markdown] of active.annotationEdits) {
+          const note = active.annotations.find(item => item.id === id);
+          const { annotation, hasNotes } = await api(`books/${active.id}/annotations/${id}`, {
+            method: 'PATCH', body: { page: note.page, x: note.x, y: note.y, markdown },
+          });
+          if (noteSession !== active) return;
+          active.annotations = active.annotations.map(item => item.id === id ? annotation : item);
+          active.annotationEdits.delete(id);
+          books = books.map(book => book.id === active.id ? { ...book, hasNotes } : book);
+        }
+        render(); renderPdfNotes(active);
+      } catch (error) {
+        if (noteSession === active) { noteStatus('PDF notes could not be saved. Try Save & done again.'); $('book-notes-error').textContent = error.message; }
+        return;
+      } finally { active.annotationSaving = false; for (const control of root.querySelectorAll('button,textarea')) control.disabled = false; }
+    }
     if (!active.loading && !(await saveNote())) return;
     if (noteSession !== active) return;
     clearTimeout(active.timer); clearTimeout(active.previewTimer);
     noteSession = null; $('book-notes-dialog').close();
+  }
+  function renderPdfNotes(active) {
+    const root = $('book-pdf-notes-list'); root.replaceChildren();
+    if (!active.annotations.length) {
+      root.append(el('p', 'field-note', 'No PDF notes yet. Use ＋ Note in the PDF reader to place one.')); return;
+    }
+    for (const note of active.annotations) {
+      const card = el('article', 'book-pdf-note');
+      const heading = el('div', 'book-pdf-note-heading');
+      const link = el('a', '', `PDF page ${note.page} ↗`);
+      link.href = `/admin/book-reader?book=${active.id}#page=${note.page}`; link.target = '_blank'; link.rel = 'noopener';
+      const content = el('div', 'blog-content'); content.innerHTML = note.html;
+      const source = el('textarea'); source.value = active.annotationEdits.get(note.id) ?? note.markdown;
+      source.maxLength = 100000; source.rows = 6; source.hidden = true;
+      source.setAttribute('aria-label', `Markdown for PDF note on page ${note.page}`);
+      source.addEventListener('input', () => {
+        if (source.value === note.markdown) active.annotationEdits.delete(note.id);
+        else active.annotationEdits.set(note.id, source.value);
+      });
+      const error = el('p', 'error'); error.setAttribute('role', 'alert');
+      const actions = el('div', 'book-pdf-note-actions');
+      const edit = button('Edit Markdown', () => {
+        source.hidden = !source.hidden; save.hidden = source.hidden;
+        edit.textContent = source.hidden ? 'Edit Markdown' : 'Hide editor';
+        if (!source.hidden) source.focus();
+      });
+      const updateIndicator = hasNotes => {
+        books = books.map(book => book.id === active.id ? { ...book, hasNotes } : book); render();
+      };
+      const mutate = async action => {
+        if (active.annotationSaving) return;
+        active.annotationSaving = true; error.textContent = '';
+        for (const control of root.querySelectorAll('button,textarea')) control.disabled = true;
+        try { await action(); }
+        catch (failure) { error.textContent = failure.message; }
+        finally { active.annotationSaving = false; for (const control of root.querySelectorAll('button,textarea')) control.disabled = false; }
+      };
+      const save = button('Save PDF note', () => void mutate(async () => {
+        const { annotation, hasNotes } = await api(`books/${active.id}/annotations/${note.id}`, {
+          method: 'PATCH', body: { page: note.page, x: note.x, y: note.y, markdown: source.value },
+        });
+        if (noteSession !== active) return;
+        active.annotations = active.annotations.map(item => item.id === note.id ? annotation : item);
+        active.annotationEdits.delete(note.id); updateIndicator(hasNotes); renderPdfNotes(active);
+      }), 'primary'); save.hidden = true;
+      const remove = button('Delete note', () => void mutate(async () => {
+        const { hasNotes } = await api(`books/${active.id}/annotations/${note.id}`, { method: 'DELETE', body: {} });
+        if (noteSession !== active) return;
+        active.annotations = active.annotations.filter(item => item.id !== note.id);
+        active.annotationEdits.delete(note.id); updateIndicator(hasNotes); renderPdfNotes(active);
+      }), 'text-button');
+      heading.append(link); actions.append(edit, save, remove);
+      card.append(heading, content, source, actions, error); root.append(card);
+      void enhanceContent(content).catch(failure => { error.textContent = failure.message; });
+    }
   }
   const noteSnippets = { code: '\n```\n// Your code here\n```\n', mermaid: '\n```mermaid\nflowchart LR\n  A[Idea] --> B[Takeaway]\n```\n', link: '[Link text](https://example.com)' };
   for (const tool of document.querySelectorAll('[data-note-insert]')) {
@@ -145,7 +225,7 @@ export function initBooks({ api, toast }) {
   $('book-notes-close').addEventListener('click', () => void closeNotes());
   $('book-notes-form').addEventListener('submit', event => { event.preventDefault(); void closeNotes(); });
   $('book-notes-dialog').addEventListener('cancel', event => { event.preventDefault(); void closeNotes(); });
-  window.addEventListener('beforeunload', event => { if (noteDirty() || noteSession?.saving) { event.preventDefault(); event.returnValue = ''; } });
+  window.addEventListener('beforeunload', event => { if (noteDirty() || noteSession?.saving || noteSession?.annotationEdits?.size || noteSession?.annotationSaving) { event.preventDefault(); event.returnValue = ''; } });
   function tagEditor(prefix, onChange = () => {}) {
     const root = $(`book-${prefix}-tags`);
     let tags = [];

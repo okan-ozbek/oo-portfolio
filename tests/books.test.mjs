@@ -11,6 +11,74 @@ import { hashPassword } from '../server/security.mjs';
 import { bookPdf } from './fixtures/book.mjs';
 import sharp from 'sharp';
 import { createBooks } from '../server/books.mjs';
+const origin = 'https://pixelware.test', password = 'book-library test password!';
+const passwordHash = await hashPassword(password);
+
+test('PDF post-it notes validate positions, protect mutations, render Markdown, and remain independent of book notes', async t => {
+  const app = await fixture(t); await app.login();
+  const { book } = await (await app.upload()).json();
+  const { book: other } = await (await app.upload(bookPdf('Other annotated book'), 'Other')).json();
+  const path = `books/${book.id}/annotations`;
+  const note = { page: 2, x: .32, y: .71, markdown: '**A thought**\n\n- A takeaway\n\n<script>alert(1)</script>\n\n[Unsafe](javascript:alert(1))' };
+  assert.equal((await app.request(path, { anonymous: true })).status, 401);
+  assert.equal((await app.request(path, { method: 'POST', body: note, anonymous: true })).status, 401);
+  for (const headers of [{ Origin: 'https://evil.test' }, { 'X-CSRF-Token': '' }]) {
+    assert.equal((await app.request(path, { method: 'POST', headers, body: note })).status, 403);
+  }
+  for (const change of [{ page: 0 }, { page: 3 }, { page: 1.5 }, { page: '2' }, { x: -0.1 }, { x: 1.1 }, { x: '0.3' }, { y: null }, { y: 2 }, { markdown: '' }, { markdown: '   ' }, { markdown: null }, { markdown: 'x'.repeat(100001) }, { extra: true }]) {
+    assert.equal((await app.request(path, { method: 'POST', body: { ...note, ...change } })).status, 400);
+  }
+  const response = await app.request(path, { method: 'POST', body: note }); assert.equal(response.status, 201);
+  let { annotation } = await response.json();
+  assert.equal(annotation.page, 2); assert.equal(annotation.x, .32); assert.equal(annotation.y, .71);
+  assert.match(annotation.html, /<strong>A thought<\/strong>/); assert.doesNotMatch(annotation.html, /<script|href="javascript:/);
+  assert.deepEqual((await (await app.request(path)).json()).annotations, [annotation]);
+  const item = `${path}/${annotation.id}`;
+  for (const method of ['PATCH', 'DELETE']) {
+    assert.equal((await app.request(item, { method, body: note, anonymous: true })).status, 401);
+    for (const headers of [{ Origin: 'https://evil.test' }, { 'X-CSRF-Token': '' }]) {
+      assert.equal((await app.request(item, { method, headers, body: note })).status, 403);
+    }
+    assert.equal((await app.request(`books/${other.id}/annotations/${annotation.id}`, { method, body: note })).status, 404);
+  }
+  const second = await app.request(path, { method: 'POST', body: { ...note, page: 1, x: 0, y: 1 } });
+  assert.equal(second.status, 201);
+  const { annotation: earlier } = await second.json();
+  const update = await app.request(item, { method: 'PATCH', body: { ...note, page: 1, x: 1, y: 0, markdown: '# Updated' } });
+  assert.equal(update.status, 200); annotation = (await update.json()).annotation;
+  assert.equal(annotation.x, 1); assert.equal(annotation.y, 0); assert.equal(annotation.markdown, '# Updated');
+  assert.equal((await (await app.request(`books/${book.id}`)).json()).book.hasNotes, true);
+  assert.deepEqual(await (await app.request(`books/${book.id}/notes`)).json(), { markdown: '' });
+  const clearGeneral = await app.request(`books/${book.id}/notes`, { method: 'PATCH', body: { markdown: '' } });
+  assert.equal((await clearGeneral.json()).hasNotes, true, 'PDF notes keep the library notes indicator enabled');
+  assert.deepEqual((await (await app.request(`books/${other.id}/annotations`)).json()).annotations, []);
+  assert.deepEqual(Buffer.from(await (await app.request(`books/${book.id}/pdf`)).arrayBuffer()), bookPdf());
+  await app.request(item, { method: 'DELETE', body: {} });
+  const deleted = await app.request(`${path}/${earlier.id}`, { method: 'DELETE', body: {} });
+  assert.equal((await deleted.json()).hasNotes, false);
+  assert.equal((await app.request(item, { method: 'PATCH', body: note })).status, 404);
+});
+
+test('PDF notes survive restart and cascade when their book is removed without rewriting the PDF', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'pixelware-pdf-notes-'));
+  const database = join(directory, 'admin.sqlite');
+  let app, restarted;
+  t.after(async () => { await app?.close(); await restarted?.close(); await rm(directory, { recursive: true, force: true }); });
+  app = await fixture(t, database); await app.login();
+  const { book } = await (await app.upload()).json();
+  const db = new DatabaseSync(database);
+  db.exec("CREATE TRIGGER prevent_annotation_pdf_rewrite BEFORE UPDATE ON books BEGIN SELECT RAISE(FAIL, 'PDF must not be rewritten'); END;");
+  db.close();
+  const path = `books/${book.id}/annotations`;
+  const result = await app.request(path, { method: 'POST', body: { page: 2, x: .5, y: .2, markdown: 'Persistent **note**' } });
+  assert.equal(result.status, 201); const { annotation } = await result.json();
+  await app.close(); restarted = await fixture(t, database); await restarted.login();
+  assert.deepEqual((await (await restarted.request(path)).json()).annotations, [annotation]);
+  assert.equal((await (await restarted.request(`books/${book.id}`)).json()).book.hasNotes, true);
+  assert.equal((await restarted.request(`books/${book.id}`, { method: 'DELETE', body: {} })).status, 200);
+  const check = new DatabaseSync(database);
+  try { assert.equal(check.prepare('SELECT count(*) AS count FROM book_annotations').get().count, 0); } finally { check.close(); }
+});
 
 test('library and thumbnail queries avoid reading large PDF table records', async () => {
   const db = new DatabaseSync(':memory:');
@@ -132,8 +200,6 @@ test('legacy notes migrate once, preserving text and PDFs without resurrecting c
   } finally { db.close(); }
 });
 
-const origin = 'https://pixelware.test', password = 'book-library test password!';
-const passwordHash = await hashPassword(password);
 async function fixture(t, databasePath = ':memory:') {
   const server = createAdminServer({ origin, passwordHash, databasePath });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));

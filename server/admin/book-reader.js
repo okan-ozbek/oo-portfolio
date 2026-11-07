@@ -4,16 +4,22 @@ import { readApiResponse } from './api-response.js';
 import { initFilterPicker } from './filter-picker.js';
 import { initReadingColors } from './reader-colors.js';
 import { createBookRangeTransport } from './pdf-ranges.js';
+import { initPdfNotes } from './pdf-notes.js';
 
 const $ = id => document.getElementById(id);
 const bookId = new URL(location.href).searchParams.get('book');
 const validId = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(bookId ?? '');
 let viewer, pdfDocument, readingColors;
+let pdfNotes;
 const zoomPicker = initFilterPicker($('zoom'));
 const toolbar = document.querySelector('.reader-toolbar');
 const container = $('viewer-container');
 new ResizeObserver(() => document.documentElement.style.setProperty('--reader-toolbar-height', `${toolbar.offsetHeight}px`)).observe(toolbar);
 let lastScroll = 0, scrollDistance = 0, lastDirection = 0, ignoreScrollUntil = 0;
+const desktopHover = matchMedia('(hover: hover) and (pointer: fine) and (min-width: 701px)');
+let hoveringToolbar = false;
+const toolbarBusy = () => zoomPicker.isOpen || readingColors?.isOpen || !$('find-bar').hidden || toolbar.contains(document.activeElement) && document.activeElement.matches('input');
+function hideToolbar() { document.body.classList.add('reader-toolbar-hidden'); toolbar.inert = true; }
 function revealToolbar() {
   document.body.classList.remove('reader-toolbar-hidden'); toolbar.inert = false;
   lastScroll = container.scrollTop; scrollDistance = 0; lastDirection = 0;
@@ -23,6 +29,10 @@ container.addEventListener('scroll', () => {
   const top = Math.max(0, container.scrollTop), delta = top - lastScroll;
   lastScroll = top;
   if (!pdfDocument || Math.abs(delta) < 1) return;
+  if (desktopHover.matches) {
+    if (top > toolbar.offsetHeight && !hoveringToolbar && !toolbarBusy()) hideToolbar();
+    return;
+  }
   if (top < 24) { revealToolbar(); return; }
   if (performance.now() < ignoreScrollUntil || zoomPicker.isOpen || readingColors?.isOpen || !$('find-bar').hidden || toolbar.contains(document.activeElement) && document.activeElement.matches('input')) {
     scrollDistance = 0; return;
@@ -34,7 +44,12 @@ container.addEventListener('scroll', () => {
   const hidden = direction > 0 && top > toolbar.offsetHeight;
   document.body.classList.toggle('reader-toolbar-hidden', hidden); toolbar.inert = hidden;
 }, { passive: true });
-container.addEventListener('pointermove', event => { if (event.clientY < 16) revealToolbar(); });
+document.addEventListener('pointermove', event => {
+  if (!desktopHover.matches || event.pointerType !== 'mouse') return;
+  hoveringToolbar = event.clientY <= (document.body.classList.contains('reader-toolbar-hidden') ? 18 : toolbar.offsetHeight) || toolbar.contains(event.target);
+  if (hoveringToolbar) revealToolbar();
+  else if (pdfDocument && container.scrollTop > toolbar.offsetHeight && !toolbarBusy()) hideToolbar();
+});
 window.addEventListener('keydown', event => { if (event.key === 'Tab') revealToolbar(); });
 let dark = true;
 try { dark = localStorage.getItem('pixelware-pdf-theme') !== 'original'; } catch { /* Reading works when storage is unavailable. */ }
@@ -83,6 +98,8 @@ $('zoom').addEventListener('change', () => { revealToolbar(); viewer.currentScal
 async function openBook() {
   if (!validId) throw new Error('Choose a book from your library to open the reader.');
   const { book } = await api(`books/${bookId}`);
+  pdfNotes = initPdfNotes({ bookId, container, getViewer: () => viewer, revealToolbar, status });
+  await pdfNotes.load();
   $('book-title').textContent = book.name; document.title = `${book.name} · Pixelware reader`;
   $('original-pdf').href = `/api/admin/books/${bookId}/pdf`;
   $('original-pdf').hidden = false;
@@ -97,15 +114,18 @@ async function openBook() {
   eventBus.on('pagesinit', () => {
     viewer.currentScaleValue = 'page-width';
     for (const control of document.querySelectorAll('[data-document-control]')) control.disabled = false;
+    $('note-add').disabled = $('notes-toggle').disabled = Boolean(pdfNotes.error);
     zoomPicker.sync();
     initialPage = Math.max(1, Math.min(pdfDocument.numPages, initialPage));
     goToPage(initialPage); updatePage(initialPage);
-    status('');
+    pdfNotes.render();
+    status(pdfNotes.error, Boolean(pdfNotes.error));
   });
   eventBus.on('pagechanging', ({ pageNumber }) => updatePage(pageNumber));
   eventBus.on('pagerendered', ({ pageNumber, error }) => {
     if (error) status('This page could not be rendered. Use Original PDF to open it in your browser.', true);
     else readingColors.pageRendered(pageNumber);
+    pdfNotes.render();
   });
   eventBus.on('scalechanging', ({ scale, presetValue }) => {
     const value = presetValue || String(scale);
