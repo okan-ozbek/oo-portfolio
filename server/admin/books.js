@@ -1,5 +1,6 @@
 import { icon } from './icons.js';
 import { formatMarkdown } from './blog-format.js';
+import { initNoteAppearance } from './note-appearance.js';
 const $ = id => document.getElementById(id);
 const el = (tag, className, text) => {
   const node = document.createElement(tag);
@@ -16,6 +17,7 @@ const tagClass = tag => `book-tag tone-${[...tag.toLowerCase()].reduce((sum, cha
 const format = new Intl.NumberFormat();
 
 export function initBooks({ api, toast }) {
+  initNoteAppearance();
   let books = [], allTags = [], activeTag = '', editing = null, deleting = null, bookmarking = null, version = 0;
   let editSession = null, authVersion = 0;
   const editSessions = new Map();
@@ -33,7 +35,7 @@ export function initBooks({ api, toast }) {
         if (mode === 'preview') void previewNote();
       });
       noteInput.addEventListener('keydown', event => {
-        if (event.key === 'Tab') { event.preventDefault(); noteInput.setRangeText('  ', noteInput.selectionStart, noteInput.selectionEnd, 'end'); noteChanged(); }
+        if (event.key === 'Tab') { event.preventDefault(); if (!noteInput.indentCode(event.shiftKey)) noteInput.setRangeText('  ', noteInput.selectionStart, noteInput.selectionEnd, 'end'); noteChanged(); }
         if ((event.ctrlKey || event.metaKey) && event.key === 's') { event.preventDefault(); void saveNote(); }
       });
     }).catch(error => { noteEditorPromise = null; throw error; });

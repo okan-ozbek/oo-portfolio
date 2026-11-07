@@ -15,6 +15,21 @@ let pdfNotes;
 const zoomPicker = initFilterPicker($('zoom'));
 const toolbar = document.querySelector('.reader-toolbar');
 const container = $('viewer-container');
+function updateNoteWorkspace(center = false) {
+  const pages = container.querySelectorAll('.page[data-page-number]');
+  if (!pages.length) return;
+  const workspace = $('viewer'), previousLeft = parseFloat(getComputedStyle(workspace).paddingLeft);
+  const base = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--note-gutter')) || 240;
+  const padding = pdfNotes?.workspacePadding() ?? { left: 0, right: 0 };
+  const left = Math.max(base, padding.left), right = Math.max(base, padding.right);
+  document.documentElement.style.setProperty('--note-gutter-left', `${left}px`);
+  document.documentElement.style.setProperty('--note-gutter-right', `${right}px`);
+  document.documentElement.style.setProperty('--reader-page-width', `${Math.max(...[...pages].map(page => page.clientWidth))}px`);
+  if (center) {
+    const page = viewer?.getPageView(viewer.currentPageNumber - 1)?.div ?? pages[0];
+    container.scrollLeft = Math.max(0, page.offsetLeft + page.clientWidth / 2 - container.clientWidth / 2);
+  } else container.scrollLeft += left - previousLeft;
+}
 new ResizeObserver(() => document.documentElement.style.setProperty('--reader-toolbar-height', `${toolbar.offsetHeight}px`)).observe(toolbar);
 for (const control of document.querySelectorAll('[data-reader-icon]')) control.append(icon(control.dataset.readerIcon));
 const compactToolbar = matchMedia('(max-width: 520px)');
@@ -72,6 +87,7 @@ function goToPage(page) {
   }
   viewer.currentPageNumber = page;
   viewer.scrollPageIntoView({ pageNumber: page });
+  updateNoteWorkspace(true);
 }
 function updatePage(page) {
   $('page-number').value = page;
@@ -89,7 +105,7 @@ $('zoom').addEventListener('change', () => { viewer.currentScaleValue = $('zoom'
 async function openBook() {
   if (!validId) throw new Error('Choose a book from your library to open the reader.');
   const { book } = await api(`books/${bookId}`);
-  pdfNotes = initPdfNotes({ bookId, container, getViewer: () => viewer, status });
+  pdfNotes = initPdfNotes({ bookId, container, getViewer: () => viewer, status, onLayoutChange: () => updateNoteWorkspace() });
   await pdfNotes.load();
   $('book-title').title = book.name;
   $('book-title').textContent = book.name; document.title = `${book.name} · Pixelware reader`;
@@ -105,6 +121,7 @@ async function openBook() {
   let initialPage = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : book.bookmarkPage || 1;
   eventBus.on('pagesinit', () => {
     viewer.currentScaleValue = 'page-width';
+    updateNoteWorkspace(true);
     for (const control of document.querySelectorAll('[data-document-control]')) control.disabled = false;
     $('note-add').disabled = $('notes-toggle').disabled = Boolean(pdfNotes.error);
     zoomPicker.sync();
@@ -120,6 +137,7 @@ async function openBook() {
     pdfNotes.render();
   });
   eventBus.on('scalechanging', ({ scale, presetValue }) => {
+    requestAnimationFrame(() => updateNoteWorkspace(true));
     const value = presetValue || String(scale);
     const known = [...$('zoom').options].some(option => option.value === value);
     if (!known) $('zoom').querySelector('[value=custom]').textContent = `${Math.round(scale * 100)}%`;

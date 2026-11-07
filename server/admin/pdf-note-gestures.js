@@ -2,12 +2,30 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 // Explicit dimensions/positions are fractions of the PDF page, independent of zoom.
 export function fitNoteLayout({ x, y, width, height }) {
-  width = clamp(width, .001, 1); height = clamp(height, .001, 1);
-  return { x: clamp(x, 0, 1 - width), y: clamp(y, 0, 1 - height), width, height };
+  width = clamp(width, .001, 4); height = clamp(height, .001, 4);
+  return { x: clamp(x, -8, 8), y: clamp(y, -8, 8), width, height };
 }
 
 export function displayNoteLayout(note, pageWidth, pageHeight) {
   return fitNoteLayout({ ...note, width: Math.max(note.width, Math.min(160 / pageWidth, 1)), height: Math.max(note.height, Math.min(120 / pageHeight, 1)) });
+}
+
+// Choose the page containing the largest area of the note. In a side gutter,
+// use vertical overlap; in a gap with no overlap, use the nearest page.
+export function pageForNoteRect(rect, pages) {
+  let best = null, bestArea = -1, bestVertical = -1, bestDistance = Infinity;
+  for (const page of pages) {
+    const bounds = page.getBoundingClientRect();
+    const vertical = Math.max(0, Math.min(rect.bottom, bounds.bottom) - Math.max(rect.top, bounds.top));
+    const horizontal = Math.max(0, Math.min(rect.right, bounds.right) - Math.max(rect.left, bounds.left));
+    const area = vertical * horizontal;
+    const center = (rect.top + rect.bottom) / 2;
+    const distance = Math.max(bounds.top - center, center - bounds.bottom, 0);
+    if (area > bestArea || area === bestArea && (vertical > bestVertical || vertical === bestVertical && distance < bestDistance)) {
+      best = page; bestArea = area; bestVertical = vertical; bestDistance = distance;
+    }
+  }
+  return best;
 }
 
 export function bindNoteGestures({ container, render, save, canStart }) {
@@ -22,7 +40,7 @@ export function bindNoteGestures({ container, render, save, canStart }) {
     card.style.width = `${layout.width * page.clientWidth}px`; card.style.height = `${layout.height * page.clientHeight}px`;
   }
   function start(event, note, card, handle, page, mode) {
-    if (event.button !== 0 || active || !canStart()) return;
+    if (event.button !== 0 || active || !canStart() || mode === 'drag' && event.target.closest('button,a,input,[contenteditable=true]')) return;
     event.preventDefault(); event.stopPropagation();
     const rect = card.getBoundingClientRect();
     active = { note, card, handle, mode, page, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
@@ -44,27 +62,24 @@ export function bindNoteGestures({ container, render, save, canStart }) {
     } else {
       const bounds = active.page.getBoundingClientRect();
       applySize(active.card, fitNoteLayout({ ...active.original,
-        width: clamp((active.clientX - bounds.left + active.rect.right - active.startX) / bounds.width - active.original.x, Math.min(160 / bounds.width, 1 - active.original.x), 1 - active.original.x),
-        height: clamp((active.clientY - bounds.top + active.rect.bottom - active.startY) / bounds.height - active.original.y, Math.min(120 / bounds.height, 1 - active.original.y), 1 - active.original.y),
+        width: clamp((active.clientX - bounds.left + active.rect.right - active.startX) / bounds.width - active.original.x, Math.min(160 / bounds.width, 4), 4),
+        height: clamp((active.clientY - bounds.top + active.rect.bottom - active.startY) / bounds.height - active.original.y, Math.min(120 / bounds.height, 4), 4),
       }), active.page);
     }
   }
   function autoScroll() {
     if (!active) return;
     const bounds = container.getBoundingClientRect();
-    const top = document.body.classList.contains('reader-toolbar-hidden') ? bounds.top : Math.max(bounds.top, document.querySelector('.reader-toolbar').getBoundingClientRect().bottom);
+    const top = bounds.top;
     const delta = active.clientY < top + 45 ? -10 : active.clientY > bounds.bottom - 45 ? 10 : 0;
-    if (delta) { container.scrollTop += delta; update(); }
+    const sideways = active.clientX < bounds.left + 45 ? -10 : active.clientX > bounds.right - 45 ? 10 : 0;
+    if (delta || sideways) { container.scrollTop += delta; container.scrollLeft += sideways; update(); }
     animation = requestAnimationFrame(autoScroll);
   }
   function finish(cancelled = false) {
     const gesture = active;
     if (!gesture) return;
-    let page = gesture.page;
-    if (gesture.mode === 'drag') page = [...container.querySelectorAll('.page[data-page-number]')].find(node => {
-      const bounds = node.getBoundingClientRect();
-      return gesture.clientX >= bounds.left && gesture.clientX <= bounds.right && gesture.clientY >= bounds.top && gesture.clientY <= bounds.bottom;
-    });
+    const page = pageForNoteRect(gesture.card.getBoundingClientRect(), container.querySelectorAll('.page[data-page-number]')) ?? gesture.page;
     const layout = page ? measure(gesture.card, page) : null;
     active = null; cancelAnimationFrame(animation); document.body.classList.remove('pdf-note-gesture');
     if (gesture.handle.hasPointerCapture(gesture.pointerId)) gesture.handle.releasePointerCapture(gesture.pointerId);
@@ -90,7 +105,13 @@ export function bindNoteGestures({ container, render, save, canStart }) {
       const horizontal = ['ArrowLeft', 'ArrowRight'].includes(event.key), direction = ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 1;
       const field = mode === 'drag' ? horizontal ? 'x' : 'y' : horizontal ? 'width' : 'height';
       layout[field] += step * direction;
-      void save(note, fitNoteLayout(layout), mode);
+      const fitted = fitNoteLayout(layout), bounds = page.getBoundingClientRect();
+      const rect = { left: bounds.left + fitted.x * bounds.width, top: bounds.top + fitted.y * bounds.height,
+        right: bounds.left + (fitted.x + fitted.width) * bounds.width, bottom: bounds.top + (fitted.y + fitted.height) * bounds.height };
+      const winner = pageForNoteRect(rect, container.querySelectorAll('.page[data-page-number]')) ?? page;
+      const reference = winner.getBoundingClientRect();
+      void save(note, { ...fitNoteLayout({ x: (rect.left - reference.left) / reference.width, y: (rect.top - reference.top) / reference.height,
+        width: (rect.right - rect.left) / reference.width, height: (rect.bottom - rect.top) / reference.height }), page: Number(winner.dataset.pageNumber) }, mode);
     });
   } };
 }

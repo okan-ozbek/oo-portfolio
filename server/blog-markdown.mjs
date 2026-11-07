@@ -95,6 +95,23 @@ md.renderer.rules.link_open = (tokens, index, options, env, self) => {
   return self.renderToken(tokens, index, options);
 };
 export function renderMarkdown(source = '') { return md.render(source); }
+// Note prose keeps entered blank lines. HTML is still produced by the same safe
+// Markdown renderer; spacing tokens contain only parser-derived integer counts.
+export function renderNoteMarkdown(source = '') {
+  const tokens = md.parse(source, {}), spaced = [];
+  let depth = 0, consumed = 0;
+  const gap = count => {
+    if (!count) return;
+    spaced.push({ type: 'html_block', content: `<div class="pdf-note-blank" style="height:${count * 1.6}em" aria-hidden="true"></div>`, nesting: 0 });
+  };
+  for (const token of tokens) {
+    if (depth === 0 && token.map) { gap(Math.max(0, token.map[0] - consumed)); consumed = token.map[1]; }
+    spaced.push(token); depth += token.nesting;
+  }
+  const lines = source.split('\n').length - (source.endsWith('\n') ? 1 : 0);
+  gap(Math.max(0, lines - consumed));
+  return md.renderer.render(spaced, md.options, {});
+}
 export function referencedImages(post) {
   const ids = new Set([post.thumbnail?.assetId, post.banner?.assetId].filter(Boolean));
   for (const match of post.markdown.matchAll(/\/blog\/media\/([a-f0-9-]{36})/g)) ids.add(match[1]);

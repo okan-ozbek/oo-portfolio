@@ -1,15 +1,18 @@
 import { readApiResponse } from './api-response.js';
 import { createMarkdownEditor } from './markdown-editor.js';
-import { bindNoteGestures, displayNoteLayout } from './pdf-note-gestures.js';
+import { bindNoteGestures, displayNoteLayout, pageForNoteRect } from './pdf-note-gestures.js';
 import { icon } from './icons.js';
+import { initNoteAppearance } from './note-appearance.js';
 
 const $ = id => document.getElementById(id);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const payload = note => ({ page: note.page, x: note.x, y: note.y, width: note.width ?? null, height: note.height ?? null, markdown: note.markdown });
 
-export function initPdfNotes({ bookId, container, getViewer, status }) {
+export function initPdfNotes({ bookId, container, getViewer, status, onLayoutChange = () => {} }) {
   let notes = [], visible = true, placing = false, editing = null, csrf, loadError = '', layoutSaving = false;
   const readerModule = '/blog/assets/reader.js';
+  initNoteAppearance();
+  document.addEventListener('noteappearancechange', () => editing?.editor.measure());
   const gestures = bindNoteGestures({ container, render, save: saveLayout, canStart: () => !layoutSaving && !editing && !placing });
   try { visible = localStorage.getItem('pixelware-pdf-notes') !== 'hidden'; } catch { /* Use the default. */ }
   async function api(path, options = {}) {
@@ -60,32 +63,39 @@ export function initPdfNotes({ bookId, container, getViewer, status }) {
   function createCard(note, page) {
     const card = document.createElement('aside'); card.className = 'pdf-post-it pdf-note-card';
     card.dataset.noteId = noteKey(note); card.setAttribute('aria-label', `Note on page ${note.page}`); position(card, note, page);
-    const heading = document.createElement('div'); heading.className = 'pdf-post-it-heading';
+    const heading = document.createElement('div'); heading.className = 'pdf-post-it-heading pdf-note-drag';
+    heading.tabIndex = 0; heading.setAttribute('aria-label', `Drag note on page ${note.page}`); heading.title = 'Drag this header to move the note. Arrow keys also move it.';
     const edit = button('', `Edit note on page ${note.page}`, () => void startEditing(note), 'edit');
-    const drag = button('⠿ Drag', `Drag note on page ${note.page}`); drag.className = 'pdf-note-drag';
-    drag.title = 'Hold and drag to move. Arrow keys move the note; Shift moves faster.';
+    const grip = document.createElement('span'); grip.className = 'pdf-note-grip'; grip.textContent = '⠿'; grip.setAttribute('aria-hidden', 'true');
     const resize = button('', `Resize note on page ${note.page}`); resize.className = 'pdf-note-resize';
     resize.title = 'Drag to resize horizontally and vertically. Arrow keys resize; Shift resizes faster.';
-    gestures.bind(drag, note, card, page, 'drag'); gestures.bind(resize, note, card, page, 'resize');
-    heading.append(edit, drag);
+    gestures.bind(heading, note, card, page, 'drag'); gestures.bind(resize, note, card, page, 'resize');
+    heading.append(edit, grip);
     const content = document.createElement('div'); content.className = 'pdf-note-content'; content.innerHTML = note.html ?? '';
     content.tabIndex = 0; content.title = 'Click to edit this note';
     content.addEventListener('click', event => { if (!card.classList.contains('pdf-note-editing') && !event.target.closest('a,button,input')) void startEditing(note); });
     content.addEventListener('keydown', event => { if (!card.classList.contains('pdf-note-editing') && event.target === content && ['Enter', ' '].includes(event.key)) { event.preventDefault(); void startEditing(note); } });
-    card.append(heading, content, resize); page.append(card); position(card, note, page); return card;
+    card._noteRef = note; card.append(heading, content, resize); page.append(card); position(card, note, page); return card;
   }
   function render() {
     if (!getViewer() || gestures.active) return;
     const displayed = editing && !editing.note.id ? [...notes, editing.note] : notes;
     for (const page of container.querySelectorAll('.page[data-page-number]')) {
-      for (const card of page.querySelectorAll('.pdf-post-it')) if (card !== editing?.card) card.remove();
-      for (const note of displayed.filter(item => item.page === Number(page.dataset.pageNumber))) {
+      const localNotes = displayed.filter(item => item.page === Number(page.dataset.pageNumber));
+      const keys = new Set(localNotes.map(noteKey));
+      for (const card of page.querySelectorAll('.pdf-post-it')) if (card !== editing?.card && !keys.has(card.dataset.noteId)) card.remove();
+      for (const note of localNotes) {
         if (editing && noteKey(note) === noteKey(editing.note)) {
           position(editing.card, note, page);
           if (editing.card.parentElement !== page) page.append(editing.card);
-        } else createCard(note, page);
+        } else {
+          const current = page.querySelector(`[data-note-id="${noteKey(note)}"]`);
+          if (current?._noteRef === note) position(current, note, page);
+          else { current?.remove(); createCard(note, page); }
+        }
       }
     }
+    onLayoutChange();
   }
   async function saveLayout(note, change, mode) {
     if (layoutSaving) return;
@@ -192,15 +202,31 @@ export function initPdfNotes({ bookId, container, getViewer, status }) {
     });
     editStatus(active, note.id ? 'Saved' : 'New note'); active.editor.focus();
   }
-  const place = (page, x, y) => void startEditing({ page, x: clamp(x, 0, 1), y: clamp(y, 0, 1), markdown: '' });
+  function place(page, x, y) {
+    const element = pageElement(page);
+    void startEditing({ page, x: clamp(x, -8, 8), y: clamp(y, -8, 8), width: Math.min(230, element.clientWidth * .65) / element.clientWidth, height: 180 / element.clientHeight, markdown: '' });
+  }
   container.addEventListener('click', event => {
     if (!placing || event.target.closest('.pdf-post-it')) return;
-    const page = event.target.closest('.page[data-page-number]'); if (!page) return;
+    const rect = { left: event.clientX, top: event.clientY, right: event.clientX + 230, bottom: event.clientY + 180 };
+    const page = pageForNoteRect(rect, container.querySelectorAll('.page[data-page-number]')); if (!page) return;
     event.preventDefault(); event.stopPropagation(); const bounds = page.getBoundingClientRect();
     place(Number(page.dataset.pageNumber), (event.clientX - bounds.left) / bounds.width, (event.clientY - bounds.top) / bounds.height);
   }, true);
   container.addEventListener('keydown', event => { if (placing && event.key === 'Enter') { event.preventDefault(); place(getViewer().currentPageNumber, .5, .5); } });
   window.addEventListener('keydown', event => { if (placing && event.key === 'Escape') cancelPlacement(); });
+  document.addEventListener('pointerdown', event => {
+    if (editing && !event.composedPath().includes(editing.card)) void finishEditing();
+  }, true);
+  document.addEventListener('focusout', event => {
+    const active = editing;
+    // CodeMirror briefly focuses the document while replacing a rendered block
+    // with source. Only a real transfer to another control should finish editing.
+    if (event.relatedTarget && active && !active.card.contains(event.relatedTarget)) {
+      queueMicrotask(() => { if (editing === active && !active.card.contains(document.activeElement)) void finishEditing(); });
+    }
+  });
+  window.addEventListener('blur', () => { if (editing) void finishEditing(); });
   window.addEventListener('beforeunload', event => {
     if (layoutSaving || gestures.active || editing && (editing.saving || editing.editor.value !== editing.saved)) { event.preventDefault(); event.returnValue = ''; }
   });
@@ -212,7 +238,16 @@ export function initPdfNotes({ bookId, container, getViewer, status }) {
     try { localStorage.setItem('pixelware-pdf-notes', visible ? 'visible' : 'hidden'); } catch { /* Retain in memory. */ }
   });
   syncVisibility();
-  return { render, get error() { return loadError; }, async load() {
+  return { render, get error() { return loadError; }, workspacePadding() {
+    let left = 0, right = 0;
+    for (const note of editing && !editing.note.id ? [...notes, editing.note] : notes) {
+      if (!note.width) continue;
+      const width = pageElement(note.page)?.clientWidth ?? 816;
+      left = Math.max(left, -note.x * width + 24);
+      right = Math.max(right, (note.x + note.width - 1) * width + 24);
+    }
+    return { left, right };
+  }, async load() {
     try { ({ annotations: notes } = await api('annotations')); }
     catch (error) { loadError = `PDF notes could not be loaded: ${error.message} Reload the reader to retry.`; status(loadError, true); }
   } };

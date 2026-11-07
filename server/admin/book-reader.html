@@ -26,10 +26,17 @@
         <div class="reader-more"><button id="reader-more-toggle" class="reader-icon-button" aria-label="More reading controls" title="More reading controls" aria-expanded="false" aria-controls="reader-more-tools" data-reader-icon="ellipsis"></button><div id="reader-more-tools" class="reader-extra-controls">
           <button id="theme-toggle" class="reader-icon-button" aria-label="Dark mode" aria-pressed="true" title="Dark mode" data-reader-icon="moon"></button>
           <button id="colors-toggle" class="reader-icon-button" aria-label="Reading colors" title="Reading colors" aria-expanded="false" aria-controls="colors-panel" data-reader-icon="palette"></button>
+          <button id="notes-settings-toggle" class="reader-icon-button" aria-label="Note settings" title="Note settings" aria-expanded="false" aria-controls="notes-settings-panel" data-reader-icon="settings"></button>
           <a id="original-pdf" class="reader-icon-button" hidden target="_blank" rel="noopener" aria-label="Original PDF" title="Original PDF" data-reader-icon="external"></a>
         </div></div>
       </div>
     </div>
+    <section id="notes-settings-panel" class="reader-colors-panel note-settings-panel" aria-labelledby="notes-settings-title" hidden>
+      <div class="reader-colors-heading"><h2 id="notes-settings-title">Note settings</h2><button type="button" id="notes-settings-close" aria-label="Close note settings">×</button></div>
+      <label for="note-theme-color">Note color</label><div class="note-color-options"><button type="button" data-note-color="#f4dfa0" aria-label="Yellow notes" aria-pressed="true" style="--swatch:#f4dfa0"></button><button type="button" data-note-color="#f4c4ce" aria-label="Pink notes" aria-pressed="false" style="--swatch:#f4c4ce"></button><button type="button" data-note-color="#d5c8f2" aria-label="Lavender notes" aria-pressed="false" style="--swatch:#d5c8f2"></button><button type="button" data-note-color="#bee3cf" aria-label="Mint notes" aria-pressed="false" style="--swatch:#bee3cf"></button><input type="color" id="note-theme-color" value="#f4dfa0" aria-label="Custom note color"></div>
+      <label class="note-font-control" for="note-font-size">Base font size <span><input id="note-font-size" type="number" min="10" max="24" step="1" value="13"> px</span></label>
+      <p class="reader-colors-note">Headings and code scale with this size. Saved in this browser for the PDF reader and Book Notes.</p><button id="note-appearance-reset" type="button">Reset note appearance</button>
+    </section>
     <section id="colors-panel" class="reader-colors-panel" aria-labelledby="colors-title" hidden>
       <div class="reader-colors-heading"><h2 id="colors-title">Reading colors</h2><button type="button" id="colors-close" aria-label="Close reading colors">×</button></div>
       <label class="reader-colors-switch"><input id="colors-enabled" type="checkbox">Use reading colors</label>

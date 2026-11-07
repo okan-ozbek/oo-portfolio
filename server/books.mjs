@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { HttpError, readJson } from './http.mjs';
-import { renderMarkdown } from './blog-markdown.mjs';
+import { renderMarkdown, renderNoteMarkdown } from './blog-markdown.mjs';
 
 const run = promisify(execFile);
 export const MAX_BOOK_BYTES = 100 * 1024 * 1024;
@@ -120,6 +120,27 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
   for (const dimension of ['width', 'height']) if (!annotationColumns.some(column => column.name === dimension)) {
     db.exec(`ALTER TABLE book_annotations ADD COLUMN ${dimension} REAL CHECK(${dimension} > 0 AND ${dimension} <= 1)`);
   }
+  // Rebuild only the compact annotation table; PDFs and existing note contents
+  // stay untouched. Signed positions allow notes in gutters and across pages.
+  if (!annotationColumns.some(column => column.name === 'layout_version')) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec(`CREATE TABLE book_annotations_free (
+        id TEXT PRIMARY KEY, book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+        page INTEGER NOT NULL CHECK(page >= 1), x REAL NOT NULL CHECK(x BETWEEN -8 AND 8),
+        y REAL NOT NULL CHECK(y BETWEEN -8 AND 8), markdown TEXT NOT NULL,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+        width REAL CHECK(width > 0 AND width <= 4), height REAL CHECK(height > 0 AND height <= 4),
+        layout_version INTEGER NOT NULL DEFAULT 2
+      ) STRICT;
+      INSERT INTO book_annotations_free (id, book_id, page, x, y, markdown, created_at, updated_at, width, height)
+        SELECT id, book_id, page, x, y, markdown, created_at, updated_at, width, height FROM book_annotations;
+      DROP TABLE book_annotations;
+      ALTER TABLE book_annotations_free RENAME TO book_annotations;
+      CREATE INDEX book_annotations_book ON book_annotations (book_id, page, created_at);`);
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+  }
   const fields = `id, name, tags_json, pages, size, created_at, bookmark_page, completed,
     (EXISTS (SELECT 1 FROM book_notes WHERE book_id = book_state.id AND length(trim(markdown)) > 0)
      OR EXISTS (SELECT 1 FROM book_annotations WHERE book_id = book_state.id)) AS has_notes`;
@@ -188,7 +209,7 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
     if (asset?.startsWith('annotations')) {
       const annotationId = asset.split('/')[1];
       const serialize = note => ({ id: note.id, page: note.page, x: note.x, y: note.y, width: note.width, height: note.height, markdown: note.markdown,
-        html: renderMarkdown(note.markdown), createdAt: note.created_at, updatedAt: note.updated_at });
+        html: renderNoteMarkdown(note.markdown), createdAt: note.created_at, updatedAt: note.updated_at });
       if (!annotationId && req.method === 'GET') {
         send(res, 200, { annotations: db.prepare('SELECT * FROM book_annotations WHERE book_id = ? ORDER BY page, created_at, id').all(id).map(serialize) });
         return true;
@@ -201,11 +222,11 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
         const width = Object.hasOwn(body, 'width') ? body.width : annotation?.width ?? null;
         const height = Object.hasOwn(body, 'height') ? body.height : annotation?.height ?? null;
         if (Object.keys(body).some(key => ![...keys, 'width', 'height'].includes(key)) || keys.some(key => !Object.hasOwn(body, key)) ||
-            !((width === null && height === null) || [width, height].every(value => typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 1)) ||
+            !((width === null && height === null) || [width, height].every(value => typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 4)) ||
             !Number.isSafeInteger(body.page) || body.page < 1 || body.page > row.pages ||
-            ![body.x, body.y].every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1) ||
+            ![body.x, body.y].every(value => typeof value === 'number' && Number.isFinite(value) && value >= -8 && value <= 8) ||
             typeof body.markdown !== 'string' || !body.markdown.trim() || body.markdown.length > MAX_NOTE_LENGTH) {
-          throw new HttpError(400, `Choose a PDF page between 1 and ${row.pages}, a position within the page, and a nonempty Markdown note up to ${MAX_NOTE_LENGTH.toLocaleString('en-US')} characters.`);
+          throw new HttpError(400, `Choose a PDF page between 1 and ${row.pages}, a position within eight page lengths, and a nonempty Markdown note up to ${MAX_NOTE_LENGTH.toLocaleString('en-US')} characters.`);
         }
         const noteId = annotationId ?? randomUUID(), timestamp = new Date(now()).toISOString();
         if (annotationId) db.prepare('UPDATE book_annotations SET page = ?, x = ?, y = ?, width = ?, height = ?, markdown = ?, updated_at = ? WHERE id = ? AND book_id = ?')

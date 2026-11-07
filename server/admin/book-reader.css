@@ -3,6 +3,9 @@
 body{margin:0;display:flex;flex-direction:column;height:100dvh;overflow:hidden}
 [hidden]{display:none!important}
 .reader-main{isolation:isolate}
+:root{--note-gutter:240px}
+#viewer.pdfViewer{width:calc(var(--reader-page-width,816px) + var(--note-gutter-left,var(--note-gutter)) + var(--note-gutter-right,var(--note-gutter)));min-width:100%;padding:12px var(--note-gutter-right,var(--note-gutter)) 12px var(--note-gutter-left,var(--note-gutter));box-sizing:border-box}
+@media(max-width:700px){:root{--note-gutter:180px}}
 #viewer-container{scrollbar-gutter:stable}
 #reader-status{position:absolute;top:100%;left:20px;right:20px;margin-top:0!important;padding:5px 8px;background:#19191cef;border-radius:0 0 5px 5px;pointer-events:none}
 button,input,select{font:inherit;color:inherit;background:#202024;border:1px solid #38383f;border-radius:5px;padding:7px 10px;min-height:36px}
