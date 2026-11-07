@@ -4,6 +4,7 @@ import { defaultKeymap, history, historyKeymap, isolateHistory } from '@codemirr
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
+import hljs from 'highlight.js/lib/common';
 import { renderMarkdown } from '../blog-markdown.mjs';
 import { formatMarkdown } from './blog-format.js';
 
@@ -58,6 +59,44 @@ function codeBlocks(state) {
     blocks.push({ from: node.from, to: node.to }); return false;
   } });
   return blocks;
+}
+
+export function indentCode(view, backwards = false) {
+  const { state } = view, selection = state.selection.main;
+  if (!codeBlocks(state).some(block => selection.from >= block.from && selection.to <= block.to)) return false;
+  if (selection.empty && !backwards) {
+    view.dispatch({ changes: { from: selection.from, insert: '    ' }, selection: { anchor: selection.from + 4 }, userEvent: 'input.indent' });
+    return true;
+  }
+  const changes = [];
+  const last = state.doc.lineAt(selection.to > selection.from ? selection.to - 1 : selection.to).number;
+  for (let number = state.doc.lineAt(selection.from).number; number <= last; number++) {
+    const line = state.doc.line(number), remove = /^(?: {1,4}|\t)/.exec(line.text)?.[0].length ?? 0;
+    if (!backwards || remove) changes.push({ from: line.from, to: line.from + (backwards ? remove : 0), insert: backwards ? '' : '    ' });
+  }
+  view.dispatch({ changes, userEvent: 'input.indent' }); return true;
+}
+
+// Highlight.js produces escaped text and nested spans. Map those spans back to
+// the unchanged source positions so editing retains its selection and undo stack.
+export function codeHighlightRanges(source, offset = 0) {
+  const first = source.indexOf('\n'), language = /^\s*(?:`{3,}|~{3,})\s*([\w+-]+)/.exec(source)?.[1];
+  if (first < 0 || !language || !hljs.getLanguage(language) || source.length > 100000) return [];
+  const closing = /\n[ \t]*(?:`{3,}|~{3,})[ \t]*$/.exec(source);
+  const body = source.slice(first + 1, closing?.index ?? source.length);
+  const html = hljs.highlight(body, { language, ignoreIllegals: true }).value;
+  const result = [], classes = [];
+  let position = offset + first + 1;
+  for (const token of html.matchAll(/<span class="([^"]*)">|<\/span>|([^<]+)/g)) {
+    if (token[1] !== undefined) classes.push(token[1]);
+    else if (token[0] === '</span>') classes.pop();
+    else {
+      const text = token[2].replace(/&(amp|lt|gt|quot|#x27|#x[\da-f]+|#\d+);/gi, (_, value) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#x27': "'" }[value] ?? String.fromCodePoint(parseInt(value.slice(value[1]?.toLowerCase() === 'x' ? 2 : 1), value[1]?.toLowerCase() === 'x' ? 16 : 10))));
+      if (text.length && classes.length) result.push({ from: position, to: position + text.length, class: classes.join(' ') });
+      position += text.length;
+    }
+  }
+  return result;
 }
 
 // Source editing is a session, rather than a consequence of where the caret is.
@@ -206,6 +245,8 @@ export function liveMarkdown(options = {}) {
     provide: value => EditorView.decorations.from(value),
   });
   return [liveMode, blockInteraction, blockLineColumn, field, keymap.of([
+    { key: 'Tab', run: view => indentCode(view) },
+    { key: 'Shift-Tab', run: view => indentCode(view, true) },
     { key: 'ArrowUp', run: view => moveBlockLine(view, -1), shift: view => moveBlockLine(view, -1, true) },
     { key: 'ArrowDown', run: view => moveBlockLine(view, 1), shift: view => moveBlockLine(view, 1, true) },
     { key: 'Backspace', run: view => deleteSelectedBlock(view) || selectAdjacentBlock(view, -1) },
@@ -225,7 +266,8 @@ export function liveMarkdown(options = {}) {
 }
 
 function decorate(state, options) {
-  if (!state.field(liveMode)) return Decoration.none;
+  const live = state.field(liveMode);
+  if (!live) return Decoration.set(codeBlocks(state).flatMap(block => codeHighlightRanges(state.doc.sliceString(block.from, block.to), block.from).map(range => Decoration.mark({ class: range.class }).range(range.from, range.to))), true);
   const ranges = [], blocks = [], literals = [], doc = state.doc;
   const interaction = state.field(blockInteraction);
   const selected = (from, to) => interaction.selected?.from === from && interaction.selected?.to === to;
@@ -233,9 +275,10 @@ function decorate(state, options) {
   const active = (from, to) => state.selection.ranges.some(range => range.from <= to && range.to >= from);
   const hide = (from, to) => { if (to > from) ranges.push(Decoration.replace({}).range(from, to)); };
   const mark = (from, to, className) => { if (to > from) ranges.push(Decoration.mark({ class: className }).range(from, to)); };
-  const lineClass = (from, className) => ranges.push(Decoration.line({ class: className }).range(doc.lineAt(from).from));
+  const lineClass = (from, className) => ranges.push(Decoration.line({ class: className, ...(className.includes('md-code-line') ? { attributes: { spellcheck: 'false' } } : {}) }).range(doc.lineAt(from).from));
   const codeLines = new Set();
   for (const block of interaction.editing) {
+    for (const range of codeHighlightRanges(doc.sliceString(block.from, block.to), block.from)) mark(range.from, range.to, range.class);
     const first = doc.lineAt(block.from), last = doc.lineAt(block.to);
     for (let number = first.number; number <= last.number; number++) {
       const line = doc.line(number); codeLines.add(number); lineClass(line.from, 'md-code-line md-editing-line');
@@ -261,6 +304,7 @@ function decorate(state, options) {
         blocks.push({ from, to });
         return false;
       }
+      if (name === 'FencedCode') for (const range of codeHighlightRanges(doc.sliceString(from, to), from)) mark(range.from, range.to, range.class);
       for (let number = start.number; number <= end.number; number++) {
         const line = doc.line(number); codeLines.add(number);
         lineClass(line.from, name === 'Table' ? 'md-table-source' : 'md-code-line');
@@ -359,6 +403,7 @@ export function createMarkdownEditor(textarea, options = {}) {
   const maxLength = textarea.maxLength > 0 ? textarea.maxLength : 300000;
   const label = document.querySelector(`label[for="${textarea.id}"]`)?.textContent ?? 'Markdown';
   const extensions = () => [
+    EditorState.tabSize.of(4),
     markdown({ base: markdownLanguage, completeHTMLTags: false }),
     liveMarkdown(options), history(), drawSelection(), dropCursor(), EditorView.lineWrapping,
     syntaxHighlighting(HighlightStyle.define([
@@ -385,6 +430,9 @@ export function createMarkdownEditor(textarea, options = {}) {
   const view = new EditorView({ state: EditorState.create({ doc: textarea.value, extensions: extensions() }), parent: host });
   const dispatch = transaction => { programmatic = true; try { view.dispatch(transaction); } finally { programmatic = false; } };
   return {
+    destroy() { view.destroy(); host.remove(); },
+    measure() { view.requestMeasure(); },
+    indentCode(backwards = false) { return indentCode(view, backwards); },
     get value() { return view.state.doc.toString(); },
     set value(value) {
       programmatic = true;

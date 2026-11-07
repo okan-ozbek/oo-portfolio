@@ -1,5 +1,6 @@
 import { icon } from './icons.js';
 import { formatMarkdown } from './blog-format.js';
+import { initNoteAppearance } from './note-appearance.js';
 const $ = id => document.getElementById(id);
 const el = (tag, className, text) => {
   const node = document.createElement(tag);
@@ -16,6 +17,7 @@ const tagClass = tag => `book-tag tone-${[...tag.toLowerCase()].reduce((sum, cha
 const format = new Intl.NumberFormat();
 
 export function initBooks({ api, toast }) {
+  initNoteAppearance();
   let books = [], allTags = [], activeTag = '', editing = null, deleting = null, bookmarking = null, version = 0;
   let editSession = null, authVersion = 0;
   const editSessions = new Map();
@@ -33,7 +35,7 @@ export function initBooks({ api, toast }) {
         if (mode === 'preview') void previewNote();
       });
       noteInput.addEventListener('keydown', event => {
-        if (event.key === 'Tab') { event.preventDefault(); noteInput.setRangeText('  ', noteInput.selectionStart, noteInput.selectionEnd, 'end'); noteChanged(); }
+        if (event.key === 'Tab') { event.preventDefault(); if (!noteInput.indentCode(event.shiftKey)) noteInput.setRangeText('  ', noteInput.selectionStart, noteInput.selectionEnd, 'end'); noteChanged(); }
         if ((event.ctrlKey || event.metaKey) && event.key === 's') { event.preventDefault(); void saveNote(); }
       });
     }).catch(error => { noteEditorPromise = null; throw error; });
@@ -104,13 +106,17 @@ export function initBooks({ api, toast }) {
     if (noteInput) { noteInput.value = ''; noteInput.disabled = true; }
     $('book-notes-name').textContent = book.name;
     $('book-notes-error').textContent = ''; $('book-notes-preview').replaceChildren();
+    $('book-pdf-notes-list').replaceChildren();
+    $('book-pdf-notes-list').closest('.book-pdf-notes').hidden = true;
     $('book-notes-words').textContent = '0 words';
     $('book-notes-clear').disabled = $('book-notes-done').disabled = true;
     noteStatus('Loading note…'); $('book-notes-dialog').showModal();
     try {
-      const [{ markdown }] = await Promise.all([api(`books/${book.id}/notes`), ensureNoteEditor()]);
+      const [{ markdown }, { annotations }] = await Promise.all([api(`books/${book.id}/notes`), api(`books/${book.id}/annotations`), ensureNoteEditor()]);
       if (noteSession !== active) return;
       active.markdown = active.saved = markdown; active.loading = false;
+      active.annotations = annotations;
+      renderPdfNotes(active);
       noteInput.value = markdown; noteInput.disabled = false;
       $('book-notes-clear').disabled = $('book-notes-done').disabled = false;
       noteStatus('All changes saved.'); noteWordCount(markdown); void previewNote(); noteInput.focus();
@@ -125,6 +131,26 @@ export function initBooks({ api, toast }) {
     if (noteSession !== active) return;
     clearTimeout(active.timer); clearTimeout(active.previewTimer);
     noteSession = null; $('book-notes-dialog').close();
+  }
+  function renderPdfNotes(active) {
+    const root = $('book-pdf-notes-list'); root.replaceChildren();
+    root.closest('.book-pdf-notes').hidden = !active.annotations.length;
+    if (!active.annotations.length) return;
+    for (const note of [...active.annotations].sort((a, b) => a.page - b.page)) {
+      const card = el('article', 'book-pdf-note pdf-note-card');
+      card.tabIndex = 0; card.setAttribute('role', 'link');
+      card.setAttribute('aria-label', 'Open note on page ' + note.page);
+      card.title = 'Open in the PDF reader · Page ' + note.page;
+      card.style.width = Math.max(160, note.width ? note.width * 816 : 230) + 'px';
+      card.style.minHeight = Math.max(120, note.height ? note.height * 1056 : 0) + 'px';
+      const heading = el('header', 'book-pdf-note-heading');
+      heading.append(el('span', '', 'Page ' + note.page), icon('external'));
+      const content = el('div', 'pdf-note-content'); content.innerHTML = note.html;
+      const open = () => window.open('/admin/book-reader?book=' + active.id + '#page=' + note.page, '_blank', 'noopener');
+      card.addEventListener('click', event => { event.preventDefault(); open(); });
+      card.addEventListener('keydown', event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); open(); } });
+      card.append(heading, content); root.append(card);
+    }
   }
   const noteSnippets = { code: '\n```\n// Your code here\n```\n', mermaid: '\n```mermaid\nflowchart LR\n  A[Idea] --> B[Takeaway]\n```\n', link: '[Link text](https://example.com)' };
   for (const tool of document.querySelectorAll('[data-note-insert]')) {

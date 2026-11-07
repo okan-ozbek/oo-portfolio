@@ -14,6 +14,9 @@ button.book-tag:hover{filter:brightness(1.25)}.book-filters .book-tag[aria-press
 #book-upload-error{white-space:pre-line}#book-upload-progress{overflow-wrap:anywhere}
 *{box-sizing:border-box}
 html{scrollbar-gutter:stable}
+html:has(dialog:modal),body:has(dialog:modal){overflow:hidden;overscroll-behavior:none}
+dialog{overscroll-behavior:contain}
+.book-pdf-notes{margin-top:26px;padding-top:20px;border-top:1px solid var(--line)}.book-pdf-notes h3{font-size:18px}#book-pdf-notes-list{display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-top:14px}.book-pdf-note{cursor:pointer;max-width:100%}.book-pdf-note:hover{border-color:#927735}.book-pdf-note:focus-visible{outline:2px solid var(--red);outline-offset:4px}
 body{margin:0;background:var(--bg);color:var(--text)}
 [hidden]{display:none!important}
 a{color:inherit;text-decoration:none}
