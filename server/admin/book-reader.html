@@ -6,20 +6,37 @@
   <title>Book reader · Pixelware</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/admin/pdfjs/web/pdf_viewer.css">
+  <link rel="stylesheet" href="/admin/assets/blogs.css">
+  <link rel="stylesheet" href="/blog/assets/blog.css">
   <link rel="stylesheet" href="/admin/assets/book-reader.css">
+  <link rel="stylesheet" href="/admin/assets/pdf-notes.css">
   <script type="module" src="/blog/assets/book-reader.js"></script>
 </head>
 <body>
   <header class="reader-toolbar">
-    <div class="reader-heading"><a href="/admin?section=books" aria-label="Back to library">← Library</a><h1 id="book-title">Book reader</h1></div>
-    <div class="reader-controls" aria-label="Reading controls">
-      <div class="control-group"><label for="page-number">Page</label><input id="page-number" data-document-control disabled type="number" min="1" value="1" inputmode="numeric"><span id="page-count">/ —</span></div>
-      <div class="control-group reader-zoom"><label class="sr-only" for="zoom">Zoom</label><select id="zoom" data-document-control disabled><option value="page-width">Fit width</option><option value="page-fit">Fit page</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option><option value="custom" hidden>Custom</option></select></div>
-      <button id="theme-toggle" aria-pressed="true" title="Display pages in dark mode. Turn off for original image colors.">Dark mode</button>
-      <button id="colors-toggle" aria-expanded="false" aria-controls="colors-panel">Reading colors</button>
-      <button id="find-toggle" data-document-control disabled aria-expanded="false" aria-controls="find-bar">Find</button>
-      <a id="original-pdf" hidden target="_blank" rel="noopener">Original PDF ↗</a>
+    <div class="reader-bar">
+      <a class="reader-icon-button" href="/admin?section=books" aria-label="Back to library" title="Back to library" data-reader-icon="back"></a>
+      <h1 id="book-title">Book reader</h1>
+      <div class="reader-controls" aria-label="Reading controls">
+        <div class="control-group reader-pages"><button id="page-previous" class="reader-icon-button" data-document-control disabled aria-label="Previous page" title="Previous page" data-reader-icon="previous"></button><label class="sr-only" for="page-number">Page</label><input id="page-number" data-document-control disabled type="number" min="1" value="1" inputmode="numeric"><span id="page-count">/ —</span><button id="page-next" class="reader-icon-button" data-document-control disabled aria-label="Next page" title="Next page" data-reader-icon="next"></button></div>
+        <div class="control-group reader-zoom"><label class="sr-only" for="zoom">Zoom</label><select id="zoom" data-document-control disabled><option value="page-width">Fit width</option><option value="page-fit">Fit page</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option><option value="custom" hidden>Custom</option></select></div>
+        <button id="find-toggle" class="reader-icon-button" data-document-control disabled aria-label="Find in book" title="Find in book" aria-expanded="false" aria-controls="find-bar" data-reader-icon="search"></button>
+        <button id="note-add" class="reader-icon-button" data-document-control disabled aria-label="Add note" title="Add note" aria-pressed="false" data-reader-icon="noteAdd"></button>
+        <button id="notes-toggle" class="reader-icon-button" data-document-control disabled aria-label="Show notes" title="Show or hide notes" aria-pressed="true" data-reader-icon="notes"></button>
+        <div class="reader-more"><button id="reader-more-toggle" class="reader-icon-button" aria-label="More reading controls" title="More reading controls" aria-expanded="false" aria-controls="reader-more-tools" data-reader-icon="ellipsis"></button><div id="reader-more-tools" class="reader-extra-controls">
+          <button id="theme-toggle" class="reader-icon-button" aria-label="Dark mode" aria-pressed="true" title="Dark mode" data-reader-icon="moon"></button>
+          <button id="colors-toggle" class="reader-icon-button" aria-label="Reading colors" title="Reading colors" aria-expanded="false" aria-controls="colors-panel" data-reader-icon="palette"></button>
+          <button id="notes-settings-toggle" class="reader-icon-button" aria-label="Note settings" title="Note settings" aria-expanded="false" aria-controls="notes-settings-panel" data-reader-icon="settings"></button>
+          <a id="original-pdf" class="reader-icon-button" hidden target="_blank" rel="noopener" aria-label="Original PDF" title="Original PDF" data-reader-icon="external"></a>
+        </div></div>
+      </div>
     </div>
+    <section id="notes-settings-panel" class="reader-colors-panel note-settings-panel" aria-labelledby="notes-settings-title" hidden>
+      <div class="reader-colors-heading"><h2 id="notes-settings-title">Note settings</h2><button type="button" id="notes-settings-close" aria-label="Close note settings">×</button></div>
+      <label for="note-theme-color">Note color</label><div class="note-color-options"><button type="button" data-note-color="#f4dfa0" aria-label="Yellow notes" aria-pressed="true" style="--swatch:#f4dfa0"></button><button type="button" data-note-color="#f4c4ce" aria-label="Pink notes" aria-pressed="false" style="--swatch:#f4c4ce"></button><button type="button" data-note-color="#d5c8f2" aria-label="Lavender notes" aria-pressed="false" style="--swatch:#d5c8f2"></button><button type="button" data-note-color="#bee3cf" aria-label="Mint notes" aria-pressed="false" style="--swatch:#bee3cf"></button><input type="color" id="note-theme-color" value="#f4dfa0" aria-label="Custom note color"></div>
+      <label class="note-font-control" for="note-font-size">Base font size <span><input id="note-font-size" type="number" min="10" max="24" step="1" value="13"> px</span></label>
+      <p class="reader-colors-note">Headings and code scale with this size. Saved in this browser for the PDF reader and Book Notes.</p><button id="note-appearance-reset" type="button">Reset note appearance</button>
+    </section>
     <section id="colors-panel" class="reader-colors-panel" aria-labelledby="colors-title" hidden>
       <div class="reader-colors-heading"><h2 id="colors-title">Reading colors</h2><button type="button" id="colors-close" aria-label="Close reading colors">×</button></div>
       <label class="reader-colors-switch"><input id="colors-enabled" type="checkbox">Use reading colors</label>
@@ -32,6 +49,7 @@
     <p id="reader-status" role="status">Loading book…</p>
   </header>
   <main class="reader-main"><div id="viewer-container" tabindex="0" aria-label="PDF pages"><div id="viewer" class="pdfViewer"></div></div></main>
+  <div id="note-placement" class="note-placement" role="status" hidden><span>Click or tap anywhere on a PDF page to place your note. Press Enter to use the current page’s center.</span><button id="note-placement-cancel" type="button">Cancel</button></div>
   <noscript>Enable JavaScript to read books in dark mode.</noscript>
 </body>
 </html>

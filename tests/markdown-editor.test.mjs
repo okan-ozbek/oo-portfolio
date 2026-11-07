@@ -4,7 +4,7 @@ import { EditorState } from '@codemirror/state';
 import { Decoration, EditorView } from '@codemirror/view';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { history, undo } from '@codemirror/commands';
-import { blockAction, blockInteraction, changeMode, deleteSelectedBlock, finishBlockEditing, liveMarkdown, moveBlockLine, selectAdjacentBlock } from '../server/admin/markdown-editor.js';
+import { blockAction, blockInteraction, changeMode, codeHighlightRanges, deleteSelectedBlock, finishBlockEditing, indentCode, liveMarkdown, moveBlockLine, selectAdjacentBlock } from '../server/admin/markdown-editor.js';
 
 const stateFor = (doc, anchor = doc.length) => EditorState.create({ doc, selection: { anchor }, extensions: [markdown({ base: markdownLanguage }), liveMarkdown(), history()] });
 function decorations(state) {
@@ -18,6 +18,26 @@ const harness = state => {
   view.dispatch = transaction => { view.state = transaction.startState ? transaction.state : view.state.update(transaction).state; };
   return view;
 };
+
+test('Tab inserts four literal spaces inside fenced code; Shift-Tab unindents', () => {
+  const source = '```cpp\nclass Vector {\n\n};\n```';
+  const caret = source.indexOf('\n\n') + 1;
+  const view = harness(stateFor(source, caret));
+  assert.equal(indentCode(view), true);
+  assert.equal(view.state.doc.toString(), source.slice(0, caret) + '    ' + source.slice(caret));
+  assert.equal(view.state.selection.main.head, caret + 4);
+  assert.equal(indentCode(view, true), true);
+  assert.equal(view.state.doc.toString(), source);
+  assert.equal(indentCode(harness(stateFor('ordinary prose'))), false);
+});
+
+test('C++ source token highlighting maps escaped HTML back to exact source ranges', () => {
+  const source = '```cpp\nclass Vector {\n    const char* text = "<span>&";\n};\n```';
+  const ranges = codeHighlightRanges(source);
+  assert.ok(ranges.some(range => range.class.includes('hljs-keyword') && source.slice(range.from, range.to) === 'class'));
+  assert.ok(ranges.some(range => range.class.includes('hljs-string') && source.slice(range.from, range.to) === '"<span>&"'));
+  for (const range of ranges) assert.ok(range.from >= source.indexOf('\n') + 1 && range.to <= source.lastIndexOf('\n'));
+});
 
 test('live Markdown styles headings and inline formatting without rewriting source', () => {
   const source = '# Heading\n\n**bold** *emphasis* ~~strike~~ ++underline++ `code`\n\n-# Small text\n\nEnd';

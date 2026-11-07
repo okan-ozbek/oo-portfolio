@@ -11,6 +11,155 @@ import { hashPassword } from '../server/security.mjs';
 import { bookPdf } from './fixtures/book.mjs';
 import sharp from 'sharp';
 import { createBooks } from '../server/books.mjs';
+import { renderNoteMarkdown } from '../server/blog-markdown.mjs';
+import { noteAppearance } from '../server/admin/note-appearance.js';
+import { constrainNoteHorizontally, displayNoteLayout, fitNoteLayout, pageForNoteRect } from '../server/admin/pdf-note-gestures.js';
+const origin = 'https://pixelware.test', password = 'book-library test password!';
+const passwordHash = await hashPassword(password);
+
+test('PDF post-it notes validate positions, protect mutations, render Markdown, and remain independent of book notes', async t => {
+  const app = await fixture(t); await app.login();
+  const { book } = await (await app.upload()).json();
+  const { book: other } = await (await app.upload(bookPdf('Other annotated book'), 'Other')).json();
+  const path = `books/${book.id}/annotations`;
+  const note = { page: 2, x: .32, y: .71, markdown: '**A thought**\n\n- A takeaway\n\n<script>alert(1)</script>\n\n[Unsafe](javascript:alert(1))' };
+  assert.equal((await app.request(path, { anonymous: true })).status, 401);
+  assert.equal((await app.request(path, { method: 'POST', body: note, anonymous: true })).status, 401);
+  for (const headers of [{ Origin: 'https://evil.test' }, { 'X-CSRF-Token': '' }]) {
+    assert.equal((await app.request(path, { method: 'POST', headers, body: note })).status, 403);
+  }
+  for (const change of [{ page: 0 }, { page: 3 }, { page: 1.5 }, { page: '2' }, { x: -8.1 }, { x: 8.1 }, { x: '0.3' }, { y: null }, { y: 9 }, { markdown: '' }, { markdown: '   ' }, { markdown: null }, { markdown: 'x'.repeat(100001) }, { extra: true }, { width: .2 }, { width: 0, height: .2 }, { width: 4.1, height: .2 }, { width: '.2', height: .2 }, { width: .2, height: null }, { width: .2, height: -1 }]) {
+    assert.equal((await app.request(path, { method: 'POST', body: { ...note, ...change } })).status, 400);
+  }
+  const response = await app.request(path, { method: 'POST', body: note }); assert.equal(response.status, 201);
+  let { annotation } = await response.json();
+  assert.equal(annotation.page, 2); assert.equal(annotation.x, .32); assert.equal(annotation.y, .71);
+  assert.equal(annotation.width, null); assert.equal(annotation.height, null);
+  assert.match(annotation.html, /<strong>A thought<\/strong>/); assert.doesNotMatch(annotation.html, /<script|href="javascript:/);
+  assert.deepEqual((await (await app.request(path)).json()).annotations, [annotation]);
+  const item = `${path}/${annotation.id}`;
+  for (const method of ['PATCH', 'DELETE']) {
+    assert.equal((await app.request(item, { method, body: note, anonymous: true })).status, 401);
+    for (const headers of [{ Origin: 'https://evil.test' }, { 'X-CSRF-Token': '' }]) {
+      assert.equal((await app.request(item, { method, headers, body: note })).status, 403);
+    }
+    assert.equal((await app.request(`books/${other.id}/annotations/${annotation.id}`, { method, body: note })).status, 404);
+  }
+  const second = await app.request(path, { method: 'POST', body: { ...note, page: 1, x: 0, y: 1 } });
+  assert.equal(second.status, 201);
+  const { annotation: earlier } = await second.json();
+  const update = await app.request(item, { method: 'PATCH', body: { ...note, page: 1, x: 1, y: 0, markdown: '# Updated' } });
+  assert.equal(update.status, 200); annotation = (await update.json()).annotation;
+  assert.equal(annotation.x, 1); assert.equal(annotation.y, 0); assert.equal(annotation.markdown, '# Updated');
+  assert.equal((await (await app.request(`books/${book.id}`)).json()).book.hasNotes, true);
+  assert.deepEqual(await (await app.request(`books/${book.id}/notes`)).json(), { markdown: '' });
+  const clearGeneral = await app.request(`books/${book.id}/notes`, { method: 'PATCH', body: { markdown: '' } });
+  assert.equal((await clearGeneral.json()).hasNotes, true, 'PDF notes keep the library notes indicator enabled');
+  assert.deepEqual((await (await app.request(`books/${other.id}/annotations`)).json()).annotations, []);
+  assert.deepEqual(Buffer.from(await (await app.request(`books/${book.id}/pdf`)).arrayBuffer()), bookPdf());
+  await app.request(item, { method: 'DELETE', body: {} });
+  const deleted = await app.request(`${path}/${earlier.id}`, { method: 'DELETE', body: {} });
+  assert.equal((await deleted.json()).hasNotes, false);
+  assert.equal((await app.request(item, { method: 'PATCH', body: note })).status, 404);
+});
+
+test('PDF notes survive restart and cascade when their book is removed without rewriting the PDF', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'pixelware-pdf-notes-'));
+  const database = join(directory, 'admin.sqlite');
+  let app, restarted;
+  t.after(async () => { await app?.close(); await restarted?.close(); await rm(directory, { recursive: true, force: true }); });
+  app = await fixture(t, database); await app.login();
+  const { book } = await (await app.upload()).json();
+  const db = new DatabaseSync(database);
+  db.exec("CREATE TRIGGER prevent_annotation_pdf_rewrite BEFORE UPDATE ON books BEGIN SELECT RAISE(FAIL, 'PDF must not be rewritten'); END;");
+  db.close();
+  const path = `books/${book.id}/annotations`;
+  const result = await app.request(path, { method: 'POST', body: { page: 2, x: .5, y: .2, markdown: 'Persistent **note**' } });
+  assert.equal(result.status, 201); let { annotation } = await result.json();
+  const resized = await app.request(`${path}/${annotation.id}`, { method: 'PATCH', body: { page: 2, x: -.4, y: -.1, width: .4, height: .25, markdown: annotation.markdown } });
+  assert.equal(resized.status, 200); annotation = (await resized.json()).annotation;
+  // Older clients and text-only edits must retain saved note dimensions.
+  const edited = await app.request(`${path}/${annotation.id}`, { method: 'PATCH', body: { page: 2, x: -.4, y: -.1, markdown: 'Edited after resizing' } });
+  assert.equal(edited.status, 200); annotation = (await edited.json()).annotation;
+  assert.equal(annotation.width, .4); assert.equal(annotation.height, .25); assert.equal(annotation.x, -.4); assert.equal(annotation.y, -.1);
+  await app.close(); restarted = await fixture(t, database); await restarted.login();
+  assert.deepEqual((await (await restarted.request(path)).json()).annotations, [annotation]);
+  assert.equal((await (await restarted.request(`books/${book.id}`)).json()).book.hasNotes, true);
+  assert.equal((await restarted.request(`books/${book.id}`, { method: 'DELETE', body: {} })).status, 200);
+  const check = new DatabaseSync(database);
+  try { assert.equal(check.prepare('SELECT count(*) AS count FROM book_annotations').get().count, 0); } finally { check.close(); }
+});
+
+test('free note layouts preserve margin positions and size independently of page bounds', () => {
+  assert.deepEqual(fitNoteLayout({ x: -.2, y: 2, width: .3, height: .4 }), { x: -.2, y: 2, width: .3, height: .4 });
+  assert.deepEqual(fitNoteLayout({ x: .8, y: .9, width: 2, height: 3 }), { x: .8, y: .9, width: 2, height: 3 });
+  const mobile = displayNoteLayout({ x: -.2, y: .95, width: .2, height: .1 }, 320, 440);
+  assert.equal(mobile.width * 320, 160); assert.ok(Math.abs(mobile.height * 440 - 120) < 1e-10);
+  assert.equal(mobile.x, -.2); assert.equal(mobile.y, .95);
+});
+
+test('notes stay inside the viewport when dragged, resized, restored, or zoomed', () => {
+  const page = { left: 400, width: 800 }, viewport = { left: 0, width: 1600 };
+  const original = { x: -2, y: 1.2, width: .3, height: .4 };
+  const left = constrainNoteHorizontally(original, page, viewport);
+  assert.equal(page.left + left.x * page.width, 8);
+  assert.equal(left.y, original.y); assert.equal(left.height, original.height);
+  const right = constrainNoteHorizontally({ ...original, x: 2 }, page, viewport);
+  assert.equal(page.left + (right.x + right.width) * page.width, 1592);
+  const resized = constrainNoteHorizontally({ ...original, x: 1, width: 2 }, page, viewport, 'resize');
+  assert.equal(resized.x, 1, 'resizing holds the left edge');
+  assert.equal(page.left + (resized.x + resized.width) * page.width, 1592);
+  const mobilePage = { left: -200, width: 1600 }, mobile = { left: 20, width: 320 };
+  const narrow = constrainNoteHorizontally(original, mobilePage, mobile);
+  assert.ok(Math.abs(mobilePage.left + narrow.x * mobilePage.width - 28) < 1e-9);
+  assert.equal(narrow.width * mobilePage.width, 304, 'oversized notes shrink to fit the viewport');
+  const zoomed = constrainNoteHorizontally({ ...original, width: 4 }, { left: -1000, width: 3200 }, viewport);
+  assert.equal(zoomed.width * 3200, 1584);
+});
+
+test('page references use the largest overlap, with vertical overlap for side margins', () => {
+  const page = (top, bottom) => ({ getBoundingClientRect: () => ({ left: 100, right: 700, top, bottom }) });
+  const pages = [page(0, 800), page(812, 1612)];
+  assert.equal(pageForNoteRect({ left: 200, right: 400, top: 750, bottom: 950 }, pages), pages[1]);
+  assert.equal(pageForNoteRect({ left: 200, right: 400, top: 700, bottom: 850 }, pages), pages[0]);
+  assert.equal(pageForNoteRect({ left: -240, right: -20, top: 750, bottom: 950 }, pages), pages[1]);
+  assert.equal(pageForNoteRect({ left: 800, right: 1000, top: 700, bottom: 850 }, pages), pages[0]);
+  assert.equal(pageForNoteRect({ left: 200, right: 400, top: 804, bottom: 808 }, pages), pages[0]);
+});
+
+test('note Markdown preserves prose spacing and highlights safe code', () => {
+  const html = renderNoteMarkdown('# Large\n\n\n### Small\n\nA    spaced line\nnext line\n\n\x60\x60\x60cpp\nclass Vector {\n    int value = 42;\n};\n\x60\x60\x60\n\n<script>alert(1)</script>');
+  assert.match(html, /height:3.2em/); assert.match(html, /A    spaced line\nnext line/);
+  assert.match(html, /hljs-keyword/); assert.match(html, /    /); assert.doesNotMatch(html, /<script>/);
+});
+
+test('note appearance rejects invalid colors and bounds font sizes', () => {
+  assert.deepEqual(noteAppearance({ color: 'red; color: transparent', fontSize: NaN }), { color: '#f4dfa0', fontSize: 13 });
+  assert.deepEqual(noteAppearance({ color: '#bee3cf', fontSize: 99 }), { color: '#bee3cf', fontSize: 24 });
+});
+
+test('free-position migration preserves existing annotations and never rewrites PDF records', async () => {
+  const db = new DatabaseSync(':memory:'); db.exec('PRAGMA foreign_keys=ON');
+  try {
+    const options = { db, send() {}, inspect: async () => ({ pages: 2, thumbnail: Buffer.from('cover') }) };
+    const original = createBooks(options), book = await original.add(Buffer.from('%PDF-migration'), 'Migration book', []);
+    db.exec(`DROP TABLE book_annotations;
+      CREATE TABLE book_annotations (id TEXT PRIMARY KEY, book_id TEXT REFERENCES books(id) ON DELETE CASCADE,
+      page INTEGER NOT NULL, x REAL CHECK(x BETWEEN 0 AND 1), y REAL CHECK(y BETWEEN 0 AND 1), markdown TEXT NOT NULL,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, width REAL CHECK(width <= 1), height REAL CHECK(height <= 1)) STRICT;
+      CREATE TRIGGER no_pdf_update BEFORE UPDATE ON books BEGIN SELECT RAISE(FAIL, 'PDF rewrite'); END;`);
+    const id = '11111111-1111-4111-8111-111111111111';
+    db.prepare('INSERT INTO book_annotations VALUES (?,?,?,?,?,?,?,?,?,?)').run(id, book.id, 2, .3, .4, '**Preserved**', 'created', 'updated', .25, .2);
+    const before = db.prepare('SELECT pdf FROM books WHERE id=?').get(book.id).pdf;
+    createBooks(options);
+    const note = db.prepare('SELECT * FROM book_annotations WHERE id=?').get(id);
+    assert.equal(note.markdown, '**Preserved**'); assert.equal(note.created_at, 'created'); assert.equal(note.width, .25);
+    db.prepare('UPDATE book_annotations SET x=-.4,y=-.1 WHERE id=?').run(id);
+    createBooks(options);
+    assert.equal(db.prepare('SELECT x FROM book_annotations WHERE id=?').get(id).x, -.4);
+    assert.deepEqual(db.prepare('SELECT pdf FROM books WHERE id=?').get(book.id).pdf, before);
+  } finally { db.close(); }
+});
 
 test('library and thumbnail queries avoid reading large PDF table records', async () => {
   const db = new DatabaseSync(':memory:');
@@ -132,8 +281,6 @@ test('legacy notes migrate once, preserving text and PDFs without resurrecting c
   } finally { db.close(); }
 });
 
-const origin = 'https://pixelware.test', password = 'book-library test password!';
-const passwordHash = await hashPassword(password);
 async function fixture(t, databasePath = ':memory:') {
   const server = createAdminServer({ origin, passwordHash, databasePath });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
