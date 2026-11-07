@@ -120,7 +120,7 @@ async function openBook() {
   const requestedPage = hashPage();
   let initialPage = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : book.bookmarkPage || 1;
   eventBus.on('pagesinit', () => {
-    viewer.currentScaleValue = 'page-width';
+    viewer.currentScaleValue = '1';
     updateNoteWorkspace(true);
     for (const control of document.querySelectorAll('[data-document-control]')) control.disabled = false;
     $('note-add').disabled = $('notes-toggle').disabled = Boolean(pdfNotes.error);

@@ -37,7 +37,8 @@ export function bindNoteGestures({ container, render, save, canStart }) {
   }
   function applySize(card, layout, page) {
     card.style.left = `${layout.x * 100}%`; card.style.top = `${layout.y * 100}%`;
-    card.style.width = `${layout.width * page.clientWidth}px`; card.style.height = `${layout.height * page.clientHeight}px`;
+    card.style.width = `${layout.width * page.clientWidth}px`;
+    card.style.height = 'auto'; card.style.minHeight = `${layout.height * page.clientHeight}px`;
   }
   function start(event, note, card, handle, page, mode) {
     if (event.button !== 0 || active || !canStart() || mode === 'drag' && event.target.closest('button,a,input,[contenteditable=true]')) return;

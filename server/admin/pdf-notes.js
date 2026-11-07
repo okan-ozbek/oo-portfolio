@@ -49,9 +49,12 @@ export function initPdfNotes({ bookId, container, getViewer, status, onLayoutCha
   }
   function position(card, note, page) {
     const sized = note.width != null && note.height != null, layout = sized ? displayNoteLayout(note, page.clientWidth, page.clientHeight) : note;
+    // A resized height is a minimum; wrapped content can make the note taller.
+    card.style.height = 'auto';
+    card.style.minHeight = sized ? `${layout.height * page.clientHeight}px` : '120px';
     card.style.left = `${layout.x * 100}%`; card.style.top = `${layout.y * 100}%`;
     card.classList.toggle('anchor-right', !sized && note.x > .6); card.classList.toggle('anchor-bottom', !sized && note.y > .75);
-    if (sized) { card.style.width = `${layout.width * page.clientWidth}px`; card.style.height = `${layout.height * page.clientHeight}px`; card.style.maxHeight = 'none'; }
+    if (sized) { card.style.width = `${layout.width * page.clientWidth}px`; }
     else {
       const width = Math.min(innerWidth <= 700 ? 200 : 230, page.clientWidth * .65);
       card.style.width = `${width}px`;
