@@ -311,11 +311,14 @@ export function initBooks({ api, toast }) {
     handle.addEventListener('pointerdown', event => {
       if (event.button !== 0 || savingOrder || visibleIds.length < 2) return;
       event.preventDefault(); handle.focus({ preventScroll: true });
-      const pointerId = event.pointerId, startY = event.clientY;
-      let clientY = startY, dragging = false, targetId = book.id, frame;
+      const pointerId = event.pointerId, startX = event.clientX, startY = event.clientY;
+      let clientX = startX, clientY = startY, dragging = false, targetId = book.id, frame, preview;
       const rows = [...$('book-rows').children];
       const update = () => {
         if (!dragging) return;
+        const left = Math.max(12, Math.min(clientX + 18, window.innerWidth - preview.offsetWidth - 12));
+        const top = Math.max(12, Math.min(clientY + 14, window.innerHeight - preview.offsetHeight - 12));
+        preview.style.transform = `translate3d(${left}px, ${top}px, 0)`;
         rows.forEach(node => node.classList.remove('book-drop-before', 'book-drop-after'));
         const closest = rows.reduce((best, node) => {
           const rect = node.getBoundingClientRect(), distance = Math.abs(clientY - (rect.top + rect.height / 2));
@@ -339,14 +342,22 @@ export function initBooks({ api, toast }) {
         document.removeEventListener('pointerup', finish);
         document.removeEventListener('pointercancel', cancel);
         document.removeEventListener('keydown', escape);
+        handle.removeEventListener('lostpointercapture', cancel);
         if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
+        preview?.remove();
         document.body.classList.remove('book-order-dragging');
         rows.forEach(node => node.classList.remove('book-dragging', 'book-drop-before', 'book-drop-after'));
       };
       const move = next => {
         if (next.pointerId !== pointerId) return;
-        clientY = next.clientY;
-        if (!dragging && Math.abs(clientY - startY) >= 5) {
+        clientX = next.clientX; clientY = next.clientY;
+        if (!dragging && Math.hypot(clientX - startX, clientY - startY) >= 5) {
+          preview = el('div', 'book-drag-preview');
+          preview.setAttribute('aria-hidden', 'true'); preview.inert = true;
+          const image = row.querySelector('.book-cover img').cloneNode(); image.alt = '';
+          const detail = el('div', 'book-drag-detail');
+          detail.append(el('strong', '', book.name), el('span', '', `${format.format(book.pages)} pages · Moving book`));
+          preview.append(image, detail); document.body.append(preview);
           dragging = true; row.classList.add('book-dragging'); document.body.classList.add('book-order-dragging');
         }
         update();
@@ -364,6 +375,7 @@ export function initBooks({ api, toast }) {
       document.addEventListener('pointerup', finish);
       document.addEventListener('pointercancel', cancel);
       document.addEventListener('keydown', escape);
+      handle.addEventListener('lostpointercapture', cancel);
       frame = requestAnimationFrame(scroll);
     });
   }
