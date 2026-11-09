@@ -34,3 +34,4 @@
 .book-pdf-note{transition:transform 140ms ease,box-shadow 140ms ease,border-color 140ms ease}
 @media(hover:hover){.book-pdf-note:hover{transform:translateY(-2px);box-shadow:3px 8px 20px #0006;border-color:var(--pdf-note-muted)}}
 @media(prefers-reduced-motion:reduce){.book-pdf-note{transition:none}.book-pdf-note:hover{transform:none}}
+.pdf-note-content :not(pre)>code,.pdf-note-card .markdown-editor .md-inline-code{background:color-mix(in srgb,var(--pdf-note-background) 88%,var(--pdf-note-text));border:1px solid color-mix(in srgb,var(--pdf-note-text) 28%,transparent);border-radius:4px;padding:.12em .32em;font:.92em/1.6 Consolas,'Courier New',monospace;box-decoration-break:clone;-webkit-box-decoration-break:clone}

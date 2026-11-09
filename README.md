@@ -20,8 +20,14 @@ their compiled hyperlinks, creates tracking links per variant, and provides
 downloadable PDFs. Start its isolated compiler with `npm run resume:compiler`
 (Docker required). See [the resume workflow and deployment notes](deploy/RESUMES.md).
 
-In **Books**, the written-page button opens a private Markdown note for each book.
-It reuses the blog's single-surface Live editor: Markdown formats in place as you
+In **Books**, drag the grip beside a book thumbnail to arrange the library in your reading order;
+the order saves automatically and survives refreshes. Focus the grip and use Up,
+Down, Home, or End to reorder with a keyboard. When searching or filtering by tag,
+only the visible books change places; hidden books keep their positions. New
+uploads appear at the end of the shelf.
+
+The written-page button opens a private Markdown note for each book. It reuses
+the blog's single-surface Live editor: Markdown formats in place as you
 write. Markdown source and Preview views are also available. Notes autosave;
 **Save & done** saves before closing, and **Clear
 note** removes the contents. Notes persist in SQLite with the book and are removed
