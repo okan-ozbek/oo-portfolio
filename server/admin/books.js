@@ -24,6 +24,7 @@ export function initBooks({ api, toast }) {
   const pending = new Set();
   const completing = new Set();
   let noteSession = null;
+  let savingOrder = false, cancelDrag = null;
   let noteInput, noteEditorPromise, enhanceContent;
   function ensureNoteEditor() {
     return noteEditorPromise ??= Promise.all([import('/blog/assets/markdown-editor.js'), import('/blog/assets/reader.js')]).then(([editor, reader]) => {
@@ -265,7 +266,109 @@ export function initBooks({ api, toast }) {
     const name = input.value.trim();
     if (name !== editSession.name) { editSession.name = name; editSession.revision++; void saveEdit(editSession); }
   }
+  function focusOrder(id) {
+    [...$('book-rows').querySelectorAll('.book-reorder')].find(node => node.dataset.bookId === id)?.focus({ preventScroll: true });
+  }
+  async function moveBook(id, targetId, visibleIds) {
+    if (savingOrder || id === targetId) return;
+    const previous = books.map(book => book.id), ordered = [...visibleIds];
+    ordered.splice(ordered.indexOf(id), 1);
+    ordered.splice(visibleIds.indexOf(targetId), 0, id);
+    // Keep hidden books in their slots when reordering a filtered shelf.
+    const selected = new Set(visibleIds), byId = new Map(books.map(book => [book.id, book]));
+    let index = 0;
+    books = books.map(book => selected.has(book.id) ? byId.get(ordered[index++]) : book);
+    const currentAuth = authVersion;
+    savingOrder = true; version++; render(); focusOrder(id);
+    $('book-loading').hidden = true;
+    $('book-order-status').textContent = 'Saving reading order…';
+    try {
+      await api('books/order', { method: 'PATCH', body: { ids: books.map(book => book.id) } });
+      if (currentAuth !== authVersion) return;
+      $('book-order-status').textContent = 'Reading order saved.';
+    } catch (error) {
+      if (currentAuth !== authVersion) return;
+      const positions = new Map(previous.map((value, position) => [value, position]));
+      books.sort((a, b) => (positions.get(a.id) ?? Infinity) - (positions.get(b.id) ?? Infinity));
+      $('book-order-status').textContent = 'Reading order could not be saved.';
+      toast(`Reading order was not saved: ${error.message}`);
+    } finally {
+      if (currentAuth === authVersion) {
+        const restoreFocus = document.activeElement === document.body || document.activeElement?.matches('.book-reorder');
+        savingOrder = false; render();
+        if (restoreFocus) focusOrder(id);
+      }
+    }
+  }
+  function bindReorder(handle, row, book, visibleIds) {
+    handle.addEventListener('keydown', event => {
+      if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const index = visibleIds.indexOf(book.id);
+      const target = event.key === 'Home' ? 0 : event.key === 'End' ? visibleIds.length - 1 : index + (event.key === 'ArrowUp' ? -1 : 1);
+      if (visibleIds[target]) void moveBook(book.id, visibleIds[target], visibleIds);
+    });
+    handle.addEventListener('pointerdown', event => {
+      if (event.button !== 0 || savingOrder || visibleIds.length < 2) return;
+      event.preventDefault(); handle.focus({ preventScroll: true });
+      const pointerId = event.pointerId, startY = event.clientY;
+      let clientY = startY, dragging = false, targetId = book.id, frame;
+      const rows = [...$('book-rows').children];
+      const update = () => {
+        if (!dragging) return;
+        rows.forEach(node => node.classList.remove('book-drop-before', 'book-drop-after'));
+        const closest = rows.reduce((best, node) => {
+          const rect = node.getBoundingClientRect(), distance = Math.abs(clientY - (rect.top + rect.height / 2));
+          return !best || distance < best.distance ? { node, distance } : best;
+        }, null).node;
+        targetId = closest.dataset.bookId;
+        if (targetId !== book.id) closest.classList.add(visibleIds.indexOf(targetId) < visibleIds.indexOf(book.id) ? 'book-drop-before' : 'book-drop-after');
+      };
+      const scroll = () => {
+        if (dragging) {
+          const edge = 80, height = window.innerHeight;
+          const delta = clientY < edge ? -Math.min(18, (edge - clientY) / 4) : clientY > height - edge ? Math.min(18, (clientY - height + edge) / 4) : 0;
+          if (delta) window.scrollBy(0, delta);
+          update();
+        }
+        frame = requestAnimationFrame(scroll);
+      };
+      const cleanup = () => {
+        cancelAnimationFrame(frame); cancelDrag = null;
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', finish);
+        document.removeEventListener('pointercancel', cancel);
+        document.removeEventListener('keydown', escape);
+        if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
+        document.body.classList.remove('book-order-dragging');
+        rows.forEach(node => node.classList.remove('book-dragging', 'book-drop-before', 'book-drop-after'));
+      };
+      const move = next => {
+        if (next.pointerId !== pointerId) return;
+        clientY = next.clientY;
+        if (!dragging && Math.abs(clientY - startY) >= 5) {
+          dragging = true; row.classList.add('book-dragging'); document.body.classList.add('book-order-dragging');
+        }
+        update();
+      };
+      const finish = next => {
+        if (next.pointerId !== pointerId) return;
+        cleanup();
+        if (dragging) void moveBook(book.id, targetId, visibleIds);
+      };
+      const cancel = () => cleanup();
+      const escape = next => { if (next.key === 'Escape') { next.preventDefault(); cleanup(); } };
+      cancelDrag = cleanup;
+      handle.setPointerCapture(pointerId);
+      document.addEventListener('pointermove', move);
+      document.addEventListener('pointerup', finish);
+      document.addEventListener('pointercancel', cancel);
+      document.addEventListener('keydown', escape);
+      frame = requestAnimationFrame(scroll);
+    });
+  }
   function render() {
+    cancelDrag?.();
     const filters = $('book-filters'); filters.replaceChildren();
     const filter = (label, value) => {
       const node = button(label, () => { activeTag = value; render(); }, value ? tagClass(value) : 'book-tag book-all-tag');
@@ -280,8 +383,10 @@ export function initBooks({ api, toast }) {
     $('book-no-results').hidden = books.length === 0 || visible.length !== 0;
     $('book-table-wrap').hidden = visible.length === 0;
     const rows = $('book-rows'); rows.replaceChildren();
+    const visibleIds = visible.map(book => book.id);
     for (const book of visible) {
       const row = el('tr', `book-entry${book.completed ? ' is-completed' : ''}`); row.setAttribute('aria-label', `${book.name}${book.completed ? ', completed' : ''}, edit details`); row.tabIndex = 0;
+      row.dataset.bookId = book.id;
       row.addEventListener('click', event => {
         if (!event.target.closest('a, button, input')) openEdit(book);
       });
@@ -293,10 +398,18 @@ export function initBooks({ api, toast }) {
       const cover = el('a', 'book-cover'); cover.href = previewUrl; cover.target = '_blank'; cover.rel = 'noopener'; cover.setAttribute('aria-label', `Read ${book.name}`);
       const image = el('img'); image.src = `${base}/thumbnail`; image.alt = `First page of ${book.name}`; image.loading = 'lazy'; image.width = 48; image.height = 66; cover.append(image);
       const title = el('div', 'book-title');
+      const reorder = button('⠿', () => {}, 'book-reorder');
+      reorder.dataset.bookId = book.id;
+      reorder.setAttribute('aria-label', `Reorder ${book.name}, position ${books.indexOf(book) + 1} of ${books.length}`);
+      reorder.setAttribute('aria-describedby', 'book-order-hint');
+      reorder.setAttribute('aria-disabled', String(savingOrder || visible.length < 2));
+      reorder.title = 'Drag to reorder, or use Up and Down arrow keys';
+      bindReorder(reorder, row, book, visibleIds);
       const preview = el('a', 'book-name', book.name); preview.href = previewUrl; preview.target = '_blank'; preview.rel = 'noopener';
       if (book.bookmarkPage) { cover.title = preview.title = `Resume at PDF page ${book.bookmarkPage}`; }
       const fileMeta = el('span', 'book-file-meta', `PDF · ${(book.size / 1024 / 1024).toFixed(1)} MB`);
       if (book.completed) fileMeta.append(el('span', 'book-completed-label', ' · Completed'));
+      const coverGroup = el('div', 'book-cover-group'); coverGroup.append(reorder, cover);
       title.append(preview, fileMeta);
       const pages = el('span', 'book-pages', format.format(book.pages)); pages.setAttribute('aria-label', `${book.pages} pages`);
       const pageInfo = el('div', 'book-page-info');
@@ -323,7 +436,7 @@ export function initBooks({ api, toast }) {
       const remove = button('', () => { deleting = book; $('book-delete-name').textContent = book.name; $('book-delete-error').textContent = ''; $('book-delete-dialog').showModal(); }, 'action-button destructive');
       remove.title = 'Delete book'; remove.setAttribute('aria-label', `Delete ${book.name}`); remove.append(icon('trash'));
       actions.append(complete, notes, download, remove);
-      for (const [className, node] of [['book-cover-cell', cover], ['book-title-cell', title], ['book-pages-cell', pageInfo], ['book-tags-cell', tags], ['book-actions-cell', actions]]) {
+      for (const [className, node] of [['book-cover-cell', coverGroup], ['book-title-cell', title], ['book-pages-cell', pageInfo], ['book-tags-cell', tags], ['book-actions-cell', actions]]) {
         const cell = el('td', className); cell.append(node); row.append(cell);
       }
       rows.append(row);
@@ -350,6 +463,7 @@ export function initBooks({ api, toast }) {
     }
   }
   async function refresh() {
+    if (savingOrder) return;
     const current = ++version;
     $('book-error').textContent = ''; $('book-loading').hidden = false;
     try {
@@ -460,6 +574,8 @@ export function initBooks({ api, toast }) {
     finally { busy('delete', false); }
   });
   return { refresh, reset() {
+    cancelDrag?.(); savingOrder = false;
+    $('book-order-status').textContent = '';
     clearTimeout(noteSession?.timer); clearTimeout(noteSession?.previewTimer); noteSession = null;
     $('book-notes-dialog').close(); if (noteInput) noteInput.value = ''; $('book-notes-preview').replaceChildren();
     authVersion++; editSession = null; editSessions.clear(); completing.clear();
