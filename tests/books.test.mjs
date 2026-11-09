@@ -131,6 +131,60 @@ test('note Markdown preserves prose spacing and highlights safe code', () => {
   const html = renderNoteMarkdown('# Large\n\n\n### Small\n\nA    spaced line\nnext line\n\n\x60\x60\x60cpp\nclass Vector {\n    int value = 42;\n};\n\x60\x60\x60\n\n<script>alert(1)</script>');
   assert.match(html, /height:3.2em/); assert.match(html, /A    spaced line\nnext line/);
   assert.match(html, /hljs-keyword/); assert.match(html, /    /); assert.doesNotMatch(html, /<script>/);
+  assert.match(renderNoteMarkdown('Use `template<typename T>` here.'), /Use <code>template&lt;typename T&gt;<\/code> here\./);
+});
+
+test('reading order migrates alphabetically without rewriting PDFs and new uploads append', async () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    const options = { db, send() {}, inspect: async () => ({ pages: 2, thumbnail: Buffer.from('cover') }) };
+    const library = createBooks(options);
+    const z = await library.add(Buffer.from('%PDF-Z'), 'Z book', []);
+    const a = await library.add(Buffer.from('%PDF-A'), 'A book', []);
+    db.exec(`DROP INDEX book_state_order; ALTER TABLE book_state DROP COLUMN sort_order;
+      CREATE TRIGGER no_order_pdf_update BEFORE UPDATE ON books BEGIN SELECT RAISE(FAIL, 'PDF rewrite'); END;`);
+    const migrated = createBooks(options);
+    assert.deepEqual(migrated.list().map(book => book.id), [a.id, z.id]);
+    const added = await migrated.add(Buffer.from('%PDF-New'), 'A newly uploaded book', []);
+    assert.deepEqual(migrated.list().map(book => book.id), [a.id, z.id, added.id]);
+    createBooks(options);
+    assert.deepEqual(migrated.list().map(book => book.id), [a.id, z.id, added.id]);
+    assert.deepEqual(Buffer.from(db.prepare('SELECT pdf FROM books WHERE id = ?').get(z.id).pdf), Buffer.from('%PDF-Z'));
+  } finally { db.close(); }
+});
+
+test('reading order is protected, validates the complete shelf, persists, and survives edits and deletion', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'pixelware-reading-order-'));
+  const database = join(directory, 'admin.sqlite');
+  let app, restarted;
+  t.after(async () => { await app?.close(); await restarted?.close(); await rm(directory, { recursive: true, force: true }); });
+  app = await fixture(t, database); await app.login();
+  const first = (await (await app.upload(bookPdf('Order first'), 'First', ['Next'])).json()).book;
+  const second = (await (await app.upload(bookPdf('Order second'), 'Second', [])).json()).book;
+  const third = (await (await app.upload(bookPdf('Order third'), 'Third', ['Next'])).json()).book;
+  const original = [first.id, second.id, third.id], ids = [third.id, first.id, second.id];
+  const order = () => app.request('books/order', { method: 'PATCH', body: { ids } });
+  assert.equal((await app.request('books/order', { method: 'PATCH', body: { ids }, anonymous: true })).status, 401);
+  for (const headers of [{ Origin: 'https://evil.test' }, { 'X-CSRF-Token': '' }]) {
+    assert.equal((await app.request('books/order', { method: 'PATCH', body: { ids }, headers })).status, 403);
+  }
+  for (const body of [{}, { ids: null }, { ids: 'bad' }, { ids: [1] }, { ids: [first.id, first.id, third.id] }, { ids, extra: true }]) {
+    assert.equal((await app.request('books/order', { method: 'PATCH', body })).status, 400);
+  }
+  for (const invalid of [[], [first.id], [...ids, 'unknown'], [first.id, second.id, '00000000-0000-4000-8000-000000000000']]) {
+    assert.equal((await app.request('books/order', { method: 'PATCH', body: { ids: invalid } })).status, 409);
+    assert.deepEqual((await (await app.request('books')).json()).books.map(book => book.id), original);
+  }
+  const db = new DatabaseSync(database);
+  db.exec("CREATE TRIGGER no_reorder_pdf_rewrite BEFORE UPDATE ON books BEGIN SELECT RAISE(FAIL, 'PDF rewrite'); END;"); db.close();
+  assert.equal((await order()).status, 200);
+  assert.deepEqual((await (await app.request('books?tag=Next')).json()).books.map(book => book.id), [third.id, first.id]);
+  await app.request(`books/${second.id}`, { method: 'PATCH', body: { name: 'AAA renamed', tags: [] } });
+  assert.deepEqual((await (await app.request('books')).json()).books.map(book => book.id), ids);
+  await app.close(); restarted = await fixture(t, database); await restarted.login();
+  assert.deepEqual((await (await restarted.request('books')).json()).books.map(book => book.id), ids);
+  await restarted.request(`books/${first.id}`, { method: 'DELETE', body: {} });
+  assert.deepEqual((await (await restarted.request('books')).json()).books.map(book => book.id), [third.id, second.id]);
 });
 
 test('note appearance rejects invalid colors and bounds font sizes', () => {

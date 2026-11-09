@@ -108,6 +108,17 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
   }
+  if (!db.prepare('PRAGMA table_info(book_state)').all().some(column => column.name === 'sort_order')) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec('ALTER TABLE book_state ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0');
+      const ordered = db.prepare('SELECT id FROM book_state ORDER BY name COLLATE NOCASE, id').all();
+      const update = db.prepare('UPDATE book_state SET sort_order = ? WHERE id = ?');
+      ordered.forEach((book, index) => update.run(index, book.id));
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS book_state_order ON book_state (sort_order, name COLLATE NOCASE, id)');
   let processing = 0;
   db.exec(`CREATE TABLE IF NOT EXISTS book_annotations (
     id TEXT PRIMARY KEY, book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
@@ -148,7 +159,7 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
   // This table contains compact metadata only; none of these reads visit PDFs.
   const metadataTable = 'book_state';
   const find = id => db.prepare(`SELECT ${fields} FROM ${metadataTable} WHERE id = ?`).get(id);
-  function list() { return db.prepare(`SELECT ${fields} FROM ${metadataTable} ORDER BY name COLLATE NOCASE, id`).all().map(metadata); }
+  function list() { return db.prepare(`SELECT ${fields} FROM ${metadataTable} ORDER BY sort_order, name COLLATE NOCASE, id`).all().map(metadata); }
   function canonicalTags(tags) {
     const existing = new Map(list().flatMap(book => book.tags).map(tag => [tag.toLowerCase(), tag]));
     return tags.map(tag => existing.get(tag.toLowerCase()) ?? tag);
@@ -170,13 +181,33 @@ export function createBooks({ db, now = Date.now, send, inspect = inspectBook })
       db.exec('BEGIN IMMEDIATE');
       try {
         db.prepare('INSERT INTO books (id, name, tags_json, pages, size, sha256, pdf, thumbnail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, identity.name, tagsJson, pages, pdf.length, hash, pdf, thumbnail, createdAt);
-        db.prepare('INSERT INTO book_state (id, name, tags_json, pages, size, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, identity.name, tagsJson, pages, pdf.length, createdAt);
+        db.prepare('INSERT INTO book_state (id, name, tags_json, pages, size, created_at, sort_order) VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM book_state))').run(id, identity.name, tagsJson, pages, pdf.length, createdAt);
         db.exec('COMMIT');
       } catch (error) { db.exec('ROLLBACK'); throw error; }
       return metadata(find(id));
     } finally { processing--; }
   }
   async function adminRoute(req, res, url) {
+    if (url.pathname === '/api/admin/books/order') {
+      if (req.method !== 'PATCH') throw new HttpError(405, 'Method not allowed.');
+      const body = await readJson(req, 650000);
+      if (Object.keys(body).length !== 1 || !Array.isArray(body.ids) ||
+          body.ids.some(id => typeof id !== 'string') || new Set(body.ids).size !== body.ids.length) {
+        throw new HttpError(400, 'Send each book ID once in reading order.');
+      }
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const current = new Set(db.prepare('SELECT id FROM book_state').all().map(book => book.id));
+        if (current.size !== body.ids.length || body.ids.some(id => !current.has(id))) {
+          throw new HttpError(409, 'Your library has changed. Refresh it before reordering.');
+        }
+        const update = db.prepare('UPDATE book_state SET sort_order = ? WHERE id = ?');
+        body.ids.forEach((id, index) => update.run(index, id));
+        db.exec('COMMIT');
+      } catch (error) { db.exec('ROLLBACK'); throw error; }
+      send(res, 200, { ok: true });
+      return true;
+    }
     if (url.pathname === '/api/admin/books') {
       if (req.method === 'GET') {
         const books = list();
