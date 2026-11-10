@@ -147,10 +147,14 @@ export function initBooks({ api, toast }) {
       const heading = el('header', 'book-pdf-note-heading');
       heading.append(el('span', '', 'Page ' + note.page), icon('external'));
       const content = el('div', 'pdf-note-content'); content.innerHTML = note.html;
+      card.append(heading);
+      if (note.anchor) {
+        const quote = el('blockquote', 'pdf-note-reference', `“${note.anchor.text}”`); card.append(quote);
+      }
       const open = () => window.open('/admin/book-reader?book=' + active.id + '#page=' + note.page, '_blank', 'noopener');
       card.addEventListener('click', event => { event.preventDefault(); open(); });
       card.addEventListener('keydown', event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); open(); } });
-      card.append(heading, content); root.append(card);
+      card.append(content); root.append(card);
     }
   }
   const noteSnippets = { code: '\n```\n// Your code here\n```\n', mermaid: '\n```mermaid\nflowchart LR\n  A[Idea] --> B[Takeaway]\n```\n', link: '[Link text](https://example.com)' };

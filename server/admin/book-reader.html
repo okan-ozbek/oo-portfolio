@@ -21,16 +21,25 @@
         <div class="control-group reader-pages"><button id="page-previous" class="reader-icon-button" data-document-control disabled aria-label="Previous page" title="Previous page" data-reader-icon="previous"></button><label class="sr-only" for="page-number">Page</label><input id="page-number" data-document-control disabled type="number" min="1" value="1" inputmode="numeric"><span id="page-count">/ —</span><button id="page-next" class="reader-icon-button" data-document-control disabled aria-label="Next page" title="Next page" data-reader-icon="next"></button></div>
         <div class="control-group reader-zoom"><label class="sr-only" for="zoom">Zoom</label><select id="zoom" data-document-control disabled><option value="page-width">Fit width</option><option value="page-fit">Fit page</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option><option value="custom" hidden>Custom</option></select></div>
         <button id="find-toggle" class="reader-icon-button" data-document-control disabled aria-label="Find in book" title="Find in book" aria-expanded="false" aria-controls="find-bar" data-reader-icon="search"></button>
-        <button id="note-add" class="reader-icon-button" data-document-control disabled aria-label="Add note" title="Add note" aria-pressed="false" data-reader-icon="noteAdd"></button>
+        <button id="note-add" class="reader-icon-button" data-document-control disabled aria-label="Add note" title="Add note · Select PDF text first to link it" data-reader-icon="noteAdd"></button>
         <button id="notes-toggle" class="reader-icon-button" data-document-control disabled aria-label="Show notes" title="Show or hide notes" aria-pressed="true" data-reader-icon="notes"></button>
         <div class="reader-more"><button id="reader-more-toggle" class="reader-icon-button" aria-label="More reading controls" title="More reading controls" aria-expanded="false" aria-controls="reader-more-tools" data-reader-icon="ellipsis"></button><div id="reader-more-tools" class="reader-extra-controls">
           <button id="theme-toggle" class="reader-icon-button" aria-label="Dark mode" aria-pressed="true" title="Dark mode" data-reader-icon="moon"></button>
+          <button id="ambient-toggle" class="reader-icon-button" aria-label="Ambient settings" aria-expanded="false" aria-controls="ambient-panel" title="Ambient settings" data-reader-icon="ambient"></button>
           <button id="colors-toggle" class="reader-icon-button" aria-label="Reading colors" title="Reading colors" aria-expanded="false" aria-controls="colors-panel" data-reader-icon="palette"></button>
           <button id="notes-settings-toggle" class="reader-icon-button" aria-label="Note settings" title="Note settings" aria-expanded="false" aria-controls="notes-settings-panel" data-reader-icon="settings"></button>
           <a id="original-pdf" class="reader-icon-button" hidden target="_blank" rel="noopener" aria-label="Original PDF" title="Original PDF" data-reader-icon="external"></a>
         </div></div>
       </div>
     </div>
+    <section id="ambient-panel" class="reader-colors-panel reader-ambient-settings" aria-labelledby="ambient-title" hidden>
+      <div class="reader-colors-heading"><h2 id="ambient-title">Ambient mode</h2><button type="button" id="ambient-close" aria-label="Close ambient settings">×</button></div>
+      <label class="reader-colors-switch"><input id="ambient-enabled" type="checkbox" checked>Use ambient mode</label>
+      <div class="reader-ambient-field"><label for="ambient-intensity">Intensity <output id="ambient-intensity-value" for="ambient-intensity">72%</output></label><input id="ambient-intensity" type="range" min="0" max="100" step="1" value="72"></div>
+      <div class="reader-ambient-field"><label for="ambient-spread">Spread <output id="ambient-spread-value" for="ambient-spread">60%</output></label><input id="ambient-spread" type="range" min="0" max="100" step="1" value="60"></div>
+      <p class="reader-colors-note">Adjust the glow’s strength and how far it spreads. Changes apply immediately and are saved in this browser.</p>
+      <button id="ambient-reset" type="button">Reset ambient settings</button>
+    </section>
     <section id="notes-settings-panel" class="reader-colors-panel note-settings-panel" aria-labelledby="notes-settings-title" hidden>
       <div class="reader-colors-heading"><h2 id="notes-settings-title">Note settings</h2><button type="button" id="notes-settings-close" aria-label="Close note settings">×</button></div>
       <label for="note-theme-color">Note color</label><div class="note-color-options"><button type="button" data-note-color="#f4dfa0" aria-label="Yellow notes" aria-pressed="true" style="--swatch:#f4dfa0"></button><button type="button" data-note-color="#f4c4ce" aria-label="Pink notes" aria-pressed="false" style="--swatch:#f4c4ce"></button><button type="button" data-note-color="#d5c8f2" aria-label="Lavender notes" aria-pressed="false" style="--swatch:#d5c8f2"></button><button type="button" data-note-color="#bee3cf" aria-label="Mint notes" aria-pressed="false" style="--swatch:#bee3cf"></button><input type="color" id="note-theme-color" value="#f4dfa0" aria-label="Custom note color"></div>
@@ -49,7 +58,6 @@
     <p id="reader-status" role="status">Loading book…</p>
   </header>
   <main class="reader-main"><div id="viewer-container" tabindex="0" aria-label="PDF pages"><div id="viewer" class="pdfViewer"></div></div></main>
-  <div id="note-placement" class="note-placement" role="status" hidden><span>Click or tap anywhere on a PDF page to place your note. Press Enter to use the current page’s center.</span><button id="note-placement-cancel" type="button">Cancel</button></div>
   <noscript>Enable JavaScript to read books in dark mode.</noscript>
 </body>
 </html>

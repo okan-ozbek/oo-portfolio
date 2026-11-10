@@ -33,7 +33,15 @@ write. Markdown source and Preview views are also available. Notes autosave;
 note** removes the contents. Notes persist in SQLite with the book and are removed
 when the book is deleted.
 
-In the PDF reader, choose **Add note**, then click or tap the exact spot on a page.
+In the PDF reader, **Add note** immediately opens a post-it at a random position
+inside the visible reading area. Drag its header to move it wherever you like.
+Select PDF text before choosing **Add note** to link the note to that passage.
+The selected text stays highlighted, and hovering the text or its note outlines
+both. The note remembers the quotation, which is shown in **Book Notes** and
+hidden inside the reader’s post-it.
+Highlights persist across reloads and zoom changes, independently of where you
+drag the post-it, including across pages. Linked passages save even before you
+write any note text. **Show notes** hides both the cards and their highlights.
 Click a note's text or pencil icon to edit Markdown directly inside the yellow
 post-it. Changes autosave; clicking outside the note or using the red checkmark
 saves and finishes editing. Delete is available in the note's editing header.
@@ -51,10 +59,17 @@ Notes keep their relative position when zooming. They are stored separately from
 the PDF and also appear as yellow cards in **Book Notes**. Click a card to open
 its PDF page. Editing and deletion of PDF notes happen in the reader.
 The reader's compact icon toolbar stays visible while scrolling. On narrow
-screens, **More reading controls** contains zoom, dark mode, reading colors, and
+screens, **More reading controls** contains zoom, dark mode, ambient mode, reading colors, and
 the original PDF link. **Note settings** changes the color and base font size
 for all PDF notes and their Book Notes cards. Headings and code scale from that
 size. These appearance settings are remembered in this browser.
+
+**Ambient mode** adds a soft gradient of each visible page's colors around its
+edges. It is on by default and follows original, dark, and custom reading colors.
+Use the ambient icon beside Dark mode (inside **More reading controls** on small
+screens) to open its settings. Toggle the glow, adjust its **Intensity** and
+**Spread** live, or reset the defaults. Settings are remembered in this browser. It reuses
+small samples of rendered pages without loading additional PDF data.
 
 The **Blogs** workspace supports autosaved Markdown drafts, highlighted code,
 Mermaid diagrams, resizable images, paired artwork presets, publishing, and

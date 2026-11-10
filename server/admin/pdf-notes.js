@@ -3,17 +3,19 @@ import { createMarkdownEditor } from './markdown-editor.js';
 import { bindNoteGestures, constrainNoteHorizontally, displayNoteLayout, noteViewport, pageForNoteRect } from './pdf-note-gestures.js';
 import { icon } from './icons.js';
 import { initNoteAppearance } from './note-appearance.js';
+import { capturePdfSelection, randomNoteRect } from './pdf-text-anchor.js';
 
 const $ = id => document.getElementById(id);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-const payload = note => ({ page: note.page, x: note.x, y: note.y, width: note.width ?? null, height: note.height ?? null, markdown: note.markdown });
+const payload = note => ({ page: note.page, x: note.x, y: note.y, width: note.width ?? null, height: note.height ?? null, markdown: note.markdown, anchor: note.anchor ?? null });
 
 export function initPdfNotes({ bookId, container, getViewer, status, onLayoutChange = () => {} }) {
-  let notes = [], visible = true, placing = false, editing = null, csrf, loadError = '', layoutSaving = false;
+  let notes = [], visible = true, editing = null, csrf, loadError = '', layoutSaving = false, creating = false;
+  let selectedAnchor = null, selectionError = '', outlinedId = null, hoveredId = null, focusedId = null;
   const readerModule = '/blog/assets/reader.js';
   initNoteAppearance();
   document.addEventListener('noteappearancechange', () => editing?.editor.measure());
-  const gestures = bindNoteGestures({ container, render, save: saveLayout, canStart: () => !layoutSaving && !editing && !placing });
+  const gestures = bindNoteGestures({ container, render, save: saveLayout, canStart: () => !layoutSaving && !editing });
   try { visible = localStorage.getItem('pixelware-pdf-notes') !== 'hidden'; } catch { /* Use the default. */ }
   async function api(path, options = {}) {
     if (options.method && !csrf) ({ csrf } = await readApiResponse(await fetch('/api/admin/session')));
@@ -27,19 +29,55 @@ export function initPdfNotes({ bookId, container, getViewer, status, onLayoutCha
     $('notes-toggle').setAttribute('aria-pressed', String(visible));
     $('notes-toggle').title = visible ? 'Hide notes' : 'Show notes';
   }
-  function cancelPlacement() {
-    placing = false; document.body.classList.remove('pdf-note-placing');
-    $('note-add').setAttribute('aria-pressed', 'false'); $('note-placement').hidden = true;
-  }
-  async function startPlacement() {
-    if (placing) { cancelPlacement(); return; }
-    if (!(await finishEditing())) return;
-    visible = true; syncVisibility(); placing = true;
-    $('note-add').setAttribute('aria-pressed', 'true'); $('note-placement').hidden = false;
-    document.body.classList.add('pdf-note-placing'); container.focus();
-  }
   const pageElement = number => getViewer()?.getPageView(number - 1)?.div;
   const noteKey = note => note.id ?? 'draft';
+  const displayedNotes = () => editing && !editing.note.id ? [...notes, editing.note] : notes;
+  function outlineLink(id) {
+    outlinedId = id;
+    for (const card of container.querySelectorAll('.pdf-post-it')) card.classList.toggle('pdf-note-linked-active', Boolean(id) && card.dataset.noteId === id);
+    for (const mark of container.querySelectorAll('.pdf-note-highlight')) mark.classList.toggle('pdf-note-linked-active', Boolean(id) && mark.dataset.linkedNoteId === id);
+  }
+  function hoverLink(id) { hoveredId = id; outlineLink(hoveredId ?? focusedId); }
+  function focusLink(id) { focusedId = id; outlineLink(hoveredId ?? focusedId); }
+  function renderHighlights(displayed) {
+    for (const page of container.querySelectorAll('.page[data-page-number]')) {
+      const number = Number(page.dataset.pageNumber);
+      const fragments = displayed.flatMap(note => (note.anchor?.rects ?? []).filter(rect => rect.page === number).map(rect => ({ rect, id: noteKey(note) })));
+      let layer = page.querySelector('.pdf-note-highlights');
+      if (!fragments.length) { layer?.remove(); continue; }
+      if (!layer) {
+        layer = document.createElement('div'); layer.className = 'pdf-note-highlights'; layer.setAttribute('aria-hidden', 'true'); page.append(layer);
+      }
+      layer.replaceChildren(...fragments.map(({ rect, id }) => {
+        const mark = document.createElement('span'); mark.className = 'pdf-note-highlight'; mark.dataset.linkedNoteId = id;
+        Object.assign(mark.style, { left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` });
+        return mark;
+      }));
+    }
+    outlineLink(outlinedId);
+  }
+  let hoverFrame;
+  container.addEventListener('pointermove', event => {
+    cancelAnimationFrame(hoverFrame);
+    const { target, clientX, clientY, buttons } = event;
+    hoverFrame = requestAnimationFrame(() => {
+      if (!visible || buttons || gestures.active) { hoverLink(null); return; }
+      const card = target.closest('.pdf-post-it');
+      if (card) { hoverLink(card._noteRef.anchor ? card.dataset.noteId : null); return; }
+      const page = target.closest('.page[data-page-number]');
+      if (!page) { hoverLink(null); return; }
+      const bounds = page.getBoundingClientRect(), x = (clientX - bounds.left) / bounds.width, y = (clientY - bounds.top) / bounds.height;
+      const note = displayedNotes().find(item => item.anchor?.rects.some(rect => rect.page === Number(page.dataset.pageNumber) && x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height));
+      hoverLink(note ? noteKey(note) : null);
+    });
+  });
+  container.addEventListener('pointerleave', () => { cancelAnimationFrame(hoverFrame); hoverLink(null); });
+  container.addEventListener('focusin', event => {
+    const card = event.target.closest('.pdf-post-it'); focusLink(card?._noteRef.anchor ? card.dataset.noteId : null);
+  });
+  container.addEventListener('focusout', () => queueMicrotask(() => {
+    const card = document.activeElement?.closest('.pdf-post-it'); focusLink(card?._noteRef.anchor ? card.dataset.noteId : null);
+  }));
   function button(text, label, action, glyph) {
     const node = document.createElement('button'); node.type = 'button';
     if (glyph) node.append(icon(glyph)); else node.textContent = text;
@@ -83,7 +121,7 @@ export function initPdfNotes({ bookId, container, getViewer, status, onLayoutCha
   function render() {
     if (!getViewer() || gestures.active) return;
     onLayoutChange();
-    const displayed = editing && !editing.note.id ? [...notes, editing.note] : notes;
+    const displayed = displayedNotes();
     for (const page of container.querySelectorAll('.page[data-page-number]')) {
       const localNotes = displayed.filter(item => item.page === Number(page.dataset.pageNumber));
       const keys = new Set(localNotes.map(noteKey));
@@ -99,6 +137,7 @@ export function initPdfNotes({ bookId, container, getViewer, status, onLayoutCha
         }
       }
     }
+    renderHighlights(displayed);
   }
   let scrollFrame, previousScrollLeft = container.scrollLeft;
   container.addEventListener('scroll', () => {
@@ -128,7 +167,7 @@ export function initPdfNotes({ bookId, container, getViewer, status, onLayoutCha
     if (active.saving) { if (!(await active.saving)) return false; return saveDraft(active); }
     if (editing !== active || active.deleting) return false;
     const markdown = active.editor.value;
-    if (!markdown.trim()) return false;
+    if (!markdown.trim() && !active.note.anchor) return false;
     if (markdown === active.saved && active.note.id) return true;
     active.error.textContent = ''; editStatus(active, 'Saving…');
     active.saving = (async () => {
@@ -138,7 +177,11 @@ export function initPdfNotes({ bookId, container, getViewer, status, onLayoutCha
         });
         const previousId = active.note.id;
         notes = notes.filter(note => note.id !== previousId); notes.push(annotation);
-        active.note = annotation; active.saved = markdown; active.card.dataset.noteId = annotation.id;
+        if (outlinedId === noteKey(active.note)) outlinedId = annotation.id;
+        if (hoveredId === noteKey(active.note)) hoveredId = annotation.id;
+        if (focusedId === noteKey(active.note)) focusedId = annotation.id;
+        active.note = annotation; active.saved = markdown; active.card.dataset.noteId = annotation.id; active.card._noteRef = annotation;
+        render();
         editStatus(active, active.editor.value === markdown ? 'Saved' : 'Unsaved'); return true;
       } catch (error) { editStatus(active, 'Save failed', true); active.error.textContent = error.message; return false; }
       finally { active.saving = null; }
@@ -155,7 +198,7 @@ export function initPdfNotes({ bookId, container, getViewer, status, onLayoutCha
   }
   async function finishDraft(active) {
     if (active.deleting) return false;
-    if (!active.note.id && !active.editor.value.trim()) { endEditing(active); return true; }
+    if (!active.note.id && !active.editor.value.trim() && !active.note.anchor) { endEditing(active); return true; }
     if (!(await saveDraft(active))) {
       if (!active.editor.value.trim()) active.error.textContent = 'Write a note or use Delete to remove it.';
       active.editor.focus(); return false;
@@ -181,7 +224,6 @@ export function initPdfNotes({ bookId, container, getViewer, status, onLayoutCha
   async function startEditing(note) {
     if (editing && noteKey(editing.note) === noteKey(note)) { editing.editor.focus(); return; }
     if (layoutSaving || gestures.active || !(await finishEditing())) return;
-    cancelPlacement();
     const page = pageElement(note.page);
     const card = container.querySelector(`[data-note-id="${noteKey(note)}"]`) ?? createCard(note, page);
     card.classList.add('pdf-note-editing');
@@ -209,22 +251,34 @@ export function initPdfNotes({ bookId, container, getViewer, status, onLayoutCha
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); void saveDraft(active); }
       if (event.key === 'Escape' || (event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); void finishEditing(); }
     });
-    editStatus(active, note.id ? 'Saved' : 'New note'); active.editor.focus();
+    render(); editStatus(active, note.id ? 'Saved' : 'New note'); active.editor.focus();
+    if (!note.id && note.anchor) void saveDraft(active);
   }
-  function place(page, x, y) {
-    const element = pageElement(page);
-    const layout = constrainNoteHorizontally({ x, y: clamp(y, -8, 8), width: Math.min(230, element.clientWidth * .65) / element.clientWidth, height: 180 / element.clientHeight }, element.getBoundingClientRect(), noteViewport(container));
-    void startEditing({ page, ...layout, markdown: '' });
+  function rememberSelection() {
+    selectedAnchor = null; selectionError = '';
+    try { selectedAnchor = capturePdfSelection(container, window.getSelection()); }
+    catch (error) { selectionError = error.message; }
   }
-  container.addEventListener('click', event => {
-    if (!placing || event.target.closest('.pdf-post-it')) return;
-    const rect = { left: event.clientX, top: event.clientY, right: event.clientX + 230, bottom: event.clientY + 180 };
-    const page = pageForNoteRect(rect, container.querySelectorAll('.page[data-page-number]')); if (!page) return;
-    event.preventDefault(); event.stopPropagation(); const bounds = page.getBoundingClientRect();
-    place(Number(page.dataset.pageNumber), (event.clientX - bounds.left) / bounds.width, (event.clientY - bounds.top) / bounds.height);
-  }, true);
-  container.addEventListener('keydown', event => { if (placing && event.key === 'Enter') { event.preventDefault(); place(getViewer().currentPageNumber, .5, .5); } });
-  window.addEventListener('keydown', event => { if (placing && event.key === 'Escape') cancelPlacement(); });
+  async function createNote() {
+    if (creating || layoutSaving || gestures.active) return;
+    if (!selectedAnchor && !selectionError) rememberSelection();
+    const anchor = selectedAnchor, error = selectionError; selectedAnchor = null; selectionError = '';
+    if (error) { status(error, true); return; }
+    creating = true;
+    try {
+      if (!(await finishEditing())) return;
+      visible = true; syncVisibility();
+      const bounds = container.getBoundingClientRect();
+      const rect = randomNoteRect({ left: bounds.left + container.clientLeft, top: bounds.top + container.clientTop, width: container.clientWidth, height: container.clientHeight }, innerWidth <= 700 ? 200 : 230, 180);
+      const page = pageForNoteRect(rect, container.querySelectorAll('.page[data-page-number]'));
+      if (!page) return;
+      const reference = page.getBoundingClientRect();
+      const layout = constrainNoteHorizontally({ x: (rect.left - reference.left) / reference.width, y: (rect.top - reference.top) / reference.height, width: rect.width / reference.width, height: rect.height / reference.height }, reference, noteViewport(container));
+      window.getSelection()?.removeAllRanges();
+      await startEditing({ page: Number(page.dataset.pageNumber), ...layout, markdown: '', anchor });
+    } catch (error) { status(`Could not create a note: ${error.message}`, true); }
+    finally { creating = false; }
+  }
   document.addEventListener('pointerdown', event => {
     if (editing && !event.composedPath().includes(editing.card)) void finishEditing();
   }, true);
@@ -240,11 +294,11 @@ export function initPdfNotes({ bookId, container, getViewer, status, onLayoutCha
   window.addEventListener('beforeunload', event => {
     if (layoutSaving || gestures.active || editing && (editing.saving || editing.editor.value !== editing.saved)) { event.preventDefault(); event.returnValue = ''; }
   });
-  $('note-placement-cancel').addEventListener('click', cancelPlacement);
-  $('note-add').addEventListener('click', () => void startPlacement());
+  $('note-add').addEventListener('pointerdown', rememberSelection);
+  $('note-add').addEventListener('click', () => void createNote());
   $('notes-toggle').addEventListener('click', async () => {
     if (!(await finishEditing())) return;
-    visible = !visible; if (!visible) cancelPlacement(); syncVisibility();
+    visible = !visible; if (!visible) { hoveredId = focusedId = null; outlineLink(null); } syncVisibility();
     try { localStorage.setItem('pixelware-pdf-notes', visible ? 'visible' : 'hidden'); } catch { /* Retain in memory. */ }
   });
   syncVisibility();
