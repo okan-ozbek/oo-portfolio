@@ -3,6 +3,7 @@ import { EventBus, PDFFindController, PDFLinkService, PDFViewer, RenderingStates
 import { readApiResponse } from './api-response.js';
 import { initFilterPicker } from './filter-picker.js';
 import { initReadingColors } from './reader-colors.js';
+import { initReaderAmbient } from './reader-ambient.js';
 import { createBookRangeTransport } from './pdf-ranges.js';
 import { initPdfNotes } from './pdf-notes.js';
 import { icon } from './icons.js';
@@ -15,6 +16,19 @@ let pdfNotes;
 const zoomPicker = initFilterPicker($('zoom'));
 const toolbar = document.querySelector('.reader-toolbar');
 const container = $('viewer-container');
+const ambient = initReaderAmbient({
+  container, viewerElement: $('viewer'), toggle: $('ambient-toggle'),
+  settings: {
+    panel: $('ambient-panel'), closeButton: $('ambient-close'), enabledInput: $('ambient-enabled'),
+    intensityInput: $('ambient-intensity'), intensityOutput: $('ambient-intensity-value'),
+    spreadInput: $('ambient-spread'), spreadOutput: $('ambient-spread-value'), resetButton: $('ambient-reset'),
+  },
+  onOpen: () => zoomPicker.close(),
+  getPageCanvas(pageNumber) {
+    const page = viewer?.getPageView(pageNumber - 1);
+    return page?.renderingState === RenderingStates.FINISHED ? page.canvas : null;
+  },
+});
 function updateNoteWorkspace(center = false) {
   const pages = container.querySelectorAll('.page[data-page-number]');
   if (!pages.length) return;
@@ -23,6 +37,7 @@ function updateNoteWorkspace(center = false) {
     const page = viewer?.getPageView(viewer.currentPageNumber - 1)?.div ?? pages[0];
     container.scrollLeft = Math.max(0, page.offsetLeft + page.clientWidth / 2 - container.clientWidth / 2);
   }
+  ambient.layoutChanged();
 }
 new ResizeObserver(() => document.documentElement.style.setProperty('--reader-toolbar-height', `${toolbar.offsetHeight}px`)).observe(toolbar);
 for (const control of document.querySelectorAll('[data-reader-icon]')) control.append(icon(control.dataset.readerIcon));
@@ -115,6 +130,7 @@ async function openBook() {
   let initialPage = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : book.bookmarkPage || 1;
   eventBus.on('pagesinit', () => {
     viewer.currentScaleValue = '1';
+    ambient.pagesInitialized();
     updateNoteWorkspace(true);
     for (const control of document.querySelectorAll('[data-document-control]')) control.disabled = false;
     $('note-add').disabled = $('notes-toggle').disabled = Boolean(pdfNotes.error);
@@ -127,7 +143,7 @@ async function openBook() {
   eventBus.on('pagechanging', ({ pageNumber }) => updatePage(pageNumber));
   eventBus.on('pagerendered', ({ pageNumber, error }) => {
     if (error) status('This page could not be rendered. Use Original PDF to open it in your browser.', true);
-    else readingColors.pageRendered(pageNumber);
+    else { readingColors.pageRendered(pageNumber); ambient.pageRendered(pageNumber); }
     pdfNotes.render();
   });
   eventBus.on('scalechanging', ({ scale, presetValue }) => {
