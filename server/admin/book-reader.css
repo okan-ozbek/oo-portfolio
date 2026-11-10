@@ -39,8 +39,11 @@ html[data-reading-colors=on] .pdfViewer .page{--page-bg-color:var(--reader-page-
 .reader-color-defs{position:absolute;pointer-events:none}
 /* Keep the glow outside PDF.js's clipped pages and outside the scrollable layout. */
 .reader-ambient-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
-.reader-ambient-page{position:absolute;filter:blur(var(--reader-ambient-blur,120px));transform:scale(var(--reader-ambient-scale,1.3));opacity:var(--reader-ambient-opacity,.72)}
-.reader-ambient-page canvas{display:block;width:100%;height:100%}
+/* Merge the page colors before blurring so adjacent pages cannot stack bright halos. */
+.reader-ambient-surface{position:absolute;inset:0;filter:blur(var(--reader-ambient-blur,112px));opacity:var(--reader-ambient-opacity,.72)}
+.reader-ambient-page{position:absolute}
+/* Extend equally in pixels on every edge, independent of page aspect ratio or zoom. */
+.reader-ambient-page canvas{display:block;position:absolute;inset:calc(-1 * var(--reader-ambient-extension,36px));width:calc(100% + 2 * var(--reader-ambient-extension,36px));height:calc(100% + 2 * var(--reader-ambient-extension,36px))}
 #viewer-container{z-index:1}
 #ambient-toggle.has-ambient{border-color:#777785;background:#34343e}
 .reader-ambient-settings{width:min(330px,calc(100vw - 24px))}

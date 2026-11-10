@@ -11,13 +11,15 @@ export function initReaderAmbient({ container, viewerElement, getPageCanvas, tog
   const layer = document.createElement('div');
   layer.className = 'reader-ambient-layer';
   layer.setAttribute('aria-hidden', 'true');
+  const surface = document.createElement('div'); surface.className = 'reader-ambient-surface';
+  layer.append(surface);
   container.parentElement.prepend(layer);
   const visible = new Set(), glows = new Map();
 
   function applyAppearance() {
     layer.style.setProperty('--reader-ambient-opacity', String(intensity / 100));
-    layer.style.setProperty('--reader-ambient-blur', `${40 + spread * 4 / 3}px`);
-    layer.style.setProperty('--reader-ambient-scale', String(1.06 + spread * .004));
+    layer.style.setProperty('--reader-ambient-blur', `${40 + spread * 1.2}px`);
+    layer.style.setProperty('--reader-ambient-extension', `${spread * .6}px`);
     settings.intensityInput.value = String(intensity); settings.intensityOutput.textContent = `${intensity}%`;
     settings.spreadInput.value = String(spread); settings.spreadOutput.textContent = `${spread}%`;
     settings.intensityInput.setAttribute('aria-valuetext', `${intensity} percent`);
@@ -42,7 +44,7 @@ export function initReaderAmbient({ container, viewerElement, getPageCanvas, tog
       if (!glow) {
         const element = document.createElement('div'); element.className = 'reader-ambient-page';
         const canvas = document.createElement('canvas'); element.append(canvas);
-        glow = { element, canvas, source: null }; glows.set(page, glow); layer.append(element);
+        glow = { element, canvas, source: null }; glows.set(page, glow); surface.append(element);
       }
       // Only retain a tiny sample for pages near the viewport, never full-size copies.
       if (ready && (glow.source !== source || glow.width !== source.width || glow.height !== source.height)) {
@@ -82,7 +84,7 @@ export function initReaderAmbient({ container, viewerElement, getPageCanvas, tog
     settings.intensityInput.disabled = settings.spreadInput.disabled = !enabled;
     if (enabled) observePages();
     else {
-      observer.disconnect(); visible.clear(); glows.clear(); layer.replaceChildren();
+      observer.disconnect(); visible.clear(); glows.clear(); surface.replaceChildren();
       cancelAnimationFrame(frame); frame = 0;
     }
   }

@@ -49,7 +49,7 @@ function fixture(t, { saved, savedSettings, unavailableStorage = false } = {}) {
   const flush = () => { const pending = [...frames.values()]; frames.clear(); for (const callback of pending) callback(); };
   const enter = (page, isIntersecting = true) => intersection.callback([{ target: page, isIntersecting }]);
   const setEnabled = enabled => { settings.enabledInput.checked = enabled; settings.enabledInput.dispatchEvent(new Event('change')); };
-  return { ambient, canvases, container, document, draws, enter, flush, frames, intersection, layer: main.children[0], pages, setEnabled, settings, stored, toggle };
+  return { ambient, canvases, container, document, draws, enter, flush, frames, intersection, layer: main.children[0], surface: main.children[0].children[0], pages, setEnabled, settings, stored, toggle };
 }
 
 test('ambient mode samples only nearby rendered pages and repositions without recopying on scroll', t => {
@@ -60,7 +60,8 @@ test('ambient mode samples only nearby rendered pages and repositions without re
   assert.equal(f.draws.length, 1);
   assert.equal(f.draws[0][0], f.canvases.get(1));
   assert.deepEqual(f.draws[0].slice(1), [0, 0, 48, 62]);
-  const glow = f.layer.children[0];
+  const glow = f.surface.children[0];
+  assert.equal(glow.children.length, 1);
   f.pages[0].rect.top -= 100;
   f.container.dispatchEvent(new Event('scroll')); f.container.dispatchEvent(new Event('scroll'));
   assert.equal(f.frames.size, 1); f.flush();
@@ -70,7 +71,7 @@ test('ambient mode samples only nearby rendered pages and repositions without re
   assert.equal(glow.style.width, '1020px', 'Keep the existing glow aligned during a PDF rerender');
   f.canvases.set(1, { width: 2040, height: 2640 });
   f.ambient.pageRendered(1); f.flush(); assert.equal(f.draws.length, 2);
-  f.enter(f.pages[0], false); f.flush(); assert.equal(f.layer.children.length, 0);
+  f.enter(f.pages[0], false); f.flush(); assert.equal(f.surface.children.length, 0);
 });
 
 test('turning ambient mode off releases samples and restores its remembered setting', t => {
@@ -80,7 +81,7 @@ test('turning ambient mode off releases samples and restores its remembered sett
   assert.equal(f.stored.get('pixelware-pdf-ambient'), 'on'); assert.equal(f.intersection.targets.size, 2);
   f.enter(f.pages[1]); f.flush(); assert.equal(f.draws.length, 1);
   f.setEnabled(false);
-  assert.equal(f.stored.get('pixelware-pdf-ambient'), 'off'); assert.equal(f.layer.children.length, 0);
+  assert.equal(f.stored.get('pixelware-pdf-ambient'), 'off'); assert.equal(f.surface.children.length, 0);
   assert.equal(f.intersection.targets.size, 0); assert.equal(f.settings.enabledInput.checked, false);
   assert.equal(f.settings.intensityInput.disabled, true); assert.equal(f.settings.spreadInput.disabled, true);
   f.ambient.pageRendered(2); f.container.dispatchEvent(new Event('scroll')); f.flush();
@@ -106,7 +107,7 @@ test('ambient sliders update the glow live without resampling and remember their
   f.settings.intensityInput.value = '90'; f.settings.intensityInput.dispatchEvent(new Event('input'));
   f.settings.spreadInput.value = '100'; f.settings.spreadInput.dispatchEvent(new Event('input')); f.flush();
   assert.equal(f.layer.style['--reader-ambient-opacity'], '0.9');
-  assert.equal(f.layer.style['--reader-ambient-scale'], '1.46');
+  assert.equal(f.layer.style['--reader-ambient-extension'], '60px');
   assert.equal(f.settings.intensityOutput.textContent, '90%'); assert.equal(f.settings.spreadOutput.textContent, '100%');
   assert.deepEqual(JSON.parse(f.stored.get('pixelware-pdf-ambient-settings')), { intensity: 90, spread: 100 });
   assert.equal(f.draws.length, 1);
