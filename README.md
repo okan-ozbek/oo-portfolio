@@ -51,10 +51,17 @@ Notes keep their relative position when zooming. They are stored separately from
 the PDF and also appear as yellow cards in **Book Notes**. Click a card to open
 its PDF page. Editing and deletion of PDF notes happen in the reader.
 The reader's compact icon toolbar stays visible while scrolling. On narrow
-screens, **More reading controls** contains zoom, dark mode, reading colors, and
+screens, **More reading controls** contains zoom, dark mode, ambient mode, reading colors, and
 the original PDF link. **Note settings** changes the color and base font size
 for all PDF notes and their Book Notes cards. Headings and code scale from that
 size. These appearance settings are remembered in this browser.
+
+**Ambient mode** adds a soft gradient of each visible page's colors around its
+edges. It is on by default and follows original, dark, and custom reading colors.
+Use the ambient icon beside Dark mode (inside **More reading controls** on small
+screens) to open its settings. Toggle the glow, adjust its **Intensity** and
+**Spread** live, or reset the defaults. Settings are remembered in this browser. It reuses
+small samples of rendered pages without loading additional PDF data.
 
 The **Blogs** workspace supports autosaved Markdown drafts, highlighted code,
 Mermaid diagrams, resizable images, paired artwork presets, publishing, and

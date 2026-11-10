@@ -5,6 +5,7 @@ const paths = {
   previous: ['m12 4-6 6 6 6'],
   search: ['M13 8a5 5 0 1 1-10 0 5 5 0 0 1 10 0Z','m12 12 5 5'],
   moon: ['M17 12A8 8 0 0 1 8 3a8 8 0 1 0 9 9Z'],
+  ambient: ['M6 5h8v10H6V5Z','M3 7v6M17 7v6M8 2h4M8 18h4'],
   palette: ['M10 2a8 8 0 1 0 0 16h1a2 2 0 0 0 1-4c-1-1 0-2 1-2h2c4 0 3-10-5-10Z','M6 6h.01M10 5h.01M14 7h.01M5 10h.01'],
   noteAdd: ['M4 2h8l4 4v12H4V2Z','M12 2v4h4M7 11h6M10 8v6'],
   external: ['M11 3h6v6M17 3l-9 9M8 3H3v14h14v-5'],
