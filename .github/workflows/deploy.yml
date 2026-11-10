@@ -1,4 +1,4 @@
-name: Deploy portfolio and analytics
+name: Deploy to Production
 on:
   push:
     branches:

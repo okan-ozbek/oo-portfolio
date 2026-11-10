@@ -29,7 +29,7 @@ function fixture(t, { saved, savedSettings, unavailableStorage = false } = {}) {
     cancelAnimationFrame: id => frames.delete(id),
     IntersectionObserver: class {
       targets = new Set();
-      constructor(callback) { this.callback = callback; intersection = this; }
+      constructor(callback) { this.callback = callback; intersection = { callback, targets: this.targets }; }
       observe(page) { this.targets.add(page); }
       disconnect() { this.targets.clear(); }
     },
