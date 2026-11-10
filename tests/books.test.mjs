@@ -13,9 +13,47 @@ import sharp from 'sharp';
 import { createBooks } from '../server/books.mjs';
 import { renderNoteMarkdown } from '../server/blog-markdown.mjs';
 import { noteAppearance } from '../server/admin/note-appearance.js';
+import { normalizeTextAnchor, randomNoteRect } from '../server/admin/pdf-text-anchor.js';
 import { constrainNoteHorizontally, displayNoteLayout, fitNoteLayout, pageForNoteRect } from '../server/admin/pdf-note-gestures.js';
 const origin = 'https://pixelware.test', password = 'book-library test password!';
 const passwordHash = await hashPassword(password);
+
+test('text-linked notes persist independently of placement and survive edits, restarts, and deletion', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'pixelware-linked-notes-'));
+  const database = join(directory, 'admin.sqlite'); let app, restarted;
+  t.after(async () => { await app?.close(); await restarted?.close(); await rm(directory, { recursive: true, force: true }); });
+  app = await fixture(t, database); await app.login();
+  const { book } = await (await app.upload()).json(), path = `books/${book.id}/annotations`;
+  const anchor = { text: '<script>Remember this passage</script>', rects: [{ page: 1, x: .1, y: .2, width: .6, height: .03 }, { page: 2, x: .1, y: .1, width: .2, height: .03 }] };
+  const body = { page: 1, x: .6, y: .4, width: .3, height: .2, markdown: '', anchor };
+  const created = await app.request(path, { method: 'POST', body }); assert.equal(created.status, 201);
+  let { annotation } = await created.json(); assert.deepEqual(annotation.anchor, anchor); assert.equal(annotation.markdown, '');
+  const item = `${path}/${annotation.id}`;
+  const moved = await app.request(item, { method: 'PATCH', body: { page: 2, x: -.3, y: .5, markdown: 'Moved away from its passage' } });
+  assert.equal(moved.status, 200); annotation = (await moved.json()).annotation;
+  assert.equal(annotation.page, 2); assert.deepEqual(annotation.anchor, anchor);
+  for (const invalid of [{ ...anchor, rects: [] }, { ...anchor, text: '' }, { ...anchor, rects: [{ ...anchor.rects[0], page: 3 }] }, { ...anchor, rects: [{ ...anchor.rects[0], x: .9 }] }, { ...anchor, rects: [{ ...anchor.rects[0], width: '0.2' }] }]) {
+    assert.equal((await app.request(item, { method: 'PATCH', body: { ...body, anchor: invalid } })).status, 400);
+  }
+  assert.equal((await app.request(item, { method: 'PATCH', body, anonymous: true })).status, 401);
+  await app.close(); restarted = await fixture(t, database); await restarted.login();
+  assert.deepEqual((await (await restarted.request(path)).json()).annotations, [annotation]);
+  assert.deepEqual(Buffer.from(await (await restarted.request(`books/${book.id}/pdf`)).arrayBuffer()), bookPdf());
+  assert.equal((await restarted.request(item, { method: 'DELETE', body: {} })).status, 200);
+  assert.deepEqual((await (await restarted.request(path)).json()).annotations, []);
+});
+
+test('highlight geometry validates page bounds and random note placement stays within the visible viewport', () => {
+  assert.equal(normalizeTextAnchor(null), null);
+  for (const bad of [undefined, [], {}, { text: 'A', rects: Array(501).fill({}) }, { text: 'x'.repeat(20001), rects: [] }, { text: 'A', rects: [{ page: 1, x: NaN, y: 0, width: .2, height: .1 }] }]) assert.throws(() => normalizeTextAnchor(bad, 2));
+  for (const viewport of [{ left: 0, top: 48, width: 1600, height: 900 }, { left: -10, top: 100, width: 280, height: 400 }, { left: 10, top: 50, width: 120, height: 100 }]) {
+    for (const random of [0, .25, .75, 1]) {
+      const rect = randomNoteRect(viewport, 230, 240, () => random);
+      assert.ok(rect.left >= viewport.left && rect.top >= viewport.top);
+      assert.ok(rect.right <= viewport.left + viewport.width && rect.bottom <= viewport.top + viewport.height);
+    }
+  }
+});
 
 test('PDF post-it notes validate positions, protect mutations, render Markdown, and remain independent of book notes', async t => {
   const app = await fixture(t); await app.login();

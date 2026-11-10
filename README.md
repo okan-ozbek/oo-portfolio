@@ -33,7 +33,15 @@ write. Markdown source and Preview views are also available. Notes autosave;
 note** removes the contents. Notes persist in SQLite with the book and are removed
 when the book is deleted.
 
-In the PDF reader, choose **Add note**, then click or tap the exact spot on a page.
+In the PDF reader, **Add note** immediately opens a post-it at a random position
+inside the visible reading area. Drag its header to move it wherever you like.
+Select PDF text before choosing **Add note** to link the note to that passage.
+The selected text stays highlighted, and hovering the text or its note outlines
+both. The note remembers the quotation, which is shown in **Book Notes** and
+hidden inside the reader’s post-it.
+Highlights persist across reloads and zoom changes, independently of where you
+drag the post-it, including across pages. Linked passages save even before you
+write any note text. **Show notes** hides both the cards and their highlights.
 Click a note's text or pencil icon to edit Markdown directly inside the yellow
 post-it. Changes autosave; clicking outside the note or using the red checkmark
 saves and finishes editing. Delete is available in the note's editing header.
